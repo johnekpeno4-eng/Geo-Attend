@@ -236,28 +236,33 @@
       });
     }
 
-    const togglePassword = document.getElementById("toggle-password");
-    const passwordInput = document.getElementById("password");
-    if (togglePassword && passwordInput) {
-      togglePassword.addEventListener("click", () => {
-        const shouldShow = passwordInput.type === "password";
-        passwordInput.type = shouldShow ? "text" : "password";
-        togglePassword.querySelector(".material-symbols-outlined").textContent = shouldShow ? "visibility_off" : "visibility";
+    function bindPasswordToggle(button, input) {
+      if (!button || !input || button.dataset.passwordToggleBound === "true") return;
+      button.dataset.passwordToggleBound = "true";
+
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        const isHidden = input.type === "password";
+        input.type = isHidden ? "text" : "password";
+
+        const icon = button.querySelector(".material-symbols-outlined");
+        if (icon) {
+          icon.textContent = isHidden ? "visibility_off" : "visibility";
+        }
+
+        button.setAttribute("aria-label", isHidden ? "Hide password" : "Show password");
+        button.setAttribute("aria-pressed", String(isHidden));
       });
     }
 
+    const togglePassword = document.getElementById("toggle-password");
+    const passwordInput = document.getElementById("password");
+    bindPasswordToggle(togglePassword, passwordInput);
 
     document.querySelectorAll("[data-toggle-password]").forEach((button) => {
-      button.addEventListener("click", () => {
-        const selector = button.getAttribute("data-toggle-password");
-        const input = selector ? document.querySelector(selector) : null;
-        if (!input) return;
-        const shouldShow = input.type === "password";
-        input.type = shouldShow ? "text" : "password";
-        const icon = button.querySelector(".material-symbols-outlined");
-        if (icon) icon.textContent = shouldShow ? "visibility_off" : "visibility";
-        button.setAttribute("aria-label", shouldShow ? "Hide password" : "Show password");
-      });
+      const selector = button.getAttribute("data-toggle-password");
+      const input = selector ? document.querySelector(selector) : null;
+      bindPasswordToggle(button, input);
     });
     function getApiTargets(url) {
       const targets = [url];

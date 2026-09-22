@@ -387,11 +387,26 @@
     updateRegNumberValue();
     loadAcademicScope();
 
-    togglePassword.addEventListener("click", () => {
-      const isHidden = passwordInput.type === "password";
-      passwordInput.type = isHidden ? "text" : "password";
-      togglePassword.querySelector(".material-symbols-outlined").textContent = isHidden ? "visibility_off" : "visibility";
-    });
+    function bindPasswordToggle(button, input) {
+      if (!button || !input || button.dataset.passwordToggleBound === "true") return;
+      button.dataset.passwordToggleBound = "true";
+
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        const isHidden = input.type === "password";
+        input.type = isHidden ? "text" : "password";
+
+        const icon = button.querySelector(".material-symbols-outlined");
+        if (icon) {
+          icon.textContent = isHidden ? "visibility_off" : "visibility";
+        }
+
+        button.setAttribute("aria-label", isHidden ? "Hide password" : "Show password");
+        button.setAttribute("aria-pressed", String(isHidden));
+      });
+    }
+
+    bindPasswordToggle(togglePassword, passwordInput);
 
     const registerForm = document.getElementById("register-form");
     const message = document.getElementById("form-message");
