@@ -86,10 +86,13 @@ Example:
 PORT=4000
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
-SMTP_USER=your-email@example.com
-SMTP_PASS=your-app-password
-SMTP_FROM=GeoAttend <your-email@example.com>
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-16-character-gmail-app-password
+MAIL_FROM="GeoAttend <your-email@gmail.com>"
+# SMTP_FROM is also accepted for compatibility
 ```
+
+For Gmail, use a 16-character App Password, not your normal Gmail password.
 
 The real `.env` file is ignored by Git to protect passwords and private configuration.
 

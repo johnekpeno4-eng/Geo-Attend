@@ -798,10 +798,14 @@ async function sendEmailWithRetry(message, retries = 2) {
 }
 
 async function sendEmail(message) {
-  const required = ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "MAIL_FROM"];
+  const mailFrom = process.env.MAIL_FROM || process.env.SMTP_FROM;
+  const required = ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS"];
   const missing = required.filter((key) => !process.env[key]);
   if (missing.length) {
     throw new Error(`Email is not configured. Add ${missing.join(", ")} to .env.`);
+  }
+  if (!mailFrom) {
+    throw new Error("Email sender address is not configured. Add MAIL_FROM or SMTP_FROM to .env.");
   }
 
   if (!mailTransporter) {
@@ -823,7 +827,7 @@ async function sendEmail(message) {
   }
 
   return mailTransporter.sendMail({
-    from: process.env.MAIL_FROM,
+    from: mailFrom,
     sender: process.env.SMTP_USER,
     replyTo: process.env.SMTP_USER,
     envelope: {

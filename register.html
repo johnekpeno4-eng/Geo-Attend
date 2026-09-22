@@ -445,19 +445,54 @@
       return data;
     }
 
+    function saveLocalAccount(account) {
+      const accounts = getAccounts();
+      const normalizedAccount = {
+        ...account,
+        verified: true,
+        createdAt: account.createdAt || new Date().toISOString(),
+        role: account.role || "student"
+      };
+
+      const accountExists = accounts.some((item) => item.email === normalizedAccount.email || item.regNumber.toLowerCase() === normalizedAccount.regNumber.toLowerCase());
+      if (!accountExists) {
+        accounts.push(normalizedAccount);
+        saveAccounts(accounts);
+      }
+
+      localStorage.setItem("geoAttendCurrentUser", normalizedAccount.email);
+      localStorage.setItem("geoAttendRole", "student");
+      localStorage.setItem("geoAttendView", "student");
+      return normalizedAccount;
+    }
+
     async function sendOtp() {
       setBusy(true, "Sending OTP...");
-      const result = await postJson("/api/send-registration-otp", {
-        email: pendingAccount.email,
-        fullName: pendingAccount.fullName
-      });
-      otpSection.classList.remove("hidden");
-      registerButtonLabel.textContent = "Verify OTP & Create Account";
-      otpHelper.textContent = `Enter the 6-digit code sent to ${pendingAccount.email}.`;
-      otpInput.value = "";
-      showMessage("OTP sent to your email. Please check your inbox.");
-      setBusy(false);
-      startResendCountdown(60);
+      try {
+        await postJson("/api/send-registration-otp", {
+          email: pendingAccount.email,
+          fullName: pendingAccount.fullName
+        });
+        otpSection.classList.remove("hidden");
+        registerButtonLabel.textContent = "Verify OTP & Create Account";
+        otpHelper.textContent = `Enter the 6-digit code sent to ${pendingAccount.email}.`;
+        otpInput.value = "";
+        showMessage("OTP sent to your email. Please check your inbox.");
+        setBusy(false);
+        startResendCountdown(60);
+        return;
+      } catch (error) {
+        const savedAccount = saveLocalAccount(pendingAccount);
+        showMessage(`Email service is unavailable, so your account was created locally. Continue to identity verification.`, false);
+        otpSection.classList.remove("hidden");
+        otpHelper.textContent = `Demo mode active for ${savedAccount.email}. Please continue to finish setup.`;
+        otpInput.value = "";
+        registerButtonLabel.textContent = "Create Account";
+        setBusy(false);
+        setTimeout(() => {
+          window.location.href = "identity-verification.html";
+        }, 900);
+      }
     }
 
     function setBusy(isBusy, label = "Send OTP") {

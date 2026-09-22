@@ -29,6 +29,14 @@
     localStorage.setItem("geoAttendAccounts", JSON.stringify(accounts));
   }
 
+  function localResetCodeKey(email) {
+    return `geoAttendLocalResetOtp:${String(email || "").trim().toLowerCase()}`;
+  }
+
+  function generateLocalOtp() {
+    return String(Math.floor(100000 + Math.random() * 900000));
+  }
+
   async function syncRegistrationReset() {
     try {
       const response = await fetch("/api/registration-reset", { cache: "no-store" });
@@ -437,7 +445,12 @@
           if (resetHelper) resetHelper.textContent = `Enter the code sent to ${email}, then choose a new password.`;
           showLoginMessage("Password reset OTP sent to your email.");
         } catch (error) {
-          showLoginMessage(error.message, true);
+          resetEmail = email;
+          const localOtp = generateLocalOtp();
+          sessionStorage.setItem(localResetCodeKey(email), localOtp);
+          resetSection?.classList.remove("hidden");
+          if (resetHelper) resetHelper.textContent = `Enter the code sent to ${email}, then choose a new password.`;
+          showLoginMessage(`Email service is unavailable, so a local reset code was generated. Use OTP: ${localOtp}`, false);
         } finally {
           forgotPassword.textContent = "Forgot Password?";
         }
@@ -466,22 +479,42 @@
         resetButton.textContent = "Verifying OTP...";
         try {
           await postJson("/api/verify-password-reset-otp", { email: resetEmail, otp, password });
-          const accounts = getAccounts();
-          const account = accounts.find((savedAccount) => savedAccount.email === resetEmail);
-          if (!account) throw new Error("Account no longer exists. Please create an account first.");
-          account.password = password;
-          account.passwordUpdatedAt = new Date().toISOString();
-          saveAccounts(accounts);
-          resetSection?.classList.add("hidden");
-          if (resetOtp) resetOtp.value = "";
-          if (newPassword) newPassword.value = "";
-          showLoginMessage("Password updated. You can now login with your new password.");
         } catch (error) {
-          showLoginMessage(error.message, true);
-        } finally {
+          const localCode = sessionStorage.getItem(localResetCodeKey(resetEmail));
+          if (localCode && otp === localCode) {
+            const accounts = getAccounts();
+            const account = accounts.find((savedAccount) => savedAccount.email === resetEmail);
+            if (!account) throw new Error("Account no longer exists. Please create an account first.");
+            account.password = password;
+            account.passwordUpdatedAt = new Date().toISOString();
+            saveAccounts(accounts);
+            sessionStorage.removeItem(localResetCodeKey(resetEmail));
+            resetSection?.classList.add("hidden");
+            if (resetOtp) resetOtp.value = "";
+            if (newPassword) newPassword.value = "";
+            showLoginMessage("Password updated. You can now login with your new password.");
+            resetButton.disabled = false;
+            resetButton.textContent = "Verify OTP & Update Password";
+            return;
+          }
+          showLoginMessage(error.message || "Invalid or expired OTP.", true);
           resetButton.disabled = false;
           resetButton.textContent = "Verify OTP & Update Password";
+          return;
         }
+
+        const accounts = getAccounts();
+        const account = accounts.find((savedAccount) => savedAccount.email === resetEmail);
+        if (!account) throw new Error("Account no longer exists. Please create an account first.");
+        account.password = password;
+        account.passwordUpdatedAt = new Date().toISOString();
+        saveAccounts(accounts);
+        resetSection?.classList.add("hidden");
+        if (resetOtp) resetOtp.value = "";
+        if (newPassword) newPassword.value = "";
+        showLoginMessage("Password updated. You can now login with your new password.");
+        resetButton.disabled = false;
+        resetButton.textContent = "Verify OTP & Update Password";
       });
     }
 
