@@ -182,6 +182,7 @@
         if (!account) {
           try {
             await loginStudentFromServer();
+            return;
           } catch (error) {
             if (message) {
               message.textContent = error.message || "No account found with this email. Please create an account first.";
@@ -203,44 +204,43 @@
           return;
         }
 
-        if (account.password !== password) {
-          try {
-            await loginStudentFromServer();
-          } catch (error) {
-            if (message) {
-              message.textContent = error.message || "Incorrect password. Please try again.";
-              message.classList.remove("hidden");
-              message.classList.remove("text-[#0058be]", "bg-[#eff4ff]");
-              message.classList.add("text-[#93000a]", "bg-[#ffdad6]");
-            }
+        if (account.password === password) {
+          localStorage.setItem("geoAttendCurrentUser", account.email);
+          localStorage.setItem("geoAttendRole", "student");
+          localStorage.setItem("geoAttendView", "student");
+          localStorage.removeItem("geoAttendAdminEmail");
+          localStorage.removeItem("geoAttendAdminRole");
+          localStorage.removeItem("geoAttendAdminName");
+          localStorage.removeItem("geoAttendAdminFacultyId");
+          localStorage.removeItem("geoAttendAdminFacultyName");
+          localStorage.removeItem("geoAttendAdminDepartmentId");
+          localStorage.removeItem("geoAttendAdminDepartmentName");
+          localStorage.removeItem("geoAttendAdminLevelId");
+          localStorage.removeItem("geoAttendAdminLevelName");
+
+          if (message) {
+            message.textContent = "Login successful. Redirecting...";
+            message.classList.remove("hidden");
+            message.classList.remove("text-[#93000a]", "bg-[#ffdad6]");
+            message.classList.add("text-[#0058be]", "bg-[#eff4ff]");
           }
+
+          setTimeout(() => {
+            window.location.href = "student-home.html";
+          }, 500);
           return;
         }
 
-        const role = account.role || "student";
-        localStorage.setItem("geoAttendCurrentUser", account.email);
-        localStorage.setItem("geoAttendRole", role);
-        localStorage.setItem("geoAttendView", role === "admin" ? "admin" : "student");
-        localStorage.removeItem("geoAttendAdminEmail");
-        localStorage.removeItem("geoAttendAdminRole");
-        localStorage.removeItem("geoAttendAdminName");
-        localStorage.removeItem("geoAttendAdminFacultyId");
-        localStorage.removeItem("geoAttendAdminFacultyName");
-        localStorage.removeItem("geoAttendAdminDepartmentId");
-        localStorage.removeItem("geoAttendAdminDepartmentName");
-        localStorage.removeItem("geoAttendAdminLevelId");
-        localStorage.removeItem("geoAttendAdminLevelName");
-
-        if (message) {
-          message.textContent = "Login successful. Redirecting...";
-          message.classList.remove("hidden");
-          message.classList.remove("text-[#93000a]", "bg-[#ffdad6]");
-          message.classList.add("text-[#0058be]", "bg-[#eff4ff]");
+        try {
+          await loginStudentFromServer();
+        } catch (error) {
+          if (message) {
+            message.textContent = error.message || "Incorrect password. Please try again.";
+            message.classList.remove("hidden");
+            message.classList.remove("text-[#0058be]", "bg-[#eff4ff]");
+            message.classList.add("text-[#93000a]", "bg-[#ffdad6]");
+          }
         }
-
-        setTimeout(() => {
-        window.location.href = role === "admin" ? "dashboard.html" : "student-home.html";
-        }, 500);
       });
     }
 
@@ -439,11 +439,15 @@
 
         forgotPassword.textContent = "Sending OTP...";
         try {
-          await postJson("/api/send-password-reset-otp", { email });
+          const result = await postJson("/api/send-password-reset-otp", { email });
           resetEmail = email;
           resetSection?.classList.remove("hidden");
           if (resetHelper) resetHelper.textContent = `Enter the code sent to ${email}, then choose a new password.`;
-          showLoginMessage("Password reset OTP sent to your email.");
+          if (result?.demoOtp) {
+            showLoginMessage(`Password reset OTP created in demo mode. Use code: ${result.demoOtp}`, false);
+          } else {
+            showLoginMessage("Password reset OTP sent to your email.");
+          }
         } catch (error) {
           resetEmail = email;
           const localOtp = generateLocalOtp();

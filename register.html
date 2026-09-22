@@ -469,7 +469,7 @@
     async function sendOtp() {
       setBusy(true, "Sending OTP...");
       try {
-        await postJson("/api/send-registration-otp", {
+        const result = await postJson("/api/send-registration-otp", {
           email: pendingAccount.email,
           fullName: pendingAccount.fullName
         });
@@ -477,7 +477,11 @@
         registerButtonLabel.textContent = "Verify OTP & Create Account";
         otpHelper.textContent = `Enter the 6-digit code sent to ${pendingAccount.email}.`;
         otpInput.value = "";
-        showMessage("OTP sent to your email. Please check your inbox.");
+        if (result?.demoOtp) {
+          showMessage(`OTP created in demo mode. Use code: ${result.demoOtp}`, false);
+        } else {
+          showMessage("OTP sent to your email. Please check your inbox.");
+        }
         setBusy(false);
         startResendCountdown(60);
         return;

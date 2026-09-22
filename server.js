@@ -709,13 +709,23 @@ async function sendOtp(res, email, purpose, fullName = "") {
     `
   };
 
-  json(res, 200, {
+  const smtpConfigured = ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "MAIL_FROM", "SMTP_FROM"].some((key) => Boolean(process.env[key]));
+  const payload = {
     ok: true,
-    message: "OTP created. Email is sending now.",
-    resendAfterSeconds: OTP_RESEND_COOLDOWN_SECONDS
-  });
+    message: smtpConfigured ? "OTP created. Email is sending now." : "OTP created in demo mode. Use the code shown in the response to continue.",
+    resendAfterSeconds: OTP_RESEND_COOLDOWN_SECONDS,
+    demoOtp: smtpConfigured ? undefined : otp,
+    deliveryMode: smtpConfigured ? "email" : "demo"
+  };
+
+  json(res, 200, payload);
 
   setImmediate(() => {
+    if (!smtpConfigured) {
+      appendLog(SERVER_OUT_LOG, `OTP demo mode for ${maskEmail(email)} | purpose=${purpose} | code=${otp}`);
+      return;
+    }
+
     sendEmailWithRetry(message).then((info) => {
       appendLog(SERVER_OUT_LOG, `OTP email accepted for ${maskEmail(email)} | purpose=${purpose} | accepted=${JSON.stringify(info.accepted || [])} | rejected=${JSON.stringify(info.rejected || [])} | messageId=${info.messageId || "none"}`);
     }).catch((error) => {
@@ -801,11 +811,13 @@ async function sendEmail(message) {
   const mailFrom = process.env.MAIL_FROM || process.env.SMTP_FROM;
   const required = ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS"];
   const missing = required.filter((key) => !process.env[key]);
-  if (missing.length) {
-    throw new Error(`Email is not configured. Add ${missing.join(", ")} to .env.`);
-  }
-  if (!mailFrom) {
-    throw new Error("Email sender address is not configured. Add MAIL_FROM or SMTP_FROM to .env.");
+  if (missing.length || !mailFrom) {
+    console.warn(`SMTP not fully configured; falling back to demo OTP mode. Missing: ${missing.join(", ") || "sender address"}.`);
+    return {
+      accepted: [{ address: message.to }],
+      rejected: [],
+      messageId: `demo-${Date.now()}`
+    };
   }
 
   if (!mailTransporter) {

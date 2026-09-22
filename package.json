@@ -4,7 +4,7 @@
   "private": true,
   "description": "GeoAttend static prototype with email OTP API.",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js || nodejs server.js"
   },
   "dependencies": {
     "nodemailer": "^6.9.15",
