@@ -1,0 +1,93 @@
+﻿<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+  <title>GeoAttend | Sign In</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <script src="role-access.js" defer></script>
+  <link rel="stylesheet" href="mobile-student.css" />
+  <style>
+    body { font-family: Inter, sans-serif; }
+    .material-symbols-outlined { font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24; }
+  </style>
+</head>
+<body class="min-h-screen bg-[#f8f9ff] text-[#0b1c30]">
+  <main class="min-h-screen grid place-items-center px-6 py-12">
+    <section class="w-full max-w-5xl grid gap-8 lg:grid-cols-[1fr_1.1fr] items-stretch">
+      <div class="bg-[#131b2e] text-white rounded-3xl p-8 md:p-10 flex flex-col justify-between overflow-hidden relative">
+        <div class="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_right,#4cd7f6,transparent_35%)]"></div>
+        <div class="relative">
+          <div class="w-12 h-12 rounded-xl bg-white text-[#131b2e] flex items-center justify-center mb-8">
+            <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">verified_user</span>
+          </div>
+          <h1 class="text-4xl md:text-5xl font-extrabold leading-tight">GeoAttend Access</h1>
+          <p class="mt-4 text-white/70 text-lg">Admins manage sessions and analytics. Students only access check-in and student tools.</p>
+        </div>
+        <div class="relative mt-12 grid gap-3 text-sm text-white/80">
+          <p class="flex items-center gap-2"><span class="material-symbols-outlined text-[#4cd7f6]">admin_panel_settings</span> Admin can switch to student view.</p>
+          <p class="flex items-center gap-2"><span class="material-symbols-outlined text-[#4cd7f6]">school</span> Students stay inside the student interface.</p>
+        </div>
+      </div>
+
+      <form class="bg-white border border-[#c6c6cd] rounded-3xl p-8 md:p-10 shadow-xl" data-login-form>
+        <p class="text-xs font-bold uppercase tracking-widest text-[#0058be]">Sign in</p>
+        <h2 class="mt-2 text-3xl font-extrabold">Welcome Back</h2>
+        <p class="mt-3 text-[#45464d]">Enter your email and password to access GeoAttend.</p>
+
+        <div class="mt-8 grid gap-5">
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-widest text-[#45464d] mb-2" for="email">Email</label>
+            <div class="relative">
+              <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#76777d]">alternate_email</span>
+              <input class="w-full rounded-2xl border border-[#c6c6cd] bg-[#f8f9ff] py-4 pl-12 pr-4 text-base outline-none transition focus:border-[#0058be] focus:ring-4 focus:ring-[#0058be]/10" id="email" name="email" placeholder="you@school.edu" required type="email">
+            </div>
+          </div>
+
+          <div>
+            <div class="mb-2 flex items-center justify-between gap-3">
+              <label class="block text-xs font-bold uppercase tracking-widest text-[#45464d]" for="password">Password</label>
+              <a class="text-sm font-bold text-[#0058be] hover:underline" href="#" id="forgot-password">Forgot Password?</a>
+            </div>
+            <div class="relative">
+              <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#76777d]">lock</span>
+              <input class="w-full rounded-2xl border border-[#c6c6cd] bg-[#f8f9ff] py-4 pl-12 pr-14 text-base outline-none transition focus:border-[#0058be] focus:ring-4 focus:ring-[#0058be]/10" id="password" name="password" placeholder="Enter password" required type="password">
+              <button class="absolute right-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-xl text-[#76777d] hover:bg-[#e9eef8] hover:text-[#0b1c30] focus:outline-none focus:ring-4 focus:ring-[#0058be]/10" id="toggle-password" type="button" aria-label="Show password">
+                <span class="material-symbols-outlined text-[22px]">visibility</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <button class="mt-8 w-full bg-black text-white rounded-2xl py-4 font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform" type="submit">
+          Login
+          <span class="material-symbols-outlined">arrow_forward</span>
+        </button>
+
+        <div class="hidden mt-6 rounded-2xl border border-[#0058be]/30 bg-[#eff4ff] p-4" id="reset-password-section">
+          <p class="text-xs font-bold uppercase tracking-widest text-[#0058be]">Password Reset OTP</p>
+          <p class="mt-1 text-sm text-[#45464d]" id="reset-helper">Enter the code sent to your email, then choose a new password.</p>
+          <div class="mt-4 grid gap-4">
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-widest text-[#45464d] mb-2" for="reset-otp">OTP Code</label>
+              <input class="w-full rounded-2xl border border-[#c6c6cd] bg-white py-3 px-4 font-mono outline-none transition focus:border-[#0058be] focus:ring-4 focus:ring-[#0058be]/10" id="reset-otp" inputmode="numeric" maxlength="6" placeholder="000000" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-widest text-[#45464d] mb-2" for="new-password">New Password</label>
+              <div class="relative"><input class="w-full rounded-2xl border border-[#c6c6cd] bg-white py-3 px-4 pr-14 outline-none transition focus:border-[#0058be] focus:ring-4 focus:ring-[#0058be]/10" id="new-password" minlength="8" placeholder="At least 8 characters" type="password"><button class="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl text-[#76777d] hover:bg-[#e9eef8] hover:text-[#0b1c30]" type="button" data-toggle-password="#new-password" aria-label="Show new password"><span class="material-symbols-outlined text-[22px]">visibility</span></button></div>
+            </div>
+            <button class="w-full rounded-2xl bg-[#0058be] py-3 font-bold text-white active:scale-[0.98] transition-transform" id="reset-password-button" type="button">
+              Verify OTP & Update Password
+            </button>
+          </div>
+        </div>
+
+        <a class="mt-5 inline-flex text-[#0058be] font-bold hover:underline" href="register.html">Create student account</a>
+        <p class="hidden mt-4 rounded-2xl bg-[#eff4ff] px-4 py-3 text-sm font-semibold text-[#0058be]" id="login-message"></p>
+      </form>
+    </section>
+  </main>
+</body>
+</html>
+

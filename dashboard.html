@@ -1,0 +1,1408 @@
+﻿<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+  <title>GeoAttend | Dashboard</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            background: "#f8f9ff",
+            surface: "#f8f9ff",
+            "surface-container-lowest": "#ffffff",
+            "surface-container-low": "#eff4ff",
+            "surface-container": "#e5eeff",
+            "surface-container-high": "#dce9ff",
+            "surface-container-highest": "#d3e4fe",
+            "surface-variant": "#d3e4fe",
+            "on-surface": "#0b1c30",
+            "on-background": "#0b1c30",
+            "on-surface-variant": "#45464d",
+            outline: "#76777d",
+            "outline-variant": "#c6c6cd",
+            primary: "#000000",
+            "primary-container": "#131b2e",
+            secondary: "#0058be",
+            "secondary-container": "#2170e4",
+            "secondary-fixed": "#d8e2ff",
+            "secondary-fixed-dim": "#adc6ff",
+            "on-secondary-fixed": "#001a42",
+            tertiary: "#000000",
+            "tertiary-fixed-dim": "#4cd7f6",
+            error: "#ba1a1a",
+            "error-container": "#ffdad6",
+            "on-error-container": "#93000a",
+            "on-primary": "#ffffff"
+          },
+          borderRadius: {
+            DEFAULT: "0.25rem",
+            lg: "0.5rem",
+            xl: "0.75rem",
+            full: "9999px"
+          },
+          spacing: {
+            xs: "4px",
+            sm: "8px",
+            md: "16px",
+            lg: "24px",
+            xl: "32px",
+            gutter: "24px",
+            "container-max": "1440px"
+          },
+          fontFamily: {
+            "body-md": ["Inter", "sans-serif"],
+            "body-lg": ["Inter", "sans-serif"],
+            "title-md": ["Inter", "sans-serif"],
+            "headline-lg": ["Inter", "sans-serif"],
+            "display-lg": ["Inter", "sans-serif"],
+            "label-md": ["Inter", "sans-serif"],
+            "mono-data": ["JetBrains Mono", "monospace"]
+          },
+          fontSize: {
+            "label-md": ["12px", { lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "600" }],
+            "body-md": ["14px", { lineHeight: "20px", fontWeight: "400" }],
+            "body-lg": ["16px", { lineHeight: "24px", fontWeight: "400" }],
+            "title-md": ["20px", { lineHeight: "28px", fontWeight: "600" }],
+            "headline-lg": ["32px", { lineHeight: "40px", fontWeight: "600" }],
+            "display-lg": ["48px", { lineHeight: "56px", fontWeight: "800" }],
+            "mono-data": ["13px", { lineHeight: "18px", fontWeight: "400" }]
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    .material-symbols-outlined {
+      display: inline-block;
+      vertical-align: middle;
+      font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+    }
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #d3e4fe; border-radius: 10px; }
+    .bento-grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 24px;
+    }
+  </style>
+  <script src="role-access.js" defer></script>
+  <link rel="stylesheet" href="mobile-admin.css" />
+</head>
+<body class="bg-background text-on-background font-body-md overflow-x-hidden" data-role-required="admin">
+  <aside class="w-[280px] h-screen fixed left-0 top-0 bg-surface-container-lowest border-r border-outline-variant shadow-sm flex flex-col py-lg px-md z-50">
+    <div class="flex items-center gap-md mb-xl px-sm">
+      <div class="w-10 h-10 rounded-lg bg-secondary text-on-primary flex items-center justify-center">
+        <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">verified_user</span>
+      </div>
+      <div>
+        <h1 class="font-headline-lg text-headline-lg font-bold text-on-surface leading-tight">GeoAttend</h1>
+        <p class="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider">Secure Intelligence</p>
+      </div>
+    </div>
+
+    <nav class="flex-1 space-y-xs">
+      <a class="flex items-center gap-md p-md rounded-lg text-secondary font-bold border-l-4 border-secondary bg-surface-container-low transition-colors" href="dashboard.html">
+        <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+        <span>Dashboard</span>
+      </a>
+      <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="create-session.html">
+        <span class="material-symbols-outlined">add_circle</span>
+        <span>Create Session</span>
+      </a>
+      <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="live-monitor.html">
+        <span class="material-symbols-outlined">security</span>
+        <span>Live Monitor</span>
+      </a>
+      <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="students.html">
+        <span class="material-symbols-outlined">groups</span>
+        <span>Students</span>
+      </a>
+      <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="records.html">
+        <span class="material-symbols-outlined">description</span>
+        <span>Records</span>
+      </a>
+    </nav>
+
+    <div class="mt-auto space-y-xs pt-lg border-t border-outline-variant">
+      <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="#">
+        <span class="material-symbols-outlined">logout</span>
+        <span>Logout</span>
+      </a>
+    </div>
+  </aside>
+
+  <main class="ml-[280px] min-h-screen">
+    <header class="flex justify-between items-center px-lg h-16 w-full bg-surface/80 backdrop-blur-md sticky top-0 z-40 gap-lg">
+      <div class="flex-1"></div>
+      <div class="flex items-center justify-end gap-lg">
+        <div class="relative w-[min(460px,42vw)]">
+          <span class="material-symbols-outlined absolute left-md top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+          <input class="w-full bg-surface-container-low border-none rounded-full pl-xl pr-md py-xs text-body-md focus:ring-2 focus:ring-secondary/20 placeholder:text-on-surface-variant/50" placeholder="Search dashboard, courses, or students..." type="text" />
+        </div>
+        <button class="text-on-surface-variant hover:text-secondary transition-colors relative">
+          <span class="material-symbols-outlined">notifications</span>
+          <span class="absolute top-0 right-0 w-2 h-2 bg-error rounded-full border-2 border-surface"></span>
+        </button>
+        <button class="text-on-surface-variant hover:text-secondary transition-colors">
+          <span class="material-symbols-outlined">help</span>
+        </button>
+        <div class="flex items-center gap-sm pl-md border-l border-outline-variant">
+          <div class="text-right hidden sm:block">
+            <p class="font-label-md text-on-surface" data-current-user-name>Admin User</p>
+            <p class="text-[10px] text-on-surface-variant uppercase tracking-tighter">Administrator</p>
+          </div>
+          <div class="w-8 h-8 rounded-full bg-secondary-fixed flex items-center justify-center text-secondary">
+            <span class="material-symbols-outlined text-[18px]">person</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="p-lg max-w-container-max mx-auto">
+      <div class="flex flex-col md:flex-row md:items-end justify-between mb-xl gap-lg">
+        <div>
+          <nav class="flex items-center gap-xs text-on-surface-variant font-label-md mb-xs">
+            <span>Dashboard</span>
+            <span class="material-symbols-outlined text-[14px]">chevron_right</span>
+            <span class="text-secondary">Intelligence Dashboard</span>
+          </nav>
+          <h2 class="font-headline-lg text-headline-lg text-on-surface">Dashboard</h2>
+          <p class="text-on-surface-variant font-body-md">Comprehensive behavioral insights and geolocation-verified data logs.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-md">
+          <label class="flex items-center bg-surface-container-lowest border border-outline-variant rounded-lg px-md py-sm">
+            <span class="material-symbols-outlined text-[18px] text-on-surface-variant mr-sm">calendar_today</span>
+            <select class="bg-transparent border-none text-label-md focus:ring-0 cursor-pointer">
+              <option>Spring Semester 2024</option>
+              <option>Fall Semester 2023</option>
+            </select>
+          </label>
+          <label class="flex items-center bg-surface-container-lowest border border-outline-variant rounded-lg px-md py-sm">
+            <span class="material-symbols-outlined text-[18px] text-on-surface-variant mr-sm">school</span>
+            <select class="bg-transparent border-none text-label-md focus:ring-0 cursor-pointer">
+              <option>Advanced Cybersecurity 401</option>
+              <option>Intro to AI Ethics</option>
+              <option>Network Infrastructure</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <section class="bg-surface-container-lowest p-lg rounded-xl border border-outline-variant/30 shadow-sm mb-lg">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-md mb-lg">
+          <div class="flex items-center gap-sm">
+            <span class="w-2 h-6 bg-secondary rounded-full"></span>
+            <div>
+              <h3 class="font-title-md text-title-md text-on-surface">Live Sessions</h3>
+              <p class="text-body-md text-on-surface-variant">All currently active attendance sessions generated by admins.</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-sm">
+            <span class="flex h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse"></span>
+            <span class="font-mono-data text-secondary text-sm" id="live-session-count">0 active</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-md" id="live-sessions-grid">
+          <div class="col-span-full rounded-xl border border-dashed border-outline-variant bg-surface-container-low p-lg text-center">
+            <span class="material-symbols-outlined text-on-surface-variant text-[40px] mb-sm">event_busy</span>
+            <p class="font-title-md text-on-surface">No live sessions yet</p>
+            <p class="text-body-md text-on-surface-variant mt-xs">Generate a session from Create Session to see it here.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="bento-grid" id="dashboard-insights">
+        <div class="col-span-12 lg:col-span-8 bg-surface-container-lowest p-lg rounded-xl border border-outline-variant/30 shadow-sm relative overflow-hidden group">
+          <div class="flex justify-between items-center mb-lg">
+            <div class="flex items-center gap-sm">
+              <span class="w-2 h-6 bg-secondary rounded-full"></span>
+              <h3 class="font-title-md text-title-md text-on-surface">Attendance Trends</h3>
+            </div>
+            <div class="flex gap-sm">
+              <button class="px-md py-xs rounded-full bg-secondary-fixed text-on-secondary-fixed font-label-md">Weekly</button>
+              <button class="px-md py-xs rounded-full hover:bg-surface-container-low text-on-surface-variant font-label-md transition-colors">Monthly</button>
+            </div>
+          </div>
+          <div class="h-[280px] w-full flex items-end justify-between gap-xs pt-md relative" id="attendance-trends-chart">
+            <div class="absolute bottom-0 left-0 w-full h-full pointer-events-none opacity-5 group-hover:opacity-10 transition-opacity bg-gradient-to-t from-secondary/20 to-transparent"></div>
+          </div>
+          <div class="flex justify-between mt-md font-mono-data text-[11px] text-on-surface-variant" id="attendance-trends-labels">
+          </div>
+        </div>
+
+        <div class="col-span-12 lg:col-span-4 bg-surface-container-lowest p-lg rounded-xl border border-outline-variant/30 shadow-sm">
+          <h3 class="font-title-md text-title-md text-on-surface mb-lg">Student Distribution</h3>
+          <div class="relative flex items-center justify-center py-md">
+            <div class="w-48 h-48 rounded-full border-[16px] border-surface-container flex items-center justify-center relative overflow-hidden" id="student-distribution-ring" style="background: conic-gradient(#0058be 0% 0%, #ffdad6 0% 100%)">
+              <div class="w-36 h-36 bg-surface-container-lowest rounded-full flex flex-col items-center justify-center shadow-inner">
+                <span class="font-display-lg text-headline-lg text-on-surface" id="distribution-rate">0%</span>
+                <span class="text-label-md text-on-surface-variant">Present</span>
+              </div>
+            </div>
+          </div>
+          <div class="space-y-sm mt-md">
+            <div class="flex justify-between items-center text-body-md">
+              <span class="flex items-center gap-sm text-on-surface-variant"><span class="w-3 h-3 rounded-full bg-secondary"></span>Present</span>
+              <span class="font-mono-data font-bold" id="distribution-present">0</span>
+            </div>
+            <div class="flex justify-between items-center text-body-md">
+              <span class="flex items-center gap-sm text-on-surface-variant"><span class="w-3 h-3 rounded-full bg-tertiary-fixed-dim"></span>Late</span>
+              <span class="font-mono-data font-bold" id="distribution-late">0</span>
+            </div>
+            <div class="flex justify-between items-center text-body-md">
+              <span class="flex items-center gap-sm text-on-surface-variant"><span class="w-3 h-3 rounded-full bg-error-container"></span>Absent</span>
+              <span class="font-mono-data font-bold" id="distribution-absent">0</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-span-12 lg:col-span-7 bg-surface-container-lowest p-lg rounded-xl border border-outline-variant/30 shadow-sm">
+          <div class="flex justify-between items-center mb-lg">
+            <div class="flex items-center gap-sm">
+              <span class="material-symbols-outlined text-secondary">how_to_reg</span>
+              <h3 class="font-title-md text-title-md text-on-surface">Recent Realtime Check-ins</h3>
+            </div>
+          </div>
+          <div class="overflow-y-auto max-h-[350px] custom-scrollbar pr-sm">
+            <table class="w-full" id="recent-checkins-table">
+              <thead>
+                <tr class="text-left font-label-md text-on-surface-variant border-b border-outline-variant/30">
+                  <th class="pb-md font-label-md">STUDENT</th>
+                  <th class="pb-md font-label-md text-center">METHOD</th>
+                  <th class="pb-md font-label-md text-center">TIME</th>
+                  <th class="pb-md font-label-md text-right">STATUS</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-outline-variant/10" id="recent-checkins-body">
+                <tr>
+                  <td class="py-lg text-center text-on-surface-variant" colspan="4">No active-session check-ins yet.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="col-span-12 lg:col-span-5 space-y-lg">
+          <div class="bg-surface-container-lowest p-lg rounded-xl border border-outline-variant/30 shadow-sm">
+            <h3 class="font-title-md text-title-md text-on-surface mb-md">Peak Check-in Times</h3>
+            <div class="h-[120px] flex items-end gap-sm" id="peak-checkin-chart">
+            </div>
+            <div class="flex justify-between mt-sm text-[10px] font-mono-data text-on-surface-variant" id="peak-checkin-labels">
+            </div>
+          </div>
+
+          <div class="bg-surface-container-lowest p-lg rounded-xl border border-outline-variant/30 shadow-sm">
+            <h3 class="font-label-md text-label-md text-on-surface-variant uppercase mb-md tracking-widest">Report Generation</h3>
+            <div class="pdf-report-controls grid grid-cols-2 gap-md">
+              <button class="flex items-center justify-center gap-sm bg-surface-container-low hover:bg-surface-container py-md rounded-lg text-on-surface font-bold transition-all border border-outline-variant/50" id="generate-all-pdf" type="button">
+                <span class="material-symbols-outlined text-[20px]">picture_as_pdf</span>
+                Generate PDF
+              </button>
+              <button class="flex items-center justify-center gap-sm bg-surface-container-low hover:bg-surface-container py-md rounded-lg text-on-surface font-bold transition-all border border-outline-variant/50" id="export-csv" type="button">
+                <span class="material-symbols-outlined text-[20px]">csv</span>
+                Export CSV
+              </button>
+            </div>
+            <button class="w-full mt-md flex items-center justify-center gap-sm bg-secondary text-on-primary py-md rounded-lg font-bold hover:opacity-95 shadow-sm active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100" id="share-latest-pdf" type="button" disabled>
+              <span class="material-symbols-outlined text-[20px]">ios_share</span>
+              Share Latest PDF
+            </button>
+            <div class="mt-md space-y-sm" id="pdf-report-list"></div>
+            <p class="hidden mt-md rounded-lg bg-surface-container-low px-md py-sm text-sm font-bold text-secondary" id="pdf-report-message"></p>
+          </div>
+
+          <div class="bg-primary-container text-surface p-lg rounded-xl flex items-center justify-between overflow-hidden relative">
+            <div class="z-10">
+              <p class="text-label-md font-label-md text-secondary-fixed uppercase mb-xs">Live Geofence Status</p>
+              <p class="text-body-md" id="active-engine-copy">Monitoring 0 live geo-fences.</p>
+            </div>
+            <div class="relative z-10 flex items-center justify-center">
+              <div class="w-10 h-10 bg-tertiary-fixed-dim/20 rounded-full flex items-center justify-center animate-pulse">
+                <div class="w-4 h-4 bg-tertiary-fixed-dim rounded-full shadow-[0_0_15px_#4cd7f6]"></div>
+              </div>
+            </div>
+            <div class="absolute inset-0 opacity-10 pointer-events-none" style="background-image: radial-gradient(circle at 2px 2px, white 1px, transparent 0); background-size: 20px 20px;"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <div class="fixed inset-0 z-[120] hidden items-center justify-center px-4" id="assist-checkin-modal" aria-hidden="true">
+    <div class="absolute inset-0 bg-slate-950/55 backdrop-blur-sm" data-close-assist-checkin></div>
+    <div class="relative w-full max-w-lg rounded-xl border border-outline-variant bg-surface-container-lowest shadow-2xl overflow-hidden">
+      <div class="flex items-start justify-between gap-md p-lg border-b border-outline-variant">
+        <div class="min-w-0">
+          <p class="text-label-md font-label-md text-on-surface-variant uppercase">Admin Assisted Check-in</p>
+          <h3 class="text-title-md font-bold text-on-surface mt-xs" id="assist-session-title">Select session</h3>
+          <p class="text-body-md text-on-surface-variant mt-xs" id="assist-session-meta">Choose a student and confirm identity.</p>
+        </div>
+        <button class="rounded-full p-sm hover:bg-surface-container-low" type="button" data-close-assist-checkin aria-label="Close assisted check-in">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+
+      <div class="p-lg space-y-md">
+        <label class="block">
+          <span class="text-label-md font-label-md text-on-surface-variant uppercase">Student</span>
+          <select class="mt-xs w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-md py-sm text-on-surface focus:ring-2 focus:ring-secondary" id="assist-student-select">
+            <option value="">Select registered student</option>
+          </select>
+        </label>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-sm">
+          <button class="rounded-lg bg-secondary text-on-primary px-md py-sm font-bold active:scale-95 transition-all flex items-center justify-center gap-sm" type="button" id="assist-face-button">
+            <span class="material-symbols-outlined">face</span>
+            Verify Face
+          </button>
+          <button class="rounded-lg bg-surface-container-low border border-outline-variant text-on-surface px-md py-sm font-bold active:scale-95 transition-all flex items-center justify-center gap-sm" type="button" id="assist-biometric-button">
+            <span class="material-symbols-outlined">fingerprint</span>
+            Device Biometric
+          </button>
+        </div>
+
+        <div class="hidden rounded-xl border border-outline-variant bg-surface-container-low p-sm" id="assist-camera-panel">
+          <div class="relative aspect-video overflow-hidden rounded-lg bg-primary-container">
+            <video class="h-full w-full object-cover" id="assist-face-video" autoplay playsinline muted></video>
+            <div class="absolute inset-0 flex items-center justify-center text-surface" id="assist-face-placeholder">
+              <span class="material-symbols-outlined text-[44px]">photo_camera_front</span>
+            </div>
+          </div>
+          <canvas class="hidden" height="360" id="assist-face-canvas" width="480"></canvas>
+        </div>
+
+        <p class="hidden rounded-lg bg-surface-container-low px-md py-sm text-sm font-bold text-secondary" id="assist-checkin-message"></p>
+      </div>
+    </div>
+  </div>
+  <div class="fixed inset-0 z-[130] hidden items-center justify-center px-4" id="pdf-share-modal" aria-hidden="true">
+    <div class="absolute inset-0 bg-slate-950/55 backdrop-blur-sm" data-close-pdf-share></div>
+    <div class="relative w-full max-w-md rounded-xl border border-outline-variant bg-surface-container-lowest shadow-2xl overflow-hidden">
+      <div class="flex items-start justify-between gap-md border-b border-outline-variant p-lg">
+        <div class="min-w-0">
+          <p class="text-label-md font-label-md uppercase text-on-surface-variant">Share Saved PDF</p>
+          <h3 class="mt-xs text-title-md font-bold text-on-surface" id="pdf-share-title">Choose app</h3>
+          <p class="mt-xs text-body-md text-on-surface-variant">Share this attendance report to WhatsApp or download it to this device.</p>
+        </div>
+        <button class="rounded-full p-sm hover:bg-surface-container-low" type="button" data-close-pdf-share aria-label="Close PDF share dialog">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="grid gap-sm p-lg">
+        <button class="flex items-center gap-md rounded-lg bg-secondary px-md py-md font-bold text-on-primary" type="button" data-pdf-share-choice="native">
+          <span class="material-symbols-outlined">ios_share</span>
+          Share PDF File
+        </button>
+        <button class="flex items-center gap-md rounded-lg border border-outline-variant bg-surface-container-low px-md py-md font-bold text-on-surface" type="button" data-pdf-share-choice="download">
+          <span class="material-symbols-outlined">download</span>
+          Download to Device
+        </button>
+        <p class="rounded-lg bg-surface-container-low px-md py-sm text-xs font-bold text-on-surface-variant">The PDF file will be attached through your device share menu. Choose WhatsApp to send it.</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let realtimeAttendance = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]");
+    let registeredStudents = JSON.parse(localStorage.getItem("geoAttendRegisteredStudents") || "[]");
+    const generatedPdfReports = [];
+    let pendingPdfShareReport = null;
+    let assistedCheckinSession = null;
+    let assistedFaceStream = null;
+
+    function getLiveSessions() {
+      const sessions = JSON.parse(localStorage.getItem("geoAttendLiveSessions") || "[]");
+      const activeSession = JSON.parse(localStorage.getItem("geoAttendActiveSession") || "null");
+      const merged = [...sessions];
+      if (activeSession?.id && !merged.some((session) => session.id === activeSession.id)) {
+        merged.unshift(activeSession);
+      }
+      return merged.filter((session) => session?.status === "active");
+    }
+
+    async function refreshLiveSessionsFromServer() {
+      try {
+        const localSessions = getLiveSessions();
+        const actorEmail = localStorage.getItem("geoAttendCurrentUser") || ""; const response = await fetch(`/api/live-sessions?actorEmail=${encodeURIComponent(actorEmail)}`, { cache: "no-store" });
+        if (!response.ok) return;
+        const data = await response.json();
+        const sessions = Array.isArray(data.sessions) ? data.sessions : [];
+        if (!sessions.length && localSessions.length) {
+          await Promise.all(localSessions.map((session) => fetch("/api/live-sessions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(session)
+          }).catch(() => null)));
+          renderLiveSessions(localSessions);
+          return;
+        }
+        localStorage.setItem("geoAttendLiveSessions", JSON.stringify(sessions));
+        if (data.activeSession) {
+          localStorage.setItem("geoAttendActiveSession", JSON.stringify(data.activeSession));
+        } else {
+          localStorage.removeItem("geoAttendActiveSession");
+        }
+        renderLiveSessions(sessions);
+        renderDashboardRealtimeInsights();
+      } catch {
+        renderLiveSessions();
+        renderDashboardRealtimeInsights();
+      }
+    }
+
+    async function refreshAttendanceFromServer() {
+      try {
+        const localAttendance = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]");
+        const actorEmail = localStorage.getItem("geoAttendCurrentUser") || ""; const response = await fetch(`/api/attendance?actorEmail=${encodeURIComponent(actorEmail)}`, { cache: "no-store" });
+        if (!response.ok) throw new Error("Attendance unavailable");
+        const data = await response.json();
+        realtimeAttendance = Array.isArray(data.attendance) ? data.attendance : [];
+        if (!realtimeAttendance.length && localAttendance.length) {
+          await Promise.all(localAttendance.map((record) => fetch("/api/attendance", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(record)
+          }).catch(() => null)));
+          realtimeAttendance = localAttendance;
+        }
+        localStorage.setItem("geoAttendAttendanceLog", JSON.stringify(realtimeAttendance));
+      } catch {
+        realtimeAttendance = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]");
+      }
+
+      renderRecentCheckins();
+      renderLiveSessions();
+      renderDashboardRealtimeInsights();
+    }
+
+    function formatSessionTime(value) {
+      if (!value) return "--";
+      return new Date(value).toLocaleString([], {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    }
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function getAttendanceForSession(sessionId) {
+      return realtimeAttendance.filter((entry) => entry.sessionId === sessionId);
+    }
+
+    function getAttendanceCount(sessionId) {
+      return getAttendanceForSession(sessionId).length;
+    }
+
+    async function refreshStudentsFromServer() {
+      try {
+        const response = await fetch("/api/students", { cache: "no-store" });
+        if (!response.ok) throw new Error("Students unavailable");
+        const data = await response.json();
+        registeredStudents = Array.isArray(data.students) ? data.students : [];
+      } catch {
+        registeredStudents = JSON.parse(localStorage.getItem("geoAttendAccounts") || "[]")
+          .filter((account) => (account.role || "student") === "student");
+      }
+      localStorage.setItem("geoAttendRegisteredStudents", JSON.stringify(registeredStudents));
+      renderDashboardRealtimeInsights();
+    }
+
+    function getActiveAttendance() {
+      const activeSessionIds = new Set(getLiveSessions().map((session) => session.id).filter(Boolean));
+      return realtimeAttendance.filter((record) => activeSessionIds.has(record.sessionId));
+    }
+
+    function uniqueStudentCount(records) {
+      return new Set(records.map((record) => String(record.email || record.regNumber || record.fullName || "").toLowerCase()).filter(Boolean)).size;
+    }
+
+    function getSessionStartDate(session) {
+      if (!session?.startTime) return null;
+      const [hours, minutes] = String(session.startTime).split(":").map(Number);
+      if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+      const base = session.createdAt ? new Date(session.createdAt) : new Date();
+      const start = new Date(base);
+      start.setHours(hours, minutes, 0, 0);
+      return start;
+    }
+
+    function getLateCountForActiveAttendance(records = getActiveAttendance()) {
+      const sessions = getLiveSessions();
+      return records.filter((record) => {
+        if (String(record.status || "").toLowerCase() === "late") return true;
+        const session = sessions.find((item) => item.id === record.sessionId);
+        const start = getSessionStartDate(session);
+        if (!start) return false;
+        const checkedInAt = new Date(record.checkedInAt || 0).getTime();
+        return Number.isFinite(checkedInAt) && checkedInAt > start.getTime() + 10 * 60 * 1000;
+      }).length;
+    }
+
+    function renderBarChart(chartId, labelsId, items, activeIndex = -1) {
+      const chart = document.getElementById(chartId);
+      const labels = document.getElementById(labelsId);
+      if (!chart || !labels) return;
+      const maxValue = Math.max(1, ...items.map((item) => item.value));
+      chart.innerHTML = '<div class="absolute bottom-0 left-0 w-full h-full pointer-events-none opacity-5 bg-gradient-to-t from-secondary/20 to-transparent"></div>' + items.map((item, index) => {
+        const height = Math.max(8, Math.round((item.value / maxValue) * 95));
+        const active = index === activeIndex || item.value === maxValue && maxValue > 1;
+        return `
+          <div class="flex-1 ${active ? "bg-secondary" : "bg-surface-container"} rounded-t-sm relative group/bar transition-all" style="height:${height}%">
+            <span class="absolute -top-8 left-1/2 -translate-x-1/2 bg-on-surface text-surface text-[10px] px-xs py-1 rounded opacity-0 group-hover/bar:opacity-100 font-mono-data">${item.value}</span>
+          </div>
+        `;
+      }).join("");
+      labels.innerHTML = items.map((item) => `<span>${escapeHtml(item.label)}</span>`).join("");
+    }
+
+    function getActiveTrendItems(records = getActiveAttendance()) {
+      const days = [];
+      for (let offset = 6; offset >= 0; offset -= 1) {
+        const date = new Date();
+        date.setDate(date.getDate() - offset);
+        const key = date.toDateString();
+        const label = date.toLocaleDateString([], { weekday: "short" });
+        const value = records.filter((record) => record.checkedInAt && new Date(record.checkedInAt).toDateString() === key).length;
+        days.push({ label, value });
+      }
+      return days;
+    }
+
+    function getPeakCheckinItems(records = getActiveAttendance()) {
+      const sessions = getLiveSessions();
+      const buckets = [
+        { label: "-10m", min: -Infinity, max: -6, value: 0 },
+        { label: "-5m", min: -5, max: -1, value: 0 },
+        { label: "0m", min: 0, max: 4, value: 0 },
+        { label: "+5m", min: 5, max: 9, value: 0 },
+        { label: "+10m", min: 10, max: 14, value: 0 },
+        { label: "+15m", min: 15, max: Infinity, value: 0 }
+      ];
+      records.forEach((record) => {
+        const session = sessions.find((item) => item.id === record.sessionId);
+        const start = getSessionStartDate(session);
+        if (!start || !record.checkedInAt) return;
+        const diffMinutes = Math.round((new Date(record.checkedInAt).getTime() - start.getTime()) / 60000);
+        const bucket = buckets.find((item) => diffMinutes >= item.min && diffMinutes <= item.max);
+        if (bucket) bucket.value += 1;
+      });
+      return buckets;
+    }
+
+    function renderDashboardRealtimeInsights() {
+      const liveSessions = getLiveSessions();
+      const activeAttendance = getActiveAttendance();
+      const present = uniqueStudentCount(activeAttendance);
+      const totalStudents = Math.max(registeredStudents.length, present);
+      const late = getLateCountForActiveAttendance(activeAttendance);
+      const absent = Math.max(0, totalStudents - present);
+      const presentRate = totalStudents ? Math.round((present / totalStudents) * 100) : 0;
+      const ring = document.getElementById("student-distribution-ring");
+      if (ring) {
+        ring.style.background = `conic-gradient(#0058be 0% ${presentRate}%, #4cd7f6 ${presentRate}% ${Math.min(100, presentRate + (late / Math.max(1, totalStudents)) * 100)}%, #ffdad6 ${Math.min(100, presentRate + (late / Math.max(1, totalStudents)) * 100)}% 100%)`;
+      }
+      const rate = document.getElementById("distribution-rate");
+      const presentNode = document.getElementById("distribution-present");
+      const lateNode = document.getElementById("distribution-late");
+      const absentNode = document.getElementById("distribution-absent");
+      const engine = document.getElementById("active-engine-copy");
+      if (rate) rate.textContent = `${presentRate}%`;
+      if (presentNode) presentNode.textContent = present;
+      if (lateNode) lateNode.textContent = late;
+      if (absentNode) absentNode.textContent = absent;
+      if (engine) engine.textContent = `Monitoring ${liveSessions.length} live geo-fence${liveSessions.length === 1 ? "" : "s"}.`;
+      renderBarChart("attendance-trends-chart", "attendance-trends-labels", getActiveTrendItems(activeAttendance));
+      renderBarChart("peak-checkin-chart", "peak-checkin-labels", getPeakCheckinItems(activeAttendance), 2);
+    }
+
+    function renderCheckedInStudents(sessionId) {
+      const students = getAttendanceForSession(sessionId).slice().reverse();
+      if (!students.length) {
+        return `
+          <div class="rounded-lg border border-dashed border-outline-variant/60 bg-surface-container-lowest p-sm text-sm text-on-surface-variant">
+            No student has checked in yet.
+          </div>
+        `;
+      }
+
+      return `
+        <div class="space-y-xs max-h-44 overflow-y-auto custom-scrollbar pr-xs">
+          ${students.map((student) => `
+            <div class="rounded-lg bg-surface-container-lowest border border-outline-variant/30 p-sm flex items-start justify-between gap-sm">
+              <div class="min-w-0">
+                <p class="font-bold text-on-surface break-words">${escapeHtml(student.fullName || student.email || "Unknown Student")}</p>
+                <p class="text-[11px] font-mono-data text-on-surface-variant break-words">${escapeHtml(student.regNumber || student.email || "--")}</p>
+              </div>
+              <div class="text-right shrink-0">
+                <p class="text-[11px] font-bold text-secondary">${escapeHtml(student.verificationMethod || "Verified")}</p>
+                <p class="text-[10px] font-mono-data text-on-surface-variant">${escapeHtml(formatSessionTime(student.checkedInAt))}</p>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    function renderRecentCheckins(records = realtimeAttendance) {
+      const body = document.getElementById("recent-checkins-body");
+      if (!body) return;
+      const activeSessionIds = new Set(getLiveSessions().map((session) => session.id).filter(Boolean));
+      const recent = records
+        .filter((record) => activeSessionIds.has(record.sessionId))
+        .sort((a, b) => new Date(b.checkedInAt || 0) - new Date(a.checkedInAt || 0));
+
+      if (!recent.length) {
+        body.innerHTML = '<tr><td class="py-lg text-center text-on-surface-variant" colspan="4">No active-session check-ins yet.</td></tr>';
+        return;
+      }
+
+      body.innerHTML = recent.map((record) => `
+        <tr class="group hover:bg-surface-container transition-colors">
+          <td class="py-md">
+            <div class="flex items-center gap-md">
+              <div class="w-8 h-8 rounded-full bg-secondary-fixed text-secondary flex items-center justify-center">
+                <span class="material-symbols-outlined text-[16px]">person</span>
+              </div>
+              <div class="min-w-0">
+                <p class="font-body-md font-bold text-on-surface break-words">${escapeHtml(record.fullName || record.email || "Unknown Student")}</p>
+                <p class="text-[11px] font-mono-data text-on-surface-variant break-words">${escapeHtml(record.regNumber || record.email || "--")}</p>
+              </div>
+            </div>
+          </td>
+          <td class="py-md text-center"><span class="px-sm py-1 bg-secondary-fixed text-secondary rounded-full font-mono-data text-xs">${escapeHtml(record.verificationMethod || "Verified")}</span></td>
+          <td class="py-md text-center font-mono-data text-xs text-on-surface-variant">${escapeHtml(formatSessionTime(record.checkedInAt))}</td>
+          <td class="py-md text-right"><span class="bg-green-100 text-green-700 rounded-full px-sm py-1 text-xs font-bold">${escapeHtml(record.status || "present")}</span></td>
+        </tr>
+      `).join("");
+    }
+
+    function getRegisteredStudents() {
+      const students = registeredStudents.length
+        ? registeredStudents
+        : JSON.parse(localStorage.getItem("geoAttendAccounts") || "[]")
+          .filter((account) => account && (account.role || "student") === "student" && account.verified !== false);
+      return students
+        .filter((account) => account && (account.role || "student") === "student" && account.verified !== false)
+        .sort((a, b) => String(a.regNumber || "").localeCompare(String(b.regNumber || ""), undefined, { numeric: true }));
+    }
+
+    function setAssistMessage(text, isError = false) {
+      const message = document.getElementById("assist-checkin-message");
+      if (!message) return;
+      message.textContent = text;
+      message.classList.remove("hidden");
+      message.classList.toggle("text-red-700", isError);
+      message.classList.toggle("text-secondary", !isError);
+    }
+
+    function clearAssistMessage() {
+      const message = document.getElementById("assist-checkin-message");
+      if (!message) return;
+      message.textContent = "";
+      message.classList.add("hidden");
+    }
+
+    function getSelectedAssistStudent() {
+      const select = document.getElementById("assist-student-select");
+      const email = String(select?.value || "").trim().toLowerCase();
+      return getRegisteredStudents().find((student) => student.email === email) || null;
+    }
+
+    function populateAssistStudents() {
+      const select = document.getElementById("assist-student-select");
+      if (!select) return;
+      const students = getRegisteredStudents();
+      select.innerHTML = '<option value="">Select registered student</option>';
+      students.forEach((student) => {
+        const option = document.createElement("option");
+        option.value = student.email;
+        option.textContent = `${student.regNumber || "--"} - ${student.fullName || student.email}`;
+        select.appendChild(option);
+      });
+    }
+
+    function getSessionStartDate(session) {
+      if (!session?.startTime) return null;
+      const [hours, minutes] = String(session.startTime).split(":").map(Number);
+      if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+      const base = session.createdAt ? new Date(session.createdAt) : new Date();
+      const start = new Date(base);
+      start.setHours(hours, minutes, 0, 0);
+      return start;
+    }
+
+    function isAssistSessionStarted(session) {
+      const start = getSessionStartDate(session);
+      return !start || Date.now() >= start.getTime();
+    }
+
+    async function loadAssistBiometricProfile(studentEmail) {
+      const localProfiles = JSON.parse(localStorage.getItem("geoAttendBiometricProfiles") || "{}");
+      if (localProfiles[studentEmail]) return localProfiles[studentEmail];
+      const response = await fetch(`/api/biometric-profile?email=${encodeURIComponent(studentEmail)}`, { cache: "no-store" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.profile) throw new Error(data.error || "No saved biometric or Face ID profile found for this student.");
+      localProfiles[studentEmail] = data.profile;
+      localStorage.setItem("geoAttendBiometricProfiles", JSON.stringify(localProfiles));
+      return data.profile;
+    }
+
+    function base64UrlToUint8Array(value) {
+      const base64 = String(value || "").replace(/-/g, "+").replace(/_/g, "/");
+      const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+      const binary = atob(padded);
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+      return bytes;
+    }
+
+    function loadImageFromDataUrl(dataUrl) {
+      return new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error("Unable to process face capture."));
+        image.src = dataUrl;
+      });
+    }
+
+    async function computeAssistFaceHash(dataUrl) {
+      const image = await loadImageFromDataUrl(dataUrl);
+      const canvas = document.createElement("canvas");
+      const size = 8;
+      canvas.width = size;
+      canvas.height = size;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      context.drawImage(image, 0, 0, size, size);
+      const pixels = context.getImageData(0, 0, size, size).data;
+      const brightness = [];
+      let total = 0;
+      for (let index = 0; index < pixels.length; index += 4) {
+        const gray = Math.round(pixels[index] * 0.299 + pixels[index + 1] * 0.587 + pixels[index + 2] * 0.114);
+        brightness.push(gray);
+        total += gray;
+      }
+      const average = total / brightness.length;
+      return brightness.map((value) => (value >= average ? "1" : "0")).join("");
+    }
+
+    function hammingDistance(a, b) {
+      const length = Math.min(a.length, b.length);
+      let distance = Math.abs(a.length - b.length);
+      for (let index = 0; index < length; index += 1) {
+        if (a[index] !== b[index]) distance += 1;
+      }
+      return distance;
+    }
+
+    async function verifyAssistFace(student, profile) {
+      const panel = document.getElementById("assist-camera-panel");
+      const video = document.getElementById("assist-face-video");
+      const canvas = document.getElementById("assist-face-canvas");
+      const placeholder = document.getElementById("assist-face-placeholder");
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error("This browser does not support camera face verification.");
+      panel?.classList.remove("hidden");
+      assistedFaceStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 720 } },
+        audio: false
+      });
+      if (video) video.srcObject = assistedFaceStream;
+      placeholder?.classList.add("hidden");
+      setAssistMessage(`Camera opened for ${student.fullName || student.email}. Capturing automatically...`);
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      if (!video || !canvas || video.readyState < 2) throw new Error("Camera is not ready yet. Try Face ID again.");
+      const context = canvas.getContext("2d");
+      context.save();
+      context.translate(canvas.width, 0);
+      context.scale(-1, 1);
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      context.restore();
+      const capturedImage = canvas.toDataURL("image/jpeg", 0.75);
+      const savedImage = profile.faceTemplateHash ? null : profile.faceCaptures?.faceTemplate?.image || profile.faceCaptures?.faceTemplate?.sourceImage || null;
+      const savedHash = profile.faceTemplateHash || (savedImage ? await computeAssistFaceHash(savedImage) : "");
+      if (!savedHash) throw new Error("This student does not have a saved Face ID profile.");
+      const currentHash = await computeAssistFaceHash(capturedImage);
+      if (hammingDistance(currentHash, savedHash) > 16) throw new Error("Face mismatch. Check-in denied.");
+      return { method: "Admin assisted Face ID", faceCapture: capturedImage };
+    }
+
+    async function verifyAssistBiometric(profile) {
+      const credentialId = profile.platformCredentialRawId || profile.platformCredential?.rawId || profile.platformCredentialId || profile.platformCredential?.id;
+      if (!credentialId) throw new Error("This student has no saved device biometric credential.");
+      if (!window.PublicKeyCredential || !navigator.credentials?.get) throw new Error("Device biometric verification is not supported in this browser.");
+      const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().catch(() => false);
+      if (!available) throw new Error("No built-in biometric authenticator was found on this device.");
+      const assertion = await navigator.credentials.get({
+        publicKey: {
+          challenge: crypto.getRandomValues(new Uint8Array(32)),
+          timeout: 60000,
+          userVerification: "required",
+          allowCredentials: [{
+            id: base64UrlToUint8Array(credentialId),
+            type: "public-key",
+            transports: ["internal"]
+          }]
+        }
+      });
+      const savedCredentialId = profile.platformCredentialId || profile.platformCredential?.id;
+      if (!assertion || (savedCredentialId && assertion.id !== savedCredentialId)) {
+        throw new Error("Device security mismatch. Check-in denied.");
+      }
+      return { method: "Admin assisted biometric", faceCapture: null };
+    }
+
+    function stopAssistFaceCamera() {
+      if (assistedFaceStream) {
+        assistedFaceStream.getTracks().forEach((track) => track.stop());
+        assistedFaceStream = null;
+      }
+      const video = document.getElementById("assist-face-video");
+      const placeholder = document.getElementById("assist-face-placeholder");
+      if (video) video.srcObject = null;
+      placeholder?.classList.remove("hidden");
+    }
+
+    async function saveAssistedAttendance(student, verification) {
+      if (!assistedCheckinSession) throw new Error("Select an active session first.");
+      if (!isAssistSessionStarted(assistedCheckinSession)) {
+        const start = getSessionStartDate(assistedCheckinSession);
+        throw new Error(`Check-in opens at ${start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`);
+      }
+      const record = {
+        email: student.email,
+        fullName: student.fullName || student.email,
+        regNumber: student.regNumber || "--",
+        signature: student.fullName || student.email,
+        attendeeRole: "student",
+        assistedByAdmin: localStorage.getItem("geoAttendCurrentUser") || "admin",
+        sessionId: assistedCheckinSession.id,
+        course: assistedCheckinSession.course || "Live class",
+        geofence: assistedCheckinSession.geofence || null,
+        checkedInAt: new Date().toISOString(),
+        status: "present",
+        verificationMethod: verification.method,
+        faceCapture: verification.faceCapture || null
+      };
+      const response = await fetch("/api/attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(record)
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Unable to save assisted check-in.");
+      realtimeAttendance = Array.isArray(data.attendance) ? data.attendance : [data.record, ...realtimeAttendance].filter(Boolean);
+      localStorage.setItem("geoAttendAttendanceLog", JSON.stringify(realtimeAttendance));
+      renderRecentCheckins();
+      renderLiveSessions();
+      return data.record || record;
+    }
+
+    async function runAssistedCheckin(type) {
+      const student = getSelectedAssistStudent();
+      if (!student) {
+        setAssistMessage("Select the student you want to check in.", true);
+        return;
+      }
+      try {
+        setAssistMessage("Loading saved student identity profile...");
+        const profile = await loadAssistBiometricProfile(student.email);
+        const verification = type === "face"
+          ? await verifyAssistFace(student, profile)
+          : await verifyAssistBiometric(profile);
+        setAssistMessage("Identity confirmed. Saving attendance...");
+        await saveAssistedAttendance(student, verification);
+        setAssistMessage(`${student.fullName || student.email} checked in for this session.`);
+        window.setTimeout(closeAssistedCheckinModal, 900);
+      } catch (error) {
+        setAssistMessage(error.message || "Assisted check-in failed.", true);
+      } finally {
+        stopAssistFaceCamera();
+      }
+    }
+
+    function openAssistedCheckinModal(sessionId) {
+      assistedCheckinSession = getLiveSessions().find((session) => session.id === sessionId) || null;
+      if (!assistedCheckinSession) return;
+      populateAssistStudents();
+      clearAssistMessage();
+      document.getElementById("assist-session-title").textContent = assistedCheckinSession.course || "Live class";
+      document.getElementById("assist-session-meta").textContent = `${assistedCheckinSession.startTime || "--"} - ${assistedCheckinSession.endTime || "--"} | ${assistedCheckinSession.locationName || assistedCheckinSession.geofence?.name || "Selected location"}`;
+      const modal = document.getElementById("assist-checkin-modal");
+      modal?.classList.remove("hidden");
+      modal?.classList.add("flex");
+      modal?.setAttribute("aria-hidden", "false");
+    }
+
+    function closeAssistedCheckinModal() {
+      stopAssistFaceCamera();
+      assistedCheckinSession = null;
+      const modal = document.getElementById("assist-checkin-modal");
+      modal?.classList.add("hidden");
+      modal?.classList.remove("flex");
+      modal?.setAttribute("aria-hidden", "true");
+    }
+
+    function openPdfShareDialog(report) {
+      pendingPdfShareReport = report;
+      const modal = document.getElementById("pdf-share-modal");
+      const title = document.getElementById("pdf-share-title");
+      if (title) title.textContent = report.title || report.filename || "Saved attendance PDF";
+      modal?.classList.remove("hidden");
+      modal?.classList.add("flex");
+      modal?.setAttribute("aria-hidden", "false");
+    }
+
+    function closePdfShareDialog() {
+      const modal = document.getElementById("pdf-share-modal");
+      modal?.classList.add("hidden");
+      modal?.classList.remove("flex");
+      modal?.setAttribute("aria-hidden", "true");
+      pendingPdfShareReport = null;
+    }
+
+    async function shareReportViaChoice(choice) {
+      const report = pendingPdfShareReport;
+      if (!report) return;
+      if (choice === "download") {
+        downloadPdfBlob(await getReportBlob(report), report.filename);
+        setPdfReportMessage("PDF downloaded to this device.");
+        closePdfShareDialog();
+        return;
+      }
+      await sharePdfToWhatsApp(report);
+      closePdfShareDialog();
+    }
+    function setPdfReportMessage(text, isError = false) {
+      const message = document.getElementById("pdf-report-message");
+      if (!message) return;
+      message.textContent = text;
+      message.classList.toggle("text-red-700", isError);
+      message.classList.toggle("text-secondary", !isError);
+      message.classList.remove("hidden");
+    }
+
+    function getPdfFilename(response, fallback) {
+      const disposition = response.headers.get("content-disposition") || "";
+      const match = disposition.match(/filename="?([^"]+)"?/i);
+      return match?.[1] || fallback;
+    }
+
+    function downloadPdfBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+    }
+
+    async function sharePdfToWhatsApp(report) {
+      const blob = await getReportBlob(report);
+      const filename = report.filename || "geoattend-attendance-report.pdf";
+      const title = report.title || filename || "GeoAttend attendance PDF";
+      const file = new File([blob], filename, { type: "application/pdf" });
+      if (navigator.canShare?.({ files: [file] }) && navigator.share) {
+        await navigator.share({
+          files: [file],
+          title,
+          text: "GeoAttend attendance PDF report"
+        });
+        setPdfReportMessage("PDF attached. Choose WhatsApp from the share menu and select the contact or group.");
+        return;
+      }
+      downloadPdfBlob(blob, filename);
+      setPdfReportMessage("This browser cannot attach PDF directly to WhatsApp, so the PDF was downloaded to this device.", true);
+    }
+
+    async function loadSavedPdfReports() {
+      try {
+        const actorEmail = localStorage.getItem("geoAttendCurrentUser") || ""; const response = await fetch(`/api/attendance-reports?actorEmail=${encodeURIComponent(actorEmail)}`, { cache: "no-store" });
+        if (!response.ok) throw new Error("Unable to load saved PDF reports.");
+        const data = await response.json();
+        generatedPdfReports.splice(0, generatedPdfReports.length, ...(Array.isArray(data.reports) ? data.reports : []));
+        renderGeneratedPdfReports();
+      } catch (error) {
+        setPdfReportMessage(error.message, true);
+      }
+    }
+
+    async function getReportBlob(report) {
+      if (report.blob) return report.blob;
+      const response = await fetch(report.url, { cache: "no-store" });
+      if (!response.ok) throw new Error("Unable to open saved PDF report.");
+      return response.blob();
+    }
+
+
+    function getReportCourseCode(report) {
+      const text = String(report?.title || report?.filename || "").toUpperCase();
+      const match = text.match(/\b[A-Z]{2,4}\s*\d{3}\b/);
+      return match ? match[0].replace(/\s+/g, "") : (String(report?.title || report?.filename || "Report").split(/[:\s-]+/)[0] || "Report").toUpperCase();
+    }
+    function renderGeneratedPdfReports() {
+      const list = document.getElementById("pdf-report-list");
+      const shareLatestButton = document.getElementById("share-latest-pdf");
+      if (shareLatestButton) shareLatestButton.disabled = !generatedPdfReports.length;
+      if (!list) return;
+
+      if (!generatedPdfReports.length) {
+        list.innerHTML = "";
+        return;
+      }
+
+      list.innerHTML = generatedPdfReports.map((report) => `
+        <div class="pdf-report-item rounded-lg border border-outline-variant/40 bg-surface-container-low p-sm flex items-center justify-between gap-sm">
+          <div class="pdf-report-copy min-w-0">
+            <p class="pdf-report-title font-bold text-on-surface break-words">${escapeHtml(getReportCourseCode(report))}</p>
+            <p class="pdf-report-meta text-xs font-mono-data text-on-surface-variant">${escapeHtml(report.createdAt || "")} | ${Number(report.attendanceCount || 0)} names</p>
+          </div>
+          <div class="pdf-report-actions flex shrink-0 flex-wrap justify-end gap-xs">
+            <button class="pdf-report-action rounded-lg bg-surface-container-lowest px-sm py-xs text-sm font-bold text-secondary border border-outline-variant/40" type="button" data-download-pdf="${report.id}">Download to Device</button>
+            <button class="pdf-report-action rounded-lg bg-secondary px-sm py-xs text-sm font-bold text-on-primary" type="button" data-share-pdf="${report.id}" title="Share this PDF file to WhatsApp">Share PDF to WhatsApp</button>
+            <button class="pdf-report-action rounded-lg bg-surface-container-lowest px-sm py-xs text-sm font-bold text-secondary border border-outline-variant/40" type="button" data-edit-pdf="${report.id}">Add Name</button>
+            <button class="pdf-report-action rounded-lg bg-red-600 px-sm py-xs text-sm font-bold text-white" type="button" data-delete-pdf="${report.id}">Delete</button>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    async function generateAllAttendancePdf({ share = false } = {}) {
+      const button = document.getElementById("generate-all-pdf");
+      if (button) {
+        button.disabled = true;
+        button.innerHTML = '<span class="material-symbols-outlined text-[20px]">hourglass_top</span> Generating...';
+      }
+      try {
+        const response = await fetch("/api/attendance-pdf", { cache: "no-store" });
+        if (!response.ok) throw new Error("Unable to generate PDF report.");
+        const blob = await response.blob();
+        const filename = getPdfFilename(response, "geoattend-attendance-report.pdf");
+        const report = {
+          blob,
+          createdAt: new Date().toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }),
+          filename,
+          id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+          title: "Generated Attendance Report",
+          url: URL.createObjectURL(blob)
+        };
+        generatedPdfReports.unshift(report);
+        renderGeneratedPdfReports();
+
+        if (share) {
+          await sharePdfToWhatsApp(report);
+        } else {
+          downloadPdfBlob(blob, filename);
+          setPdfReportMessage("PDF generated and kept here on the dashboard.");
+        }
+      } catch (error) {
+        setPdfReportMessage(error.message, true);
+      } finally {
+        if (button) {
+          button.disabled = false;
+          button.innerHTML = '<span class="material-symbols-outlined text-[20px]">picture_as_pdf</span> Generate PDF';
+        }
+      }
+    }
+
+    function exportActiveAttendanceCsv() {
+      const records = getActiveAttendance()
+        .sort((a, b) => new Date(a.checkedInAt || 0) - new Date(b.checkedInAt || 0));
+      if (!records.length) {
+        setPdfReportMessage("No active-session attendance to export yet.", true);
+        return;
+      }
+      const rows = [
+        ["S/N", "Full Name", "Registration Number", "Course", "Method", "Time", "Status"],
+        ...records.map((record, index) => [
+          index + 1,
+          record.fullName || record.email || "Unknown Student",
+          record.regNumber || "--",
+          record.course || "Live class",
+          record.verificationMethod || "Verified",
+          record.checkedInAt || "",
+          record.status || "present"
+        ])
+      ];
+      const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\r\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `active-attendance-${Date.now()}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+      setPdfReportMessage("Active-session CSV exported.");
+    }
+
+    async function stopLiveSession(sessionId) {
+      const sessions = getLiveSessions().map((session) => (
+        session.id === sessionId ? { ...session, status: "ended", endedAt: new Date().toISOString() } : session
+      ));
+      const remaining = sessions.filter((session) => session.status === "active");
+      localStorage.setItem("geoAttendLiveSessions", JSON.stringify(sessions));
+      const activeSession = JSON.parse(localStorage.getItem("geoAttendActiveSession") || "null");
+      if (activeSession?.id === sessionId) {
+        localStorage.removeItem("geoAttendActiveSession");
+        localStorage.removeItem("geoAttendActiveQr");
+      }
+      try {
+        const response = await fetch("/api/live-sessions/end", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (response.ok && Array.isArray(data.sessions)) {
+          localStorage.setItem("geoAttendLiveSessions", JSON.stringify(data.sessions));
+          renderLiveSessions(data.sessions);
+          return;
+        }
+      } catch {
+        // The local UI is still updated; the server will refresh on the next successful request.
+      }
+      renderLiveSessions(remaining);
+    }
+
+    function renderLiveSessions(sessions = getLiveSessions()) {
+      const grid = document.getElementById("live-sessions-grid");
+      const count = document.getElementById("live-session-count");
+      if (!grid || !count) return;
+
+      count.textContent = `${sessions.length} active`;
+      if (!sessions.length) {
+        grid.innerHTML = `
+          <div class="col-span-full rounded-xl border border-dashed border-outline-variant bg-surface-container-low p-lg text-center">
+            <span class="material-symbols-outlined text-on-surface-variant text-[40px] mb-sm">event_busy</span>
+            <p class="font-title-md text-on-surface">No live sessions yet</p>
+            <p class="text-body-md text-on-surface-variant mt-xs">Generate a session from Create Session to see it here.</p>
+          </div>
+        `;
+        return;
+      }
+
+      grid.innerHTML = sessions.map((session) => {
+        const geofence = session.geofence || {};
+        const attendanceCount = getAttendanceCount(session.id);
+        const checkedInStudents = renderCheckedInStudents(session.id);
+        return `
+          <article class="rounded-xl border border-outline-variant/50 bg-surface-container-low p-md shadow-sm">
+            <div class="flex items-start justify-between gap-md">
+              <div class="min-w-0">
+                <div class="flex items-center gap-xs text-green-600 font-label-md text-label-md uppercase mb-xs">
+                  <span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">sensors</span>
+                  Live
+                </div>
+                <h4 class="font-title-md text-on-surface truncate">${session.course || "Untitled Session"}</h4>
+                <p class="text-body-md text-on-surface-variant mt-xs truncate">${session.locationName || geofence.name || "Selected location"}</p>
+              </div>
+              <div class="rounded-lg bg-secondary-fixed text-secondary px-sm py-xs font-mono-data text-xs">
+                ${attendanceCount} checked in
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-sm mt-md text-sm">
+              <div class="rounded-lg bg-surface-container-lowest p-sm border border-outline-variant/30">
+                <p class="font-label-md text-on-surface-variant uppercase">Window</p>
+                <p class="font-mono-data text-on-surface">${session.startTime || "--"} - ${session.endTime || "--"}</p>
+              </div>
+              <div class="rounded-lg bg-surface-container-lowest p-sm border border-outline-variant/30">
+                <p class="font-label-md text-on-surface-variant uppercase">Radius</p>
+                <p class="font-mono-data text-on-surface">${geofence.radius || 75}m</p>
+              </div>
+              <div class="rounded-lg bg-surface-container-lowest p-sm border border-outline-variant/30 col-span-2">
+                <p class="font-label-md text-on-surface-variant uppercase">Created</p>
+                <p class="font-mono-data text-on-surface">${formatSessionTime(session.createdAt)}</p>
+              </div>
+            </div>
+            <div class="mt-md">
+              <div class="flex items-center justify-between gap-sm mb-sm">
+                <p class="font-label-md text-on-surface-variant uppercase">Checked-in Students</p>
+                <span class="font-mono-data text-xs text-secondary">${attendanceCount}</span>
+              </div>
+              ${checkedInStudents}
+            </div>
+            <div class="flex flex-wrap gap-sm mt-md">
+              <button class="flex-1 min-w-[120px] bg-secondary text-on-primary rounded-lg px-md py-sm font-bold hover:opacity-90 active:scale-95 transition-all" data-monitor-session="${session.id}">
+                Open Monitor
+              </button>
+              <button class="flex-1 min-w-[120px] bg-surface-container-lowest border border-outline-variant rounded-lg px-md py-sm font-bold text-on-surface hover:bg-surface-container transition-all" data-open-session="${session.id}">
+                QR Page
+              </button>
+              <button class="flex-1 min-w-[120px] bg-surface-container-lowest border border-outline-variant rounded-lg px-md py-sm font-bold text-secondary hover:bg-surface-container transition-all" data-session-report="${session.id}">
+                Session Report
+              </button>
+              <button class="flex-1 min-w-[160px] bg-primary text-on-primary rounded-lg px-md py-sm font-bold hover:opacity-90 active:scale-95 transition-all" data-assist-checkin="${session.id}">
+                Assist Check-in
+              </button>
+              <button class="w-full border border-error/30 text-error rounded-lg px-md py-sm font-bold hover:bg-error-container transition-all" data-end-session="${session.id}">
+                End Session
+              </button>
+            </div>
+          </article>
+        `;
+      }).join("");
+
+      grid.querySelectorAll("[data-monitor-session]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const session = sessions.find((item) => item.id === button.dataset.monitorSession);
+          if (session) localStorage.setItem("geoAttendActiveSession", JSON.stringify(session));
+          window.location.href = "live-monitor.html";
+        });
+      });
+
+      grid.querySelectorAll("[data-open-session]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const session = sessions.find((item) => item.id === button.dataset.openSession);
+          if (session) localStorage.setItem("geoAttendActiveSession", JSON.stringify(session));
+          window.location.href = "create-session.html";
+        });
+      });
+
+      grid.querySelectorAll("[data-session-report]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const session = sessions.find((item) => item.id === button.dataset.sessionReport);
+          if (session) localStorage.setItem("geoAttendActiveSession", JSON.stringify(session));
+          window.location.href = `session-report.html?sessionId=${encodeURIComponent(button.dataset.sessionReport)}`;
+        });
+      });
+
+      grid.querySelectorAll("[data-assist-checkin]").forEach((button) => {
+        button.addEventListener("click", () => openAssistedCheckinModal(button.dataset.assistCheckin));
+      });
+
+      grid.querySelectorAll("[data-end-session]").forEach((button) => {
+        button.addEventListener("click", () => stopLiveSession(button.dataset.endSession));
+      });
+    }
+
+    document.querySelectorAll("button").forEach((button) => {
+      button.addEventListener("mouseenter", () => {
+        button.style.transition = "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)";
+      });
+    });
+
+    setInterval(() => {
+      const node = document.querySelector(".animate-pulse .bg-tertiary-fixed-dim");
+      if (node) {
+        node.style.transform = `scale(${0.9 + Math.random() * 0.2})`;
+      }
+    }, 1500);
+
+    refreshLiveSessionsFromServer();
+    refreshAttendanceFromServer();
+    refreshStudentsFromServer();
+    setInterval(refreshLiveSessionsFromServer, 5000);
+    setInterval(refreshAttendanceFromServer, 3000);
+    setInterval(refreshStudentsFromServer, 10000);
+    document.getElementById("generate-all-pdf")?.addEventListener("click", () => generateAllAttendancePdf());
+    document.getElementById("export-csv")?.addEventListener("click", exportActiveAttendanceCsv);
+    document.getElementById("share-latest-pdf")?.addEventListener("click", async () => {
+      const latest = generatedPdfReports[0];
+      if (!latest) {
+        await generateAllAttendancePdf({ share: true });
+        return;
+      }
+      try {
+        await sharePdfToWhatsApp(latest);
+      } catch (error) {
+        if (error.name !== "AbortError") setPdfReportMessage(error.message, true);
+      }
+    });
+
+    document.querySelectorAll("[data-close-pdf-share]").forEach((button) => {
+      button.addEventListener("click", closePdfShareDialog);
+    });
+    document.getElementById("pdf-share-modal")?.addEventListener("click", async (event) => {
+      const choiceButton = event.target.closest("[data-pdf-share-choice]");
+      if (!choiceButton) return;
+      try {
+        await shareReportViaChoice(choiceButton.dataset.pdfShareChoice);
+      } catch (error) {
+        if (error.name !== "AbortError") setPdfReportMessage(error.message || "Unable to share PDF.", true);
+      }
+    });
+    document.getElementById("pdf-report-list")?.addEventListener("click", async (event) => {
+      const shareButton = event.target.closest("[data-share-pdf]");
+      const downloadButton = event.target.closest("[data-download-pdf]");
+      const editButton = event.target.closest("[data-edit-pdf]");
+      const deleteButton = event.target.closest("[data-delete-pdf]");
+      const reportId = shareButton?.dataset.sharePdf || downloadButton?.dataset.downloadPdf || editButton?.dataset.editPdf || deleteButton?.dataset.deletePdf;
+      if (!reportId) return;
+      const report = generatedPdfReports.find((item) => item.id === reportId);
+      if (!report) return;
+      try {
+        if (shareButton) {
+          await sharePdfToWhatsApp(report);
+          return;
+        }
+        if (downloadButton) {
+          downloadPdfBlob(await getReportBlob(report), report.filename);
+          setPdfReportMessage("PDF downloaded to this device.");
+          return;
+        }
+        if (editButton) {
+          const fullName = prompt("Enter the student's full name to add to this PDF:");
+          if (!fullName) return;
+          const regNumber = prompt("Enter the registration number:");
+          const response = await fetch("/api/attendance-reports/add-name", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reportId: report.id, fullName, regNumber })
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data.error || "Unable to update PDF report.");
+          setPdfReportMessage("Name added and PDF updated.");
+          await loadSavedPdfReports();
+          return;
+        }
+        if (deleteButton) {
+          const approved = confirm(`Delete ${report.filename}? This cannot be undone.`);
+          if (!approved) return;
+          const response = await fetch("/api/attendance-reports/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reportId: report.id })
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data.error || "Unable to delete PDF report.");
+          setPdfReportMessage("PDF report deleted.");
+          await loadSavedPdfReports();
+        }
+      } catch (error) {
+        if (error.name !== "AbortError") setPdfReportMessage(error.message, true);
+      }
+    });
+    document.querySelectorAll("[data-close-assist-checkin]").forEach((button) => {
+      button.addEventListener("click", closeAssistedCheckinModal);
+    });
+    document.getElementById("assist-face-button")?.addEventListener("click", () => runAssistedCheckin("face"));
+    document.getElementById("assist-biometric-button")?.addEventListener("click", () => runAssistedCheckin("biometric"));
+    loadSavedPdfReports();
+    window.addEventListener("storage", () => {
+      realtimeAttendance = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]");
+      renderRecentCheckins();
+      renderLiveSessions();
+    });
+  </script>
+</body>
+</html>
+
+

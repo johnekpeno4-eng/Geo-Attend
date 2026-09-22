@@ -1,0 +1,1532 @@
+﻿<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+  <title>Create Attendance Session - GeoAttend</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            'on-primary-fixed': '#131b2e',
+            'inverse-surface': '#213145',
+            'primary-fixed-dim': '#bec6e0',
+            secondary: '#0058be',
+            'on-primary': '#ffffff',
+            'on-primary-fixed-variant': '#3f465c',
+            surface: '#f8f9ff',
+            error: '#ba1a1a',
+            'on-error-container': '#93000a',
+            'surface-bright': '#f8f9ff',
+            'secondary-fixed': '#d8e2ff',
+            'error-container': '#ffdad6',
+            'on-secondary-fixed-variant': '#004395',
+            'on-tertiary-fixed': '#001f26',
+            'tertiary-container': '#001f26',
+            'tertiary-fixed-dim': '#4cd7f6',
+            'secondary-fixed-dim': '#adc6ff',
+            'surface-container-low': '#eff4ff',
+            'surface-container-highest': '#d3e4fe',
+            'on-secondary-container': '#fefcff',
+            'surface-variant': '#d3e4fe',
+            'on-tertiary-container': '#0090a9',
+            'outline-variant': '#c6c6cd',
+            'secondary-container': '#2170e4',
+            'inverse-primary': '#bec6e0',
+            'on-primary-container': '#7c839b',
+            'on-surface': '#0b1c30',
+            outline: '#76777d',
+            'on-surface-variant': '#45464d',
+            tertiary: '#000000',
+            'surface-tint': '#565e74',
+            'surface-container-lowest': '#ffffff',
+            'on-tertiary': '#ffffff',
+            'primary-fixed': '#dae2fd',
+            'on-secondary-fixed': '#001a42',
+            'on-background': '#0b1c30',
+            'surface-dim': '#cbdbf5',
+            primary: '#000000',
+            'surface-container-high': '#dce9ff',
+            'on-error': '#ffffff',
+            'inverse-on-surface': '#eaf1ff',
+            background: '#f8f9ff',
+            'on-secondary': '#ffffff',
+            'tertiary-fixed': '#acedff',
+            'primary-container': '#131b2e',
+            'surface-container': '#e5eeff',
+            'on-tertiary-fixed-variant': '#004e5c'
+          },
+          borderRadius: {
+            DEFAULT: '0.25rem',
+            lg: '0.5rem',
+            xl: '0.75rem',
+            full: '9999px'
+          },
+          spacing: {
+            xl: '32px',
+            'container-max': '1440px',
+            xs: '4px',
+            'margin-mobile': '16px',
+            gutter: '24px',
+            base: '4px',
+            sm: '8px',
+            md: '16px',
+            lg: '24px'
+          },
+          fontFamily: {
+            'title-md': ['Inter'],
+            'label-md': ['Inter'],
+            'body-md': ['Inter'],
+            'body-lg': ['Inter'],
+            'headline-lg': ['Inter'],
+            'headline-lg-mobile': ['Inter'],
+            'display-lg': ['Inter'],
+            'mono-data': ['JetBrains Mono']
+          },
+          fontSize: {
+            'title-md': ['20px', { lineHeight: '28px', fontWeight: '600' }],
+            'label-md': ['12px', { lineHeight: '16px', letterSpacing: '0.05em', fontWeight: '600' }],
+            'body-md': ['14px', { lineHeight: '20px', fontWeight: '400' }],
+            'body-lg': ['16px', { lineHeight: '24px', fontWeight: '400' }],
+            'headline-lg': ['32px', { lineHeight: '40px', letterSpacing: '0', fontWeight: '600' }],
+            'headline-lg-mobile': ['24px', { lineHeight: '32px', fontWeight: '600' }],
+            'display-lg': ['48px', { lineHeight: '56px', letterSpacing: '0', fontWeight: '700' }],
+            'mono-data': ['13px', { lineHeight: '18px', fontWeight: '400' }]
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+
+    .bg-gradient-ai {
+      background: linear-gradient(135deg, #0058be 0%, #4cd7f6 100%);
+    }
+
+    .scan-line {
+      width: 100%;
+      height: 2px;
+      background: #4cd7f6;
+      position: absolute;
+      top: 0;
+      left: 0;
+      animation: scan 3s linear infinite;
+      box-shadow: 0 0 15px #4cd7f6;
+    }
+
+    @keyframes scan {
+      0% {
+        top: 0;
+      }
+
+      100% {
+        top: 100%;
+      }
+    }
+
+    #geofence-map {
+      width: 100%;
+      height: 100%;
+      min-height: 400px;
+    }
+
+    .leaflet-control-attribution {
+      font-size: 10px;
+    }
+
+    .leaflet-control-zoom a {
+      color: #0b1c30;
+    }
+
+    .leaflet-control-layers {
+      border: 1px solid #c6c6cd;
+      box-shadow: 0 10px 24px rgba(11, 28, 48, 0.16);
+    }
+
+    .geofence-marker-label {
+      border: 1px solid #c6c6cd;
+      border-radius: 9999px;
+      color: #0b1c30;
+      font-family: Inter, sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 10px;
+      box-shadow: 0 8px 20px rgba(11, 28, 48, 0.18);
+    }
+
+    .campus-poi-icon {
+      align-items: center;
+      background: #78909c;
+      border: 3px solid #ffffff;
+      border-radius: 9999px;
+      box-shadow: 0 2px 5px rgba(11, 28, 48, 0.32);
+      color: #ffffff;
+      display: flex;
+      height: 30px;
+      justify-content: center;
+      width: 30px;
+    }
+
+    .campus-poi-icon .material-symbols-outlined {
+      font-size: 18px;
+      font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 20;
+    }
+
+    .campus-poi-icon.shop {
+      background: #1a73e8;
+    }
+
+    .campus-poi-icon.place {
+      background: #78909c;
+    }
+
+    .campus-poi-icon.landmark {
+      background: #a142f4;
+    }
+
+    .campus-poi-label {
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+      color: #506b7a;
+      font-family: Inter, sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.15;
+      text-align: center;
+      text-shadow:
+        -1px -1px 0 #ffffff,
+        1px -1px 0 #ffffff,
+        -1px 1px 0 #ffffff,
+        1px 1px 0 #ffffff,
+        0 2px 3px rgba(255, 255, 255, 0.9);
+      white-space: normal;
+    }
+  </style>
+  <script src="role-access.js" defer></script>
+  <link rel="stylesheet" href="mobile-admin.css" />
+</head>
+<body class="bg-surface font-body-md text-on-surface overflow-x-hidden" data-role-required="admin">
+  <aside class="w-[280px] h-screen fixed left-0 top-0 bg-surface-container-lowest border-r border-outline-variant shadow-sm flex flex-col py-lg px-md z-50">
+    <div class="flex items-center gap-md mb-xl">
+      <div class="w-10 h-10 rounded-lg bg-secondary text-on-primary flex items-center justify-center">
+        <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">verified_user</span>
+      </div>
+      <div>
+        <h1 class="font-headline-lg text-headline-lg font-bold text-on-surface leading-tight">GeoAttend</h1>
+        <p class="text-on-surface-variant font-label-md text-label-md">Secure Intelligence</p>
+      </div>
+    </div>
+
+    <nav class="flex-1 space-y-sm">
+      <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200" href="dashboard.html">
+        <span class="material-symbols-outlined">dashboard</span>
+        <span class="font-body-md">Dashboard</span>
+      </a>
+      <a class="flex items-center gap-md p-md rounded-lg text-secondary font-bold border-l-4 border-secondary bg-surface-container-low transition-colors duration-200" href="create-session.html">
+        <span class="material-symbols-outlined">add_circle</span>
+        <span class="font-body-md">Create Session</span>
+      </a>
+      <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200" href="live-monitor.html">
+        <span class="material-symbols-outlined">security</span>
+        <span class="font-body-md">Live Monitor</span>
+      </a>
+      <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200" href="students.html">
+        <span class="material-symbols-outlined">groups</span>
+        <span class="font-body-md">Students</span>
+      </a>
+      <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200" href="records.html">
+        <span class="material-symbols-outlined">description</span>
+        <span class="font-body-md">Records</span>
+      </a>
+    </nav>
+
+    <div class="mt-auto border-t border-outline-variant pt-md space-y-sm">
+      <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="#">
+        <span class="material-symbols-outlined">logout</span>
+        <span class="font-body-md">Logout</span>
+      </a>
+    </div>
+  </aside>
+
+  <main class="ml-[280px] min-h-screen bg-background pb-xl">
+    <header class="flex justify-between items-center px-lg h-16 w-full bg-surface/80 backdrop-blur-md sticky top-0 z-40">
+      <div class="flex items-center gap-lg">
+        <div class="relative group">
+          <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-on-surface-variant">
+            <span class="material-symbols-outlined text-[20px]">search</span>
+          </span>
+          <input class="bg-surface-container-low border-none rounded-full pl-10 pr-lg py-sm text-sm focus:ring-2 focus:ring-secondary w-[320px] transition-all" placeholder="Search sessions..." type="text" />
+        </div>
+      </div>
+
+      <div class="flex items-center gap-lg">
+        <button class="text-on-surface-variant hover:text-secondary transition-colors relative" type="button" aria-label="Notifications">
+          <span class="material-symbols-outlined">notifications</span>
+          <span class="absolute -top-1 -right-1 w-2 h-2 bg-error rounded-full"></span>
+        </button>
+        <button class="text-on-surface-variant hover:text-secondary transition-colors" type="button" aria-label="Help">
+          <span class="material-symbols-outlined">help</span>
+        </button>
+        <div class="h-8 w-[1px] bg-outline-variant"></div>
+        <div class="flex items-center gap-sm">
+          <div class="text-right hidden lg:block">
+            <p class="font-label-md text-on-surface" data-current-user-name>Admin User</p>
+            <p class="text-[10px] text-on-surface-variant uppercase tracking-wider">Administrator</p>
+          </div>
+          <img
+            alt="User Avatar"
+            class="w-10 h-10 rounded-full border border-outline-variant"
+            src="https://lh3.googleusercontent.com/aida-public/AB6AXuAR6-hRfd14prfYZj-pGl1ySI4bmJQHxTqy_8rDHUhXQvcY-klxa0_nb80eXbnx9dIkOIhosBElo2FxnCiSkT4C77zVEt8WKIlPZ9dQFVNFlO4ARNjzZaRQekm41n-TBn1uVAYNLC5BvTukSmULS1UQ0AQvCzlPXJtIuF3aHXKW8pu5-CXtEhkDNsBr2tbtVd1_E_tpnCrywGg5MebI43ahsQSEEqOhzPCMqnMeIjTB_utWLiG-aBhQg9M2x4rcqPz_Cm4zVtqIOEI"
+          />
+        </div>
+      </div>
+    </header>
+
+    <div class="max-w-container-max mx-auto p-lg">
+      <div class="flex flex-col md:flex-row justify-between items-end mb-xl gap-md">
+        <div>
+          <nav class="flex items-center gap-xs text-on-surface-variant font-label-md mb-sm">
+            <span>Dashboard</span>
+            <span class="material-symbols-outlined text-[14px]">chevron_right</span>
+            <span class="text-secondary">Create Session</span>
+          </nav>
+          <h2 class="font-headline-lg text-headline-lg text-on-surface">Create New Attendance Session</h2>
+          <p class="text-on-surface-variant font-body-lg">Configure geofencing and AI verification parameters.</p>
+        </div>
+
+        <div class="flex gap-md">
+          <button class="px-lg py-md rounded-xl border border-outline-variant text-on-surface-variant font-title-md text-sm hover:bg-surface-container-low transition-colors" id="save-template" type="button">
+            Save as Template
+          </button>
+          <button class="px-lg py-md rounded-xl bg-primary text-on-primary font-title-md text-sm hover:opacity-90 transition-all flex items-center gap-sm" id="generate-session" type="button">
+            <span class="material-symbols-outlined text-[18px]">play_arrow</span>
+            Generate Session
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-lg">
+        <div class="lg:col-span-8 space-y-lg">
+          <div class="bg-surface-container-lowest p-xl rounded-xl border border-outline-variant shadow-sm">
+            <div class="flex items-center gap-sm mb-lg border-b border-outline-variant pb-md">
+              <span class="material-symbols-outlined text-secondary">settings_input_component</span>
+              <h3 class="font-title-md text-on-surface">Session Parameters</h3>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-lg">
+              <div class="space-y-sm">
+                <label class="font-label-md text-on-surface-variant" for="session-faculty">Faculty</label>
+                <select class="w-full bg-surface border border-outline-variant rounded-lg p-md focus:ring-2 focus:ring-secondary focus:border-transparent transition-all" id="session-faculty">
+                  <option value="engineering">Faculty of Engineering</option>
+                </select>
+              </div>
+              <div class="space-y-sm">
+                <label class="font-label-md text-on-surface-variant" for="session-department">Department</label>
+                <select class="w-full bg-surface border border-outline-variant rounded-lg p-md focus:ring-2 focus:ring-secondary focus:border-transparent transition-all" id="session-department">
+                  <option value="electrical-electronics-engineering">Department of Electrical/Electronics Engineering</option>
+                </select>
+              </div>
+              <div class="space-y-sm">
+                <label class="font-label-md text-on-surface-variant" for="session-level">Level</label>
+                <select class="w-full bg-surface border border-outline-variant rounded-lg p-md focus:ring-2 focus:ring-secondary focus:border-transparent transition-all" id="session-level">
+                  <option value="100">100 Level</option>
+                </select>
+              </div>
+              <div class="space-y-sm">
+                <label class="font-label-md text-on-surface-variant" for="course">Course Selection</label>
+                <select class="w-full bg-surface border border-outline-variant rounded-lg p-md focus:ring-2 focus:ring-secondary focus:border-transparent transition-all" id="course">
+                  <option>CHM121: General Chemistry II</option>
+                  <option>CHM128: General Practical Chemistry II</option>
+                  <option>GET121: Engineering Graphics And Solid Modelling I</option>
+                  <option>GST121: Nigerian Peoples And Culture</option>
+                  <option>MTH121: Elementary Mathematics II</option>
+                  <option>PHY121: General Physics II</option>
+                  <option>PHY128: General Practical Physics II</option>
+                  <option>UUY-MTH122: Elementary Mathematics III</option>
+                  <option>UUY-PHY122: General Physics IV</option>
+                  <option>UUY-STA121: Probability I</option>
+                </select>
+              </div>
+              <div class="space-y-sm">
+                <label class="font-label-md text-on-surface-variant" for="duration">Session Duration (minutes)</label>
+                <input class="w-full bg-surface border border-outline-variant rounded-lg p-md focus:ring-2 focus:ring-secondary transition-all" id="duration" type="number" value="90" />
+              </div>
+              <div class="space-y-sm">
+                <label class="font-label-md text-on-surface-variant" for="start-time">Attendance Start</label>
+                <input class="w-full bg-surface border border-outline-variant rounded-lg p-md focus:ring-2 focus:ring-secondary transition-all" id="start-time" type="time" value="09:00" />
+              </div>
+              <div class="space-y-sm">
+                <label class="font-label-md text-on-surface-variant" for="end-time">Attendance End</label>
+                <input class="w-full bg-surface border border-outline-variant rounded-lg p-md focus:ring-2 focus:ring-secondary transition-all" id="end-time" type="time" value="09:15" />
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden">
+            <div class="p-xl pb-md">
+              <div class="flex items-center justify-between mb-lg">
+                <div class="flex items-center gap-sm">
+                  <span class="material-symbols-outlined text-secondary">location_on</span>
+                  <h3 class="font-title-md text-on-surface">Geofencing Intelligence</h3>
+                </div>
+                <div class="flex items-center gap-sm">
+                  <div class="w-3 h-3 bg-secondary rounded-full animate-pulse"></div>
+                  <span class="text-xs font-mono-data text-secondary">AI ACTIVE</span>
+                </div>
+              </div>
+
+              <div class="mb-md grid grid-cols-1 md:grid-cols-[1fr_auto] gap-sm">
+                <div class="relative">
+                  <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
+                  <input class="w-full bg-surface border border-outline-variant rounded-lg py-md pl-10 pr-md focus:ring-2 focus:ring-secondary transition-all" id="map-search" placeholder="Search a location in Nigeria, e.g. UNILAG, Lagos" type="search" />
+                </div>
+                <button class="bg-secondary text-on-secondary rounded-lg px-lg py-md font-title-md text-sm active:scale-95 transition-all flex items-center justify-center gap-sm" id="map-search-button" type="button">
+                  <span class="material-symbols-outlined text-[18px]">travel_explore</span>
+                  Search
+                </button>
+              </div>
+
+              <div class="mb-md flex flex-col sm:flex-row gap-sm">
+                <button class="inline-flex items-center justify-center gap-sm rounded-full border border-secondary text-secondary px-md py-sm text-sm font-title-md hover:bg-secondary/10 active:scale-95 transition-all" id="admin-location-preset" type="button">
+                  <span class="material-symbols-outlined text-[18px]">my_location</span>
+                  Use This Device Location
+                </button>
+                <button class="inline-flex items-center justify-center gap-sm rounded-full border border-secondary text-secondary px-md py-sm text-sm font-title-md hover:bg-secondary/10 active:scale-95 transition-all" id="university-of-uyo-preset" type="button">
+                  <span class="material-symbols-outlined text-[18px]">school</span>
+                  Use University of Uyo
+                </button>
+                <button class="inline-flex items-center justify-center gap-sm rounded-full border border-secondary text-secondary px-md py-sm text-sm font-title-md hover:bg-secondary/10 active:scale-95 transition-all" id="admin-live-location-toggle" type="button" aria-pressed="false">
+                  <span class="material-symbols-outlined text-[18px]">gps_fixed</span>
+                  Track This Device GPS
+                </button>
+              </div>
+              <p class="mb-md text-xs text-on-surface-variant" id="admin-live-location-status">Live device GPS tracking is off. Turn it on only when the class geofence should follow this device location.</p>
+
+              <div class="hidden mb-md rounded-lg border border-outline-variant bg-surface p-sm space-y-xs max-h-44 overflow-y-auto" id="map-search-results"></div>
+
+              <div class="relative h-[400px] w-full bg-surface-container rounded-lg overflow-hidden mb-lg group">
+                <div id="geofence-map" aria-label="Interactive geofence selector map"></div>
+                <div class="absolute bottom-md left-md bg-inverse-surface text-on-primary p-sm px-md rounded-lg text-xs font-mono-data shadow-lg" id="map-coordinates">
+                  LAT: 40.7128 N | LON: 74.0060 W
+                </div>
+                <div class="absolute top-md left-md bg-surface-container-lowest/95 text-on-surface p-sm px-md rounded-lg text-xs shadow-md border border-outline-variant max-w-[260px]" id="map-status">
+                  Loading street map...
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-xl">
+                <div class="space-y-md">
+                  <div class="flex justify-between items-end">
+                    <label class="font-label-md text-on-surface-variant" for="radius">Radius Precision</label>
+                    <span class="font-mono-data text-secondary text-sm" id="radius-value">75m</span>
+                  </div>
+                  <input class="w-full h-2 bg-surface-container rounded-lg appearance-none cursor-pointer accent-secondary" id="radius" max="5000" min="5" type="range" value="75" />
+                  <label class="block">
+                    <span class="font-label-md text-on-surface-variant">Custom radius in meters</span>
+                    <input class="mt-xs w-full rounded-lg border border-outline-variant bg-surface px-md py-sm font-mono-data text-on-surface focus:border-secondary focus:ring-2 focus:ring-secondary/20" id="radius-custom" min="5" step="1" type="number" value="75" />
+                  </label>
+                  <div class="grid grid-cols-2 gap-sm">
+                    <button class="rounded-lg border border-outline-variant bg-surface px-md py-sm text-sm font-title-md text-on-surface hover:border-secondary hover:text-secondary active:scale-95 transition-all" id="decrease-radius" type="button">
+                      -10m
+                    </button>
+                    <button class="rounded-lg border border-outline-variant bg-surface px-md py-sm text-sm font-title-md text-on-surface hover:border-secondary hover:text-secondary active:scale-95 transition-all" id="increase-radius" type="button">
+                      +100m
+                    </button>
+                  </div>
+                  <div class="flex justify-between text-[10px] text-on-surface-variant font-mono-data">
+                    <span>5m</span>
+                    <span>No upper limit</span>
+                  </div>
+                </div>
+
+                <div class="space-y-md">
+                  <div class="flex items-center justify-between p-sm px-md rounded-lg border border-outline-variant hover:border-secondary transition-all group">
+                    <div class="flex items-center gap-sm">
+                      <span class="material-symbols-outlined text-on-surface-variant group-hover:text-secondary">face</span>
+                      <span class="font-body-md">Require Face Recognition</span>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                      <input checked class="sr-only peer" type="checkbox" />
+                      <div class="w-11 h-6 bg-outline-variant rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-secondary"></div>
+                    </label>
+                  </div>
+
+                  <div class="flex items-center justify-between p-sm px-md rounded-lg border border-outline-variant hover:border-secondary transition-all group">
+                    <div class="flex items-center gap-sm">
+                      <span class="material-symbols-outlined text-on-surface-variant group-hover:text-secondary">location_disabled</span>
+                      <span class="font-body-md">Enable Anti-Fake GPS</span>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                      <input checked class="sr-only peer" type="checkbox" />
+                      <div class="w-11 h-6 bg-outline-variant rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-secondary"></div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="lg:col-span-4 space-y-lg">
+          <div class="bg-surface-container-lowest p-xl rounded-xl border border-outline-variant shadow-sm sticky top-24">
+            <div class="flex items-center gap-sm mb-lg">
+              <span class="material-symbols-outlined text-secondary">qr_code_2</span>
+              <h3 class="font-title-md text-on-surface">Dynamic QR Preview</h3>
+            </div>
+
+            <div class="relative aspect-square w-full rounded-2xl bg-surface-container-low border-2 border-dashed border-outline-variant flex flex-col items-center justify-center p-xl group overflow-hidden" id="qr-preview-panel">
+              <div class="scan-line hidden" id="qr-scan-line"></div>
+              <div class="w-48 h-48 rounded-xl bg-white border border-outline-variant flex items-center justify-center shadow-sm" id="qr-empty-state">
+                <span class="material-symbols-outlined text-on-surface-variant text-[56px]">lock</span>
+              </div>
+              <img
+                alt="Active session QR code"
+                class="hidden w-48 h-48 rounded-xl border border-outline-variant bg-white p-sm shadow-sm"
+                id="session-qr-image"
+              />
+              <p class="text-on-surface-variant font-label-md mt-lg text-center px-lg" id="qr-helper-text">
+                QR Code will be generated upon session initialization.
+              </p>
+              <div class="hidden mt-md text-center" id="qr-live-meta">
+                <p class="font-mono-data text-secondary text-sm" id="qr-session-id">Session: --</p>
+                <p class="font-mono-data text-on-surface-variant text-xs mt-xs" id="qr-countdown">Rotates in 15s</p>
+              </div>
+            </div>
+
+            <div class="mt-xl p-md rounded-lg bg-secondary-fixed text-on-secondary-fixed-variant">
+              <div class="flex items-start gap-sm">
+                <span class="material-symbols-outlined text-[20px]">info</span>
+                <p class="text-[12px] leading-relaxed">
+                  Each QR code is unique to the session and rotates every 15 seconds to prevent sharing. Students must be within the defined geofence to scan.
+                </p>
+              </div>
+            </div>
+
+            <div class="mt-xl pt-lg border-t border-outline-variant flex items-center justify-center">
+              <div class="flex items-center gap-sm grayscale opacity-50">
+                <span class="material-symbols-outlined">shield</span>
+                <span class="font-headline-lg text-headline-lg font-bold text-sm tracking-tight">GeoAttend</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-primary-container text-on-primary-fixed p-lg rounded-xl shadow-lg relative overflow-hidden">
+            <div class="absolute -right-4 -bottom-4 opacity-10">
+              <span class="material-symbols-outlined text-[120px]">neurology</span>
+            </div>
+            <h4 class="font-title-md text-sm mb-sm text-secondary-fixed">AI Verification Engine</h4>
+            <div class="space-y-sm relative z-10">
+              <div class="flex justify-between items-center text-xs">
+                <span>GPS Spoofing Shield</span>
+                <span class="text-secondary-fixed">ACTIVE</span>
+              </div>
+              <div class="w-full bg-white/10 h-1 rounded-full overflow-hidden">
+                <div class="bg-secondary-fixed h-full w-[94%]"></div>
+              </div>
+              <div class="flex justify-between items-center text-xs">
+                <span>Neural Face Check</span>
+                <span class="text-secondary-fixed">READY</span>
+              </div>
+              <div class="w-full bg-white/10 h-1 rounded-full overflow-hidden">
+                <div class="bg-secondary-fixed h-full w-[100%]"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const DEFAULT_GEOFENCE = {
+      lat: 5.1065259,
+      lng: 7.8103804,
+      radius: 75
+    };
+    const UNIVERSITY_OF_UYO = {
+      name: "University of Uyo",
+      lat: 5.1065259,
+      lng: 7.8103804
+    };
+    const UNIVERSITY_OF_UYO_POIS = [
+      { name: "Agric Lecture Theatre", lat: 5.11315, lng: 7.81005, icon: "school", type: "place" },
+      { name: "Faculty of Agriculture,\nUniversity of Uyo, Uyo", lat: 5.11125, lng: 7.81008, icon: "place", type: "place" },
+      { name: "Uniuyo Science\nLecture Hall", lat: 5.10865, lng: 7.81215, icon: "school", type: "place" },
+      { name: "Faculty of Engineering,\nUniversity of Uyo", lat: 5.10625, lng: 7.80745, icon: "school", type: "place" },
+      { name: "New Engineering Block", lat: 5.10510, lng: 7.80645, icon: "school", type: "place" },
+      { name: "TETFUND Hall", lat: 5.10420, lng: 7.80810, icon: "school", type: "place" },
+      { name: "Uniuyo Central\nAdministration Office", lat: 5.10125, lng: 7.81050, icon: "place", type: "place" },
+      { name: "University of Uyo Rd", lat: 5.10045, lng: 7.81125, icon: "route", type: "place" },
+      { name: "Uniuyo Stadium", lat: 5.10185, lng: 7.81285, icon: "stadium", type: "place" },
+      { name: "Uniuyo PG school", lat: 5.09720, lng: 7.80885, icon: "school", type: "place" },
+      { name: "Downtown\nShopping Complex", lat: 5.10695, lng: 7.80280, icon: "shopping_bag", type: "shop" },
+      { name: "Home complex", lat: 5.09560, lng: 7.80455, icon: "place", type: "place" },
+      { name: "Campus Chapel", lat: 5.10295, lng: 7.81360, icon: "church", type: "landmark" }
+    ];
+    let leafletMap;
+    let geofenceMarker;
+    let geofenceCircle;
+    let campusPoiLayer;
+    let selectedGeofence = { ...DEFAULT_GEOFENCE };
+    let selectedPlaceName = UNIVERSITY_OF_UYO.name;
+    let searchAbortController = null;
+    let qrRotationTimer = null;
+    let qrCountdownTimer = null;
+    let activeQrExpiresAt = 0;
+    let adminLocationWatchId = null;
+    let adminLiveTrackingEnabled = false;
+    let lastAdminLocationPublishAt = 0;
+    let weakAdminLocationSamples = 0;
+    const ADMIN_LOCATION_PUBLISH_INTERVAL = 5000;
+    const PC_LOCATION_WEAK_ACCURACY_METERS = 100;
+    const TRUSTED_ADMIN_LOCATION_ACCURACY_METERS = 100;
+    const LOCATION_SAMPLE_WINDOW_MS = 25000;
+    const LOCATION_TARGET_ACCURACY_METERS = 20;
+    let academicScope = null;
+
+    function selectedOptionText(selectId) {
+      const select = document.getElementById(selectId);
+      return select?.selectedOptions?.[0]?.textContent?.trim() || "";
+    }
+
+    function fillScopeSelect(selectId, items, valueKey = "id", labelKey = "name") {
+      const select = document.getElementById(selectId);
+      if (!select) return;
+      select.innerHTML = items.map((item) => `<option value="${item[valueKey]}">${item[labelKey]}</option>`).join("");
+    }
+
+    function getSelectedSessionScope() {
+      const courseText = document.getElementById("course")?.value || "CHM121: General Chemistry II";
+      const [codePart, ...titleParts] = courseText.split(":");
+      return {
+        institutionId: academicScope?.institution?.id || "university-of-uyo",
+        institutionName: academicScope?.institution?.name || "University of Uyo",
+        facultyId: document.getElementById("session-faculty")?.value || "engineering",
+        facultyName: selectedOptionText("session-faculty") || "Faculty of Engineering",
+        departmentId: document.getElementById("session-department")?.value || "electrical-electronics-engineering",
+        departmentName: selectedOptionText("session-department") || "Department of Electrical/Electronics Engineering",
+        levelId: document.getElementById("session-level")?.value || "100",
+        levelName: selectedOptionText("session-level") || "100 Level",
+        courseCode: codePart.trim(),
+        courseTitle: titleParts.join(":").trim()
+      };
+    }
+
+    function refreshSessionDepartments() {
+      if (!academicScope) return;
+      const facultyId = document.getElementById("session-faculty")?.value || academicScope.defaults?.facultyId;
+      const departments = academicScope.departments.filter((department) => department.facultyId === facultyId);
+      fillScopeSelect("session-department", departments.length ? departments : academicScope.departments);
+      refreshSessionCourses();
+    }
+
+    function refreshSessionCourses() {
+      if (!academicScope) return;
+      const facultyId = document.getElementById("session-faculty")?.value;
+      const departmentId = document.getElementById("session-department")?.value;
+      const levelId = document.getElementById("session-level")?.value;
+      const courses = academicScope.courses.filter((course) => (
+        (!facultyId || course.facultyId === facultyId) &&
+        (!departmentId || course.departmentId === departmentId) &&
+        (!levelId || course.levelId === levelId)
+      ));
+      const courseSelect = document.getElementById("course");
+      if (!courseSelect) return;
+      const list = courses.length ? courses : academicScope.courses;
+      courseSelect.innerHTML = list.map((course) => `<option>${course.code}: ${course.title}</option>`).join("");
+    }
+
+    async function loadAcademicScope() {
+      try {
+        const response = await fetch("/api/academic-scope", { cache: "no-store" });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Unable to load academic scope.");
+        academicScope = data;
+        fillScopeSelect("session-faculty", data.faculties || []);
+        fillScopeSelect("session-level", data.levels || []);
+        const faculty = document.getElementById("session-faculty");
+        const level = document.getElementById("session-level");
+        if (faculty && data.defaults?.facultyId) faculty.value = data.defaults.facultyId;
+        if (level && data.defaults?.levelId) level.value = data.defaults.levelId;
+        refreshSessionDepartments();
+      } catch {
+        refreshSessionCourses();
+      }
+    }
+
+    function getLocationDeviceProfile() {
+      const userAgent = navigator.userAgent || "";
+      const platform = navigator.platform || "";
+      const touchCapable = navigator.maxTouchPoints > 1;
+      const mobile = /Android|iPhone|iPod|Mobile/i.test(userAgent);
+      const tablet = /iPad|Tablet/i.test(userAgent) || (touchCapable && /Mac/i.test(platform));
+      if (mobile && !tablet) {
+        return {
+          type: "mobile",
+          label: "phone GPS",
+          targetAccuracy: 20,
+          trustedAccuracy: 80,
+          weakAccuracy: 120,
+          sampleWindowMs: 30000,
+          timeoutMs: 30000,
+          guidance: "Keep precise location on, mobile data on, and stand near a window or outdoors."
+        };
+      }
+      if (tablet) {
+        return {
+          type: "tablet",
+          label: "tablet GPS",
+          targetAccuracy: 25,
+          trustedAccuracy: 100,
+          weakAccuracy: 160,
+          sampleWindowMs: 30000,
+          timeoutMs: 30000,
+          guidance: "Keep precise location, Wi-Fi, and mobile data enabled if this tablet supports it."
+        };
+      }
+      return {
+        type: "desktop",
+        label: "computer location",
+        targetAccuracy: 80,
+        trustedAccuracy: 250,
+        weakAccuracy: 500,
+        sampleWindowMs: 35000,
+        timeoutMs: 35000,
+        guidance: "Desktop browsers usually use Wi-Fi/IP location. Turn on OS location services and Wi-Fi, or set the class point on the map."
+      };
+    }
+
+    const LOCATION_DEVICE_PROFILE = getLocationDeviceProfile();
+
+    function formatCoordinate(value, positiveSuffix, negativeSuffix) {
+      const suffix = value >= 0 ? positiveSuffix : negativeSuffix;
+      return `${Math.abs(value).toFixed(4)} ${suffix}`;
+    }
+
+    function updateMapCoordinateLabel(lat, lng, accuracy = selectedGeofence.accuracy) {
+      const coordinateLabel = document.getElementById("map-coordinates");
+      if (!coordinateLabel) return;
+      const accuracyLabel = Number.isFinite(Number(accuracy)) && Number(accuracy) > 0
+        ? ` | ACC: ${Math.round(Number(accuracy))}m`
+        : "";
+      coordinateLabel.textContent = `LAT: ${formatCoordinate(lat, "N", "S")} | LON: ${formatCoordinate(lng, "E", "W")}${accuracyLabel}`;
+    }
+
+    function updateMapStatus(text, isError = false) {
+      const status = document.getElementById("map-status");
+      if (!status) return;
+      status.textContent = text;
+      status.classList.toggle("text-error", isError);
+    }
+
+    function getPcLocationAccuracyMessage(accuracy) {
+      const meters = Math.round(Number(accuracy) || 0);
+      if (!meters) return `Accuracy unknown. ${LOCATION_DEVICE_PROFILE.guidance}`;
+      if (meters <= LOCATION_DEVICE_PROFILE.targetAccuracy) return `Strong ${LOCATION_DEVICE_PROFILE.label} fix: ${meters}m accuracy.`;
+      if (meters <= LOCATION_DEVICE_PROFILE.weakAccuracy) return `Usable ${LOCATION_DEVICE_PROFILE.label} fix: ${meters}m accuracy.`;
+      return `Weak ${LOCATION_DEVICE_PROFILE.label} fix: ${meters}m accuracy. Increase radius, improve device location settings, or select the class point on the map.`;
+    }
+
+    function isTrustedPcLocationAccuracy(accuracy) {
+      const meters = Number(accuracy || 0);
+      return meters > 0 && meters <= LOCATION_DEVICE_PROFILE.trustedAccuracy;
+    }
+
+    function isWeakPcGeofence(geofence = selectedGeofence) {
+      const source = String(geofence.source || "");
+      const accuracy = Number(geofence.accuracy || 0);
+      const radius = Number(geofence.radius || getRadiusValue() || 0);
+      return source.includes("geolocation") && (!accuracy || accuracy > Math.max(LOCATION_DEVICE_PROFILE.trustedAccuracy, radius));
+    }
+
+    function normalizeBrowserLocation(position) {
+      return {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+        accuracy: Math.round(position.coords.accuracy || 0),
+        altitude: position.coords.altitude,
+        altitudeAccuracy: position.coords.altitudeAccuracy,
+        heading: position.coords.heading,
+        speed: position.coords.speed,
+        timestamp: position.timestamp || Date.now()
+      };
+    }
+
+    function getBestLocationSample(samples) {
+      return [...samples]
+        .filter((sample) => Number.isFinite(sample.lat) && Number.isFinite(sample.lng))
+        .sort((a, b) => {
+          const accuracyA = a.accuracy || Number.POSITIVE_INFINITY;
+          const accuracyB = b.accuracy || Number.POSITIVE_INFINITY;
+          if (accuracyA !== accuracyB) return accuracyA - accuracyB;
+          return b.timestamp - a.timestamp;
+        })[0] || null;
+    }
+
+    function collectBestBrowserLocation({ onSample, timeoutMs = LOCATION_DEVICE_PROFILE.sampleWindowMs || LOCATION_SAMPLE_WINDOW_MS, targetAccuracy = LOCATION_DEVICE_PROFILE.targetAccuracy || LOCATION_TARGET_ACCURACY_METERS } = {}) {
+      return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+          reject(new Error("This browser does not support location capture."));
+          return;
+        }
+
+        const samples = [];
+        let settled = false;
+        let watchId = null;
+        let timeoutId = null;
+
+        const finish = (error = null) => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timeoutId);
+          if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+          const best = getBestLocationSample(samples);
+          if (best) {
+            resolve(best);
+            return;
+          }
+          reject(error || new Error("No location reading was received."));
+        };
+
+        watchId = navigator.geolocation.watchPosition((position) => {
+          const sample = normalizeBrowserLocation(position);
+          samples.push(sample);
+          onSample?.(sample, samples);
+          if (sample.accuracy && sample.accuracy <= targetAccuracy && samples.length >= 2) {
+            finish();
+          }
+        }, (error) => {
+          finish(new Error(error.message || "Allow location permission and try again."));
+        }, {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: LOCATION_DEVICE_PROFILE.timeoutMs || 30000
+        });
+
+        timeoutId = window.setTimeout(() => finish(), timeoutMs);
+      });
+    }
+
+    function getRadiusValue() {
+      const customValue = Number(document.getElementById("radius-custom")?.value || 0);
+      if (Number.isFinite(customValue) && customValue >= 5) return customValue;
+      return Number(document.getElementById("radius")?.value || DEFAULT_GEOFENCE.radius);
+    }
+
+    function setRadiusValue(value) {
+      const radiusInput = document.getElementById("radius");
+      const customRadiusInput = document.getElementById("radius-custom");
+      const radiusValue = document.getElementById("radius-value");
+      const min = Number(radiusInput?.min || customRadiusInput?.min || 5);
+      const numericValue = Math.round(Number(value));
+      const nextRadius = Number.isFinite(numericValue) ? Math.max(min, numericValue) : DEFAULT_GEOFENCE.radius;
+      if (radiusInput) {
+        const sliderMax = Number(radiusInput.max || 5000);
+        radiusInput.value = Math.min(sliderMax, nextRadius);
+      }
+      if (customRadiusInput) customRadiusInput.value = nextRadius;
+      if (radiusValue) radiusValue.textContent = `${nextRadius.toLocaleString()}m`;
+      selectedGeofence.radius = nextRadius;
+      if (geofenceCircle) geofenceCircle.setRadius(nextRadius);
+      persistDraftGeofence();
+    }
+
+    function readVerificationSettings() {
+      const toggles = document.querySelectorAll('input[type="checkbox"]');
+      return {
+        requireFaceRecognition: Boolean(toggles[0]?.checked),
+        antiFakeGps: Boolean(toggles[1]?.checked)
+      };
+    }
+
+    function buildSessionPayload(status = "draft") {
+      const session = {
+        ...getSelectedSessionScope(),
+        course: document.getElementById("course")?.value || "CHM121: General Chemistry II",
+        duration: Number(document.getElementById("duration")?.value || 90),
+        startTime: document.getElementById("start-time")?.value || "09:00",
+        endTime: document.getElementById("end-time")?.value || "09:15",
+        locationName: selectedPlaceName,
+        verification: readVerificationSettings(),
+        geofence: {
+          lat: selectedGeofence.lat,
+          lng: selectedGeofence.lng,
+          radius: getRadiusValue(),
+          name: selectedPlaceName,
+          accuracy: selectedGeofence.accuracy || null,
+          source: selectedGeofence.source || "manual"
+        },
+        adminLocationTracking: {
+          enabled: adminLiveTrackingEnabled,
+          updatedAt: adminLiveTrackingEnabled ? new Date().toISOString() : null
+        },
+        status,
+        updatedAt: new Date().toISOString()
+      };
+
+      return session;
+    }
+
+    function persistDraftGeofence() {
+      const session = buildSessionPayload("draft");
+      localStorage.setItem("geoAttendSessionDraft", JSON.stringify(session));
+      return session;
+    }
+
+    function getShortSessionId(session) {
+      return String(session.id || "draft").replace(/^session-/, "").slice(-8).toUpperCase();
+    }
+
+    function createQrPayload(session) {
+      const now = Date.now();
+      activeQrExpiresAt = now + 15000;
+      const tokenSource = `${session.id}:${now}:${Math.random()}`;
+      const token = btoa(tokenSource).replace(/=+$/g, "").slice(0, 24);
+      const payload = {
+        type: "geoattend-checkin",
+        sessionId: session.id,
+        course: session.course,
+        geofence: session.geofence,
+        token,
+        issuedAt: new Date(now).toISOString(),
+        expiresAt: new Date(activeQrExpiresAt).toISOString()
+      };
+      localStorage.setItem("geoAttendActiveQr", JSON.stringify(payload));
+      return payload;
+    }
+
+    function renderQrCode(session) {
+      const image = document.getElementById("session-qr-image");
+      const empty = document.getElementById("qr-empty-state");
+      const helper = document.getElementById("qr-helper-text");
+      const meta = document.getElementById("qr-live-meta");
+      const sessionId = document.getElementById("qr-session-id");
+      const scanLine = document.getElementById("qr-scan-line");
+      if (!image || !empty || !helper || !meta || !sessionId || !scanLine) return;
+
+      const payload = createQrPayload(session);
+      const qrData = encodeURIComponent(JSON.stringify(payload));
+      image.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=8&data=${qrData}`;
+      image.classList.remove("hidden");
+      empty.classList.add("hidden");
+      meta.classList.remove("hidden");
+      scanLine.classList.remove("hidden");
+      helper.textContent = "Live QR is active. Students can scan within the geofence.";
+      sessionId.textContent = `Session: ${getShortSessionId(session)}`;
+      updateQrCountdown();
+    }
+
+    function updateQrCountdown() {
+      const countdown = document.getElementById("qr-countdown");
+      if (!countdown) return;
+      const seconds = Math.max(0, Math.ceil((activeQrExpiresAt - Date.now()) / 1000));
+      countdown.textContent = seconds ? `Rotates in ${seconds}s` : "Rotating now...";
+    }
+
+    function startQrRotation(session) {
+      window.clearInterval(qrRotationTimer);
+      window.clearInterval(qrCountdownTimer);
+      renderQrCode(session);
+      qrRotationTimer = window.setInterval(() => renderQrCode(session), 15000);
+      qrCountdownTimer = window.setInterval(updateQrCountdown, 1000);
+    }
+
+    function setActionFeedback(message, type = "info") {
+      updateMapStatus(message, type === "error");
+      const generateButton = document.getElementById("generate-session");
+      if (!generateButton) return;
+      generateButton.classList.toggle("bg-green-600", type === "success");
+      generateButton.classList.toggle("bg-primary", type !== "success");
+    }
+
+    function saveSessionTemplate() {
+      const session = persistDraftGeofence();
+      const templates = JSON.parse(localStorage.getItem("geoAttendSessionTemplates") || "[]");
+      const template = {
+        ...session,
+        id: `template-${Date.now()}`,
+        name: `${session.course} - ${session.locationName}`,
+        savedAt: new Date().toISOString()
+      };
+      templates.unshift(template);
+      localStorage.setItem("geoAttendSessionTemplates", JSON.stringify(templates.slice(0, 20)));
+      setActionFeedback("Template saved. You can reuse this session setup later.", "success");
+    }
+
+    async function saveLiveSessionToServer(session) {
+      const response = await fetch("/api/live-sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...session, actorEmail: localStorage.getItem("geoAttendCurrentUser") || "" })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || "Unable to publish this session to students.");
+      }
+      if (Array.isArray(data.sessions)) {
+        localStorage.setItem("geoAttendLiveSessions", JSON.stringify(data.sessions));
+      }
+      if (data.session) {
+        localStorage.setItem("geoAttendActiveSession", JSON.stringify(data.session));
+      }
+      return data.session || session;
+    }
+
+    function setAdminLiveLocationUi(enabled, message = "") {
+      const button = document.getElementById("admin-live-location-toggle");
+      const status = document.getElementById("admin-live-location-status");
+      if (button) {
+        button.setAttribute("aria-pressed", String(enabled));
+        button.classList.toggle("bg-secondary", enabled);
+        button.classList.toggle("text-on-secondary", enabled);
+        button.classList.toggle("text-secondary", !enabled);
+        button.classList.toggle("border-secondary", !enabled);
+        button.classList.toggle("border-transparent", enabled);
+        button.classList.toggle("hover:bg-secondary/10", !enabled);
+        button.innerHTML = enabled
+          ? '<span class="material-symbols-outlined text-[18px]">gps_fixed</span> Stop PC Live GPS'
+          : '<span class="material-symbols-outlined text-[18px]">gps_fixed</span> Track This PC Live GPS';
+      }
+      if (status) {
+        status.textContent = message || (enabled
+          ? "Live PC GPS tracking is on. Keep this page open so students receive updated geofence coordinates from this PC."
+          : "Live PC GPS tracking is off. Turn it on only when the class geofence should follow this PC location.");
+        status.classList.toggle("text-secondary", enabled);
+      }
+    }
+
+    function updateLocalLiveSession(session) {
+      localStorage.setItem("geoAttendActiveSession", JSON.stringify(session));
+      const liveSessions = JSON.parse(localStorage.getItem("geoAttendLiveSessions") || "[]")
+        .filter((item) => item.id !== session.id && item.status === "active");
+      liveSessions.unshift(session);
+      localStorage.setItem("geoAttendLiveSessions", JSON.stringify(liveSessions.slice(0, 25)));
+    }
+
+    function applyTrackedAdminPosition(position) {
+      const sample = normalizeBrowserLocation(position);
+      const latLng = {
+        lat: sample.lat,
+        lng: sample.lng
+      };
+      const accuracy = sample.accuracy;
+      if (!isTrustedPcLocationAccuracy(accuracy)) {
+        weakAdminLocationSamples += 1;
+        const accuracyMessage = getPcLocationAccuracyMessage(accuracy);
+        updateMapStatus(`Waiting for an accurate PC/device fix. ${accuracyMessage} Sample ${weakAdminLocationSamples}.`, true);
+        setAdminLiveLocationUi(true, `Still sampling this device location. ${accuracyMessage}`);
+        return;
+      }
+      weakAdminLocationSamples = 0;
+      const label = accuracy ? `This PC live GPS (${accuracy}m accuracy)` : "This PC live GPS";
+      setGeofenceCenter(latLng, label, {
+        accuracy,
+        source: "pc-geolocation-live"
+      });
+      leafletMap?.setView([latLng.lat, latLng.lng], leafletMap.getZoom() || 18);
+      const accuracyMessage = getPcLocationAccuracyMessage(accuracy);
+      updateMapStatus(`Live PC location updated. ${accuracyMessage}`, accuracy > PC_LOCATION_WEAK_ACCURACY_METERS);
+      setAdminLiveLocationUi(true, `Live PC GPS tracking is on. ${accuracyMessage}`);
+
+      const activeSession = JSON.parse(localStorage.getItem("geoAttendActiveSession") || "null");
+      if (!activeSession?.id || !adminLiveTrackingEnabled) return;
+
+      const updatedSession = {
+        ...activeSession,
+        locationName: label,
+        geofence: {
+          ...(activeSession.geofence || {}),
+          lat: latLng.lat,
+          lng: latLng.lng,
+          radius: getRadiusValue(),
+          name: label,
+          accuracy,
+          source: "pc-geolocation-live"
+        },
+        adminLocationTracking: {
+          enabled: true,
+          accuracy,
+          source: "pc-geolocation-live",
+          updatedAt: new Date().toISOString()
+        },
+        updatedAt: new Date().toISOString()
+      };
+
+      updateLocalLiveSession(updatedSession);
+      const now = Date.now();
+      if (now - lastAdminLocationPublishAt >= ADMIN_LOCATION_PUBLISH_INTERVAL) {
+        lastAdminLocationPublishAt = now;
+        saveLiveSessionToServer(updatedSession).catch((error) => {
+          setActionFeedback(error.message || "Live PC GPS updated locally, but could not publish to students yet.", "error");
+        });
+      }
+    }
+
+    function stopAdminLiveLocationTracking(message = "Live PC GPS tracking is off. The current geofence is now fixed.") {
+      if (adminLocationWatchId !== null) {
+        navigator.geolocation.clearWatch(adminLocationWatchId);
+      }
+      adminLocationWatchId = null;
+      adminLiveTrackingEnabled = false;
+      setAdminLiveLocationUi(false, message);
+
+      const activeSession = JSON.parse(localStorage.getItem("geoAttendActiveSession") || "null");
+      if (!activeSession?.id) return;
+      const updatedSession = {
+        ...activeSession,
+        geofence: {
+          ...(activeSession.geofence || {}),
+          radius: getRadiusValue()
+        },
+        adminLocationTracking: {
+          ...(activeSession.adminLocationTracking || {}),
+          enabled: false,
+          stoppedAt: new Date().toISOString()
+        },
+        updatedAt: new Date().toISOString()
+      };
+      updateLocalLiveSession(updatedSession);
+      saveLiveSessionToServer(updatedSession).catch(() => {
+        setActionFeedback("Live PC tracking stopped locally, but the server update failed. Try publishing again if students still see live tracking.", "error");
+      });
+    }
+
+    function startAdminLiveLocationTracking() {
+      if (!navigator.geolocation) {
+        updateMapStatus("This browser does not support live PC GPS tracking.", true);
+        setAdminLiveLocationUi(false, "This browser does not support live PC GPS tracking.");
+        return;
+      }
+
+      if (adminLocationWatchId !== null) {
+        navigator.geolocation.clearWatch(adminLocationWatchId);
+      }
+      adminLiveTrackingEnabled = true;
+      weakAdminLocationSamples = 0;
+      lastAdminLocationPublishAt = 0;
+      setAdminLiveLocationUi(true, "Starting fused device location tracking...");
+      updateMapStatus("Starting fused device location tracking. Keep Wi-Fi and precise location enabled.");
+      adminLocationWatchId = navigator.geolocation.watchPosition(
+        applyTrackedAdminPosition,
+        (error) => {
+          updateMapStatus(error.message || "Allow location permission to use this device live location tracking.", true);
+          stopAdminLiveLocationTracking("Live location tracking stopped. Allow location permission and try again.");
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 20000
+        }
+      );
+    }
+
+    function toggleAdminLiveLocationTracking() {
+      if (adminLiveTrackingEnabled) {
+        stopAdminLiveLocationTracking();
+        return;
+      }
+      startAdminLiveLocationTracking();
+    }
+
+    async function activateSession() {
+      const session = persistDraftGeofence();
+      if (isWeakPcGeofence(session.geofence)) {
+        const accuracy = Number(session.geofence.accuracy || 0);
+        setActionFeedback(`Cannot generate session because PC accuracy is ${accuracy || "unknown"}m and the radius is smaller than that accuracy. Increase the radius or select the exact class location on the map/search.`, "error");
+        updateMapStatus(`Weak PC location rejected. Accuracy: ${accuracy || "unknown"}m. Increase radius or use map search/click for fixed class geofence.`, true);
+        return null;
+      }
+      session.id = `session-${Date.now()}`;
+      session.status = "active";
+      session.createdAt = new Date().toISOString();
+      localStorage.setItem("geoAttendActiveSession", JSON.stringify(session));
+      const liveSessions = JSON.parse(localStorage.getItem("geoAttendLiveSessions") || "[]")
+        .filter((item) => item.id !== session.id && item.status === "active");
+      liveSessions.unshift(session);
+      localStorage.setItem("geoAttendLiveSessions", JSON.stringify(liveSessions.slice(0, 25)));
+      const generateButton = document.getElementById("generate-session");
+      if (generateButton) {
+        generateButton.disabled = true;
+        generateButton.innerHTML = '<span class="material-symbols-outlined text-[18px]">sync</span> Publishing...';
+      }
+      let publishedSession = session;
+      let publishedToServer = true;
+      try {
+        publishedSession = await saveLiveSessionToServer(session);
+      } catch (error) {
+        publishedToServer = false;
+        setActionFeedback(error.message || "Session saved locally, but students on other devices may not see it yet.", "error");
+      }
+      startQrRotation(publishedSession);
+      if (generateButton) {
+        generateButton.disabled = false;
+        generateButton.innerHTML = '<span class="material-symbols-outlined text-[18px]">verified</span> Session Live';
+      }
+      if (publishedToServer) {
+        setActionFeedback("Session generated. Students will be checked against this live geofence.", "success");
+      }
+      return publishedSession;
+    }
+
+    async function runAttendanceScan() {
+      const activeSession = JSON.parse(localStorage.getItem("geoAttendActiveSession") || "null");
+      if (!activeSession) {
+        await activateSession();
+        return;
+      }
+      window.location.href = "live-monitor.html";
+    }
+
+    function setMarkerLabel(label = selectedPlaceName) {
+      if (!geofenceMarker) return;
+      geofenceMarker
+        .bindTooltip(label, {
+          permanent: true,
+          direction: "top",
+          offset: [0, -12],
+          className: "geofence-marker-label"
+        })
+        .openTooltip();
+    }
+
+    function createCampusPoiLayer() {
+      const markers = UNIVERSITY_OF_UYO_POIS.map((poi) => {
+        const icon = L.divIcon({
+          className: "",
+          html: `<span class="campus-poi-icon ${poi.type}"><span class="material-symbols-outlined">${poi.icon}</span></span>`,
+          iconSize: [30, 30],
+          iconAnchor: [15, 15],
+          tooltipAnchor: [0, -18]
+        });
+
+        return L.marker([poi.lat, poi.lng], {
+          icon,
+          interactive: false,
+          keyboard: false
+        }).bindTooltip(poi.name.replace(/\n/g, "<br>"), {
+          permanent: true,
+          direction: "top",
+          offset: [0, -18],
+          className: "campus-poi-label"
+        });
+      });
+
+      return L.layerGroup(markers);
+    }
+
+    function setGeofenceCenter(latLng, label = "Selected location", meta = {}) {
+      const lat = latLng.lat;
+      const lng = latLng.lng;
+      selectedPlaceName = label;
+      selectedGeofence = {
+        lat,
+        lng,
+        radius: getRadiusValue(),
+        accuracy: meta.accuracy || null,
+        source: meta.source || "manual"
+      };
+      updateMapCoordinateLabel(lat, lng, selectedGeofence.accuracy);
+      if (geofenceCircle) geofenceCircle.setLatLng([lat, lng]);
+      if (geofenceMarker) geofenceMarker.setLatLng([lat, lng]);
+      setMarkerLabel(selectedPlaceName);
+      persistDraftGeofence();
+    }
+
+    async function useAdminCurrentLocation() {
+      if (!navigator.geolocation) {
+        updateMapStatus("This browser does not support PC location capture.", true);
+        return;
+      }
+
+      const button = document.getElementById("admin-location-preset");
+      const previousContent = button?.innerHTML;
+      if (button) {
+        button.disabled = true;
+        button.innerHTML = '<span class="material-symbols-outlined text-[18px]">sync</span> Sampling...';
+      }
+      updateMapStatus("Sampling this device location for the best fused GPS/Wi-Fi/cell fix. Keep the page open...");
+
+      try {
+        const best = await collectBestBrowserLocation({
+          onSample: (sample, samples) => {
+            updateMapStatus(`Sampling location ${samples.length}. Best accuracy so far: ${getBestLocationSample(samples)?.accuracy || "unknown"}m.`);
+          }
+        });
+        const latLng = {
+          lat: best.lat,
+          lng: best.lng
+        };
+        const accuracy = best.accuracy;
+        if (!isTrustedPcLocationAccuracy(accuracy)) {
+          updateMapStatus(`This device location was not used. ${getPcLocationAccuracyMessage(accuracy)} Use map search/click for the exact class location, or enable precise location, Wi-Fi, and mobile data.`, true);
+        } else {
+          setGeofenceCenter(latLng, accuracy ? `This device location (${accuracy}m accuracy)` : "This device location", {
+            accuracy,
+            source: "pc-geolocation"
+          });
+          leafletMap?.setView([latLng.lat, latLng.lng], 18);
+          updateMapStatus(`Best device location captured. ${getPcLocationAccuracyMessage(accuracy)} Adjust radius before generating session.`, accuracy > PC_LOCATION_WEAK_ACCURACY_METERS);
+        }
+      } catch (error) {
+        updateMapStatus(error.message || "Allow location permission to use this device location.", true);
+      } finally {
+        if (button) {
+          button.disabled = false;
+          button.innerHTML = previousContent;
+        }
+      }
+    }
+
+    function renderSearchResults(results) {
+      const resultsBox = document.getElementById("map-search-results");
+      if (!resultsBox) return;
+
+      resultsBox.innerHTML = "";
+      if (!results.length) {
+        resultsBox.classList.remove("hidden");
+        resultsBox.innerHTML = '<p class="text-sm text-on-surface-variant p-sm">No Nigerian location found. Try a more specific city, school, or address.</p>';
+        return;
+      }
+
+      results.forEach((result) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "w-full text-left rounded-lg p-sm hover:bg-surface-container-low transition-colors";
+        const placeName = result.display_name.split(",")[0];
+        button.innerHTML = `
+          <strong class="block text-sm text-on-surface">${placeName}</strong>
+          <span class="block text-xs text-on-surface-variant">${result.display_name}</span>
+        `;
+        button.addEventListener("click", () => {
+          const lat = Number(result.lat);
+          const lng = Number(result.lon);
+          const latLng = { lat, lng };
+          setGeofenceCenter(latLng, placeName);
+          leafletMap?.setView([lat, lng], 17);
+          resultsBox.classList.add("hidden");
+          updateMapStatus(`Location selected: ${placeName}`);
+        });
+        resultsBox.appendChild(button);
+      });
+
+      resultsBox.classList.remove("hidden");
+    }
+
+    async function searchNigeriaLocation() {
+      const input = document.getElementById("map-search");
+      const query = input?.value.trim();
+      if (!query) {
+        updateMapStatus("Enter a Nigerian location to search.", true);
+        input?.focus();
+        return;
+      }
+
+      if (searchAbortController) searchAbortController.abort();
+      searchAbortController = new AbortController();
+      updateMapStatus("Searching Nigeria...");
+
+      try {
+        const params = new URLSearchParams({
+          format: "json",
+          q: query,
+          countrycodes: "ng",
+          addressdetails: "1",
+          limit: "6"
+        });
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
+          signal: searchAbortController.signal,
+          headers: {
+            "Accept": "application/json"
+          }
+        });
+        if (!response.ok) throw new Error("Location search failed.");
+        const results = await response.json();
+        renderSearchResults(results);
+        updateMapStatus(results.length ? "Select a search result to set the geofence." : "No matching Nigerian location found.", !results.length);
+      } catch (error) {
+        if (error.name === "AbortError") return;
+        updateMapStatus(error.message || "Unable to search location.", true);
+      }
+    }
+
+    function setupGeofenceMap() {
+      if (!window.L) {
+        updateMapStatus("Leaflet failed to load. Check your internet connection.", true);
+        return;
+      }
+
+      const center = [DEFAULT_GEOFENCE.lat, DEFAULT_GEOFENCE.lng];
+      const savedSession = JSON.parse(localStorage.getItem("geoAttendActiveSession") || localStorage.getItem("geoAttendSessionDraft") || "null");
+      if (savedSession?.geofence) {
+        selectedGeofence = {
+          lat: savedSession.geofence.lat,
+          lng: savedSession.geofence.lng,
+          radius: savedSession.geofence.radius || DEFAULT_GEOFENCE.radius,
+          accuracy: savedSession.geofence.accuracy || null,
+          source: savedSession.geofence.source || "manual"
+        };
+        selectedPlaceName = savedSession.geofence.name || savedSession.locationName || selectedPlaceName;
+      }
+      center[0] = selectedGeofence.lat;
+      center[1] = selectedGeofence.lng;
+      const radiusInput = document.getElementById("radius");
+      if (radiusInput) radiusInput.value = selectedGeofence.radius;
+      const customRadiusInput = document.getElementById("radius-custom");
+      if (customRadiusInput) customRadiusInput.value = selectedGeofence.radius;
+      setRadiusValue(selectedGeofence.radius);
+      leafletMap = L.map("geofence-map", {
+        center,
+        zoom: 16,
+        zoomControl: true
+      });
+
+      const esriAttribution = "Tiles &copy; Esri";
+      const streetMap = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
+        maxZoom: 19,
+        attribution: esriAttribution
+      });
+      const navigationMap = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Navigation_Charts/MapServer/tile/{z}/{y}/{x}", {
+        maxZoom: 19,
+        attribution: esriAttribution
+      });
+      const imagery = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+        maxZoom: 19,
+        attribution: esriAttribution
+      });
+      const imageryLabels = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", {
+        maxZoom: 19,
+        attribution: esriAttribution
+      });
+      const imageryRoads = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}", {
+        maxZoom: 19,
+        attribution: esriAttribution
+      });
+      const satelliteHybrid = L.layerGroup([imagery, imageryRoads, imageryLabels]);
+      campusPoiLayer = createCampusPoiLayer();
+
+      streetMap.addTo(leafletMap);
+      campusPoiLayer.addTo(leafletMap);
+      L.control.layers(
+        {
+          "Street Map": streetMap,
+          "Navigation": navigationMap,
+          "Satellite Hybrid": satelliteHybrid
+        },
+        {
+          "Campus place names": campusPoiLayer
+        },
+        { position: "topright", collapsed: true }
+      ).addTo(leafletMap);
+
+      geofenceMarker = L.marker(center, {
+        draggable: true,
+        title: selectedPlaceName
+      }).addTo(leafletMap);
+      setMarkerLabel(selectedPlaceName);
+
+      geofenceCircle = L.circle(center, {
+        radius: getRadiusValue(),
+        color: "#0058be",
+        weight: 3,
+        opacity: 0.9,
+        fillColor: "#0058be",
+        fillOpacity: 0.14
+      }).addTo(leafletMap);
+
+      leafletMap.on("click", (event) => {
+        setGeofenceCenter(event.latlng, "Selected location");
+      });
+
+      geofenceMarker.on("dragend", (event) => {
+        setGeofenceCenter(event.target.getLatLng(), "Selected location");
+      });
+
+      setTimeout(() => leafletMap.invalidateSize(), 100);
+      updateMapCoordinateLabel(selectedGeofence.lat, selectedGeofence.lng);
+      updateMapStatus("Free map active. Search, click map, or drag marker to set geofence.");
+      persistDraftGeofence();
+    }
+
+    function useUniversityOfUyo() {
+      const latLng = {
+        lat: UNIVERSITY_OF_UYO.lat,
+        lng: UNIVERSITY_OF_UYO.lng
+      };
+      setGeofenceCenter(latLng, UNIVERSITY_OF_UYO.name);
+      leafletMap?.setView([latLng.lat, latLng.lng], 17);
+      updateMapStatus(`${UNIVERSITY_OF_UYO.name} selected as geofence center.`);
+    }
+
+    document.querySelectorAll('input[type="range"]').forEach((range) => {
+      range.addEventListener('input', (event) => {
+        if (event.target.id === "radius" || event.target.id === "radius-custom") {
+          setRadiusValue(event.target.value);
+        }
+      });
+    });
+
+    document.getElementById("session-faculty")?.addEventListener("change", refreshSessionDepartments);
+    document.getElementById("session-department")?.addEventListener("change", refreshSessionCourses);
+    document.getElementById("session-level")?.addEventListener("change", refreshSessionCourses);
+    loadAcademicScope();
+    document.getElementById("generate-session")?.addEventListener("click", activateSession);
+    document.getElementById("save-template")?.addEventListener("click", saveSessionTemplate);
+    document.getElementById("admin-location-preset")?.addEventListener("click", useAdminCurrentLocation);
+    document.getElementById("admin-live-location-toggle")?.addEventListener("click", toggleAdminLiveLocationTracking);
+    document.getElementById("university-of-uyo-preset")?.addEventListener("click", useUniversityOfUyo);
+    document.getElementById("decrease-radius")?.addEventListener("click", () => setRadiusValue(getRadiusValue() - 10));
+    document.getElementById("increase-radius")?.addEventListener("click", () => setRadiusValue(getRadiusValue() + 100));
+    document.getElementById("map-search-button")?.addEventListener("click", searchNigeriaLocation);
+    document.getElementById("map-search")?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        searchNigeriaLocation();
+      }
+    });
+
+    setupGeofenceMap();
+    const existingActiveSession = JSON.parse(localStorage.getItem("geoAttendActiveSession") || "null");
+    if (existingActiveSession?.id) {
+      let sessionToPublish = existingActiveSession;
+      if (existingActiveSession.adminLocationTracking?.enabled) {
+        sessionToPublish = {
+          ...existingActiveSession,
+          adminLocationTracking: {
+            ...(existingActiveSession.adminLocationTracking || {}),
+            enabled: false,
+            pausedAt: new Date().toISOString()
+          },
+          updatedAt: new Date().toISOString()
+        };
+        updateLocalLiveSession(sessionToPublish);
+        setAdminLiveLocationUi(false, "This session was created with live PC GPS. Tap Track This PC Live GPS to resume real-time updates from this device.");
+      }
+      startQrRotation(sessionToPublish);
+      saveLiveSessionToServer(sessionToPublish).catch(() => {
+        setActionFeedback("This active session is local only. Generate it again if students on other devices cannot see it.", "error");
+      });
+    }
+
+    window.addEventListener("beforeunload", () => {
+      if (adminLocationWatchId !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(adminLocationWatchId);
+      }
+    });
+  </script>
+</body>
+</html>
+
+
+
+
+

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+  <title>GeoAttend | Student History</title>
+  <script>
+    (function applySavedTheme() {
+      const theme = localStorage.getItem("geoAttendTheme") || "light";
+      document.documentElement.classList.toggle("dark", theme === "dark");
+    })();
+  </script>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: Inter, sans-serif; }
+    .material-symbols-outlined { vertical-align: middle; font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24; }
+    html.dark body { background: #07111f !important; color: #eaf1ff !important; }
+    html.dark header,
+    html.dark nav,
+    html.dark .bg-white { background: #101b2d !important; color: #eaf1ff !important; }
+    html.dark .text-\[\#45464d\] { color: #aebcd0 !important; }
+    html.dark .border-\[\#c6c6cd\] { border-color: #31435d !important; }
+  </style>
+  <link rel="stylesheet" href="mobile-student.css" />
+</head>
+<body class="bg-[#f8f9ff] text-[#0b1c30] min-h-screen" data-role-required="student">
+  <script src="role-access.js"></script>
+  <header class="bg-[#f8f9ff] border-b border-[#c6c6cd] flex justify-between items-center w-full px-4 py-2 fixed top-0 z-50 h-14">
+    <a class="text-xl font-bold" href="student-home.html">GeoAttend</a>
+    <a class="flex items-center gap-2 rounded-full px-2 py-1" href="student-profile.html">
+      <span class="hidden max-w-[130px] truncate text-sm font-bold sm:inline" data-current-user-name data-student-user-name>Student</span>
+      <span class="material-symbols-outlined">account_circle</span>
+    </a>
+  </header>
+  <main class="pt-20 pb-24 px-4 max-w-lg mx-auto">
+    <h1 class="text-2xl font-bold">Attendance History</h1>
+    <p class="text-[#45464d] mt-1">Your completed check-ins appear here.</p>
+    <section class="mt-5 space-y-3" id="history-list"></section>
+  </main>
+  <nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 pb-2 pt-1 bg-[#f8f9ff] border-t border-[#c6c6cd] shadow-md h-16">
+    <a class="flex flex-col items-center justify-center text-[#45464d] px-4 py-1" href="student-home.html"><span class="material-symbols-outlined">home</span><span class="text-xs font-semibold">Home</span></a>
+    <a class="flex flex-col items-center justify-center bg-[#2170e4] text-white rounded-full px-4 py-1 scale-90" href="student-history.html"><span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">history</span><span class="text-xs font-semibold">History</span></a>
+    <a class="flex flex-col items-center justify-center text-[#45464d] px-4 py-1" href="student-profile.html"><span class="material-symbols-outlined">person</span><span class="text-xs font-semibold">Profile</span></a>
+  </nav>
+  <script>
+    const email = localStorage.getItem("geoAttendCurrentUser");
+    const logs = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]").filter((item) => !email || item.email === email);
+    const list = document.getElementById("history-list");
+    if (!logs.length) {
+      list.innerHTML = '<div class="rounded-xl border border-dashed border-[#c6c6cd] bg-white p-6 text-center"><span class="material-symbols-outlined text-4xl text-[#45464d]">history</span><p class="font-bold mt-2">No attendance yet</p><p class="text-sm text-[#45464d] mt-1">Your successful check-ins will appear here.</p></div>';
+    } else {
+      list.innerHTML = logs.slice().reverse().map((log) => `
+        <article class="bg-white border border-[#c6c6cd] rounded-xl p-4 shadow-sm">
+          <div class="flex justify-between gap-3">
+            <div>
+              <h2 class="font-bold">${log.course || "Attendance session"}</h2>
+              <p class="text-sm text-[#45464d] mt-1">${new Date(log.checkedInAt).toLocaleString()}</p>
+            </div>
+            <span class="bg-green-100 text-green-700 rounded-full px-3 py-1 text-sm font-bold h-fit">${log.status || "present"}</span>
+          </div>
+          <p class="text-xs text-[#45464d] mt-3">Lat: ${log.position?.lat?.toFixed?.(5) || "--"} | Lng: ${log.position?.lng?.toFixed?.(5) || "--"}</p>
+        </article>
+      `).join("");
+    }
+  </script>
+</body>
+</html>

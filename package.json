@@ -1,0 +1,13 @@
+{
+  "name": "geoattend-prototype",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GeoAttend static prototype with email OTP API.",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "nodemailer": "^6.9.15",
+    "sqlite3": "^6.0.1"
+  }
+}

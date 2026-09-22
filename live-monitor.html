@@ -1,0 +1,506 @@
+﻿<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+  <title>GeoAttend | Live Monitor</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;500&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            'on-primary-fixed': '#131b2e',
+            'inverse-surface': '#213145',
+            secondary: '#0058be',
+            'on-primary': '#ffffff',
+            surface: '#f8f9ff',
+            error: '#ba1a1a',
+            'surface-container-low': '#eff4ff',
+            'surface-container-lowest': '#ffffff',
+            'surface-container': '#e5eeff',
+            'surface-variant': '#d3e4fe',
+            'outline-variant': '#c6c6cd',
+            'secondary-container': '#2170e4',
+            'secondary-fixed-dim': '#adc6ff',
+            'on-surface': '#0b1c30',
+            'on-surface-variant': '#45464d',
+            background: '#f8f9ff',
+            'on-background': '#0b1c30',
+            'error-container': '#ffdad6',
+            'on-error': '#ffffff',
+            'primary-container': '#131b2e'
+          },
+          borderRadius: {
+            DEFAULT: '0.25rem',
+            lg: '0.5rem',
+            xl: '0.75rem',
+            full: '9999px'
+          },
+          spacing: {
+            xl: '32px',
+            xs: '4px',
+            sm: '8px',
+            md: '16px',
+            lg: '24px'
+          },
+          fontFamily: {
+            'title-md': ['Inter'],
+            'label-md': ['Inter'],
+            'body-md': ['Inter'],
+            'headline-lg': ['Inter'],
+            'display-lg': ['Inter'],
+            'mono-data': ['JetBrains Mono']
+          },
+          fontSize: {
+            'title-md': ['20px', { lineHeight: '28px', fontWeight: '600' }],
+            'label-md': ['12px', { lineHeight: '16px', letterSpacing: '0.05em', fontWeight: '600' }],
+            'body-md': ['14px', { lineHeight: '20px', fontWeight: '400' }],
+            'headline-lg': ['32px', { lineHeight: '40px', letterSpacing: '0', fontWeight: '600' }],
+            'display-lg': ['48px', { lineHeight: '56px', letterSpacing: '0', fontWeight: '700' }],
+            'mono-data': ['13px', { lineHeight: '18px', fontWeight: '400' }]
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+    }
+
+    .scan-line {
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #0058be, transparent);
+      position: absolute;
+      width: 100%;
+      animation: scan 3s linear infinite;
+    }
+
+    @keyframes scan {
+      0% {
+        top: 0;
+      }
+
+      100% {
+        top: 100%;
+      }
+    }
+
+    .pulse-dot {
+      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.3;
+      }
+    }
+  </style>
+  <script src="role-access.js" defer></script>
+  <link rel="stylesheet" href="mobile-admin.css" />
+</head>
+<body class="bg-background text-on-background font-body-md overflow-x-hidden" data-role-required="admin">
+  <aside class="w-[280px] h-screen fixed left-0 top-0 flex flex-col py-lg px-md bg-surface-container-lowest border-r border-outline-variant shadow-sm z-50">
+    <div class="mb-xl px-sm flex items-center gap-md">
+      <div class="w-10 h-10 rounded-xl bg-secondary text-on-primary flex items-center justify-center">
+        <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">verified_user</span>
+      </div>
+      <div>
+        <h1 class="font-headline-lg text-headline-lg font-bold text-on-surface">GeoAttend</h1>
+        <p class="text-on-surface-variant font-label-md text-label-md uppercase tracking-widest">Secure Intelligence</p>
+      </div>
+    </div>
+
+    <nav class="flex-1 space-y-xs">
+      <a class="flex items-center gap-md px-md py-sm rounded-lg hover:bg-surface-container-low text-on-surface-variant font-body-md text-body-md" href="dashboard.html">
+        <span class="material-symbols-outlined">dashboard</span>
+        Dashboard
+      </a>
+      <a class="flex items-center gap-md px-md py-sm rounded-lg hover:bg-surface-container-low text-on-surface-variant font-body-md text-body-md" href="create-session.html">
+        <span class="material-symbols-outlined">add_circle</span>
+        Create Session
+      </a>
+      <a class="flex items-center gap-md px-md py-sm rounded-lg text-secondary font-bold border-l-4 border-secondary font-body-md text-body-md" href="live-monitor.html">
+        <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">security</span>
+        Live Monitor
+      </a>
+      <a class="flex items-center gap-md px-md py-sm rounded-lg hover:bg-surface-container-low text-on-surface-variant font-body-md text-body-md" href="students.html">
+        <span class="material-symbols-outlined">groups</span>
+        Students
+      </a>
+      <a class="flex items-center gap-md px-md py-sm rounded-lg hover:bg-surface-container-low text-on-surface-variant font-body-md text-body-md" href="records.html">
+        <span class="material-symbols-outlined">description</span>
+        Records
+      </a>
+    </nav>
+
+    <div class="mt-auto space-y-xs pt-lg border-t border-outline-variant">
+      <a class="flex items-center gap-md px-md py-sm rounded-lg hover:bg-surface-container-low text-on-surface-variant font-body-md text-body-md" href="#">
+        <span class="material-symbols-outlined">logout</span>
+        Logout
+      </a>
+    </div>
+  </aside>
+
+  <main class="ml-[280px] min-h-screen flex flex-col">
+    <header class="flex justify-between items-center px-lg h-16 w-full bg-surface/80 backdrop-blur-md sticky top-0 z-40 gap-lg">
+      <div class="flex-1"></div>
+      <div class="flex items-center gap-lg justify-end">
+        <div class="relative w-[min(420px,42vw)]">
+          <span class="material-symbols-outlined absolute left-md top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+          <input class="w-full bg-surface-container-low border-none rounded-full py-sm pl-xl pr-md font-body-md focus:ring-2 focus:ring-secondary/20" placeholder="Search sessions or students..." type="text" />
+        </div>
+        <div class="flex items-center gap-sm">
+          <button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container transition-colors relative" type="button" aria-label="Notifications">
+            <span class="material-symbols-outlined text-on-surface-variant">notifications</span>
+            <span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>
+          </button>
+          <button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container transition-colors" type="button" aria-label="Help">
+            <span class="material-symbols-outlined text-on-surface-variant">help</span>
+          </button>
+        </div>
+        <div class="flex items-center gap-md pl-lg border-l border-outline-variant">
+          <div class="text-right">
+            <p class="font-label-md text-label-md text-on-surface" data-current-user-name>Admin User</p>
+            <p class="text-[10px] text-on-surface-variant uppercase font-bold tracking-tighter">System Administrator</p>
+          </div>
+          <img
+            alt="Administrator avatar"
+            class="w-10 h-10 rounded-full border-2 border-secondary object-cover"
+            src="https://lh3.googleusercontent.com/aida-public/AB6AXuBR4GZlERHztkmaJEaWoCbfvKvJXp1RIOEXQLgj6C0i2jgRb_PZzR-Wo0UlgzxpaCHTWTM69juPiC2ozhIhz20S5WpBtkIsdyhjuyIPhbBgQbuUWKWYms_P931VGQYuk9jIIIAE-Gogav_0wBaXx3oDtXIXez_eX8Bdk8BHom_8gzqk4ZwKBSjBb0kobXt01LqQsf7HOctKS9oWdQdiLPFqT5lKQOrwVZ_xOdzshZNTRYi1haEY7NvfeSjxNigp1MWV0p6_qd2wkzg"
+          />
+        </div>
+      </div>
+    </header>
+
+    <div class="flex-1 overflow-visible p-lg bg-background flex gap-lg">
+      <div class="flex-1 flex flex-col gap-lg min-w-0 max-w-full">
+        <div class="flex justify-between items-end">
+          <div>
+            <div class="flex items-center gap-sm mb-xs">
+              <span class="flex h-2 w-2 rounded-full bg-secondary pulse-dot"></span>
+              <span class="font-label-md text-label-md text-secondary uppercase tracking-widest" id="live-monitor-status">Live Monitoring Active</span>
+            </div>
+            <h2 class="font-headline-lg text-headline-lg text-on-surface">
+              Live Monitor:
+              <span class="text-on-surface-variant font-normal" id="live-monitor-course">Waiting for live session</span>
+            </h2>
+          </div>
+
+          <div class="flex gap-md">
+            <div class="bg-surface-container-lowest p-md px-lg rounded-xl border border-outline-variant flex flex-col items-center min-w-[120px]">
+              <span class="font-mono-data text-label-md text-on-surface-variant">TOTAL PRESENT</span>
+              <span class="font-display-lg text-display-lg text-secondary" id="present-counter">00</span>
+            </div>
+            <div class="bg-surface-container-lowest p-md px-lg rounded-xl border border-outline-variant flex flex-col items-center min-w-[120px]">
+              <span class="font-mono-data text-label-md text-on-surface-variant">LATE</span>
+              <span class="font-display-lg text-display-lg text-on-surface" id="late-counter">00</span>
+            </div>
+            <div class="bg-surface-container-lowest p-md px-lg rounded-xl border border-outline-variant flex flex-col items-center min-w-[120px]">
+              <span class="font-mono-data text-label-md text-on-surface-variant">ABSENT</span>
+              <span class="font-display-lg text-display-lg text-error" id="absent-counter">00</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex-1 bg-surface-container-low/30 rounded-3xl p-lg border border-outline-variant/50 overflow-y-auto" id="attendance-results">
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-md">
+            <article class="bg-surface-container-lowest p-md rounded-2xl border border-outline-variant flex items-center gap-md hover:shadow-lg transition-all relative overflow-hidden group">
+              <div class="scan-line opacity-0 group-hover:opacity-40"></div>
+              <div class="relative">
+                <img class="w-16 h-16 rounded-xl object-cover grayscale group-hover:grayscale-0 transition-all" alt="Marcus Chen" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAOdzm-ZTw6LF1q-D0rvRgmLIbCepVRkE659m5LIczYa5287_PqQWBK65E8Y-lzDzJGEhZ6N5M_8-5hnFceqTMobRWg2VxFyGhUkmgCalgP1S6t6N4aNJO26A0LAfu1L9JMrqNRgpIlwiGzoqm5FOyuSRGw9PyO4sr81TIP1xfhW0R_NB4ng7DiFd9vlq34Kh-WriIJRxeHKUpYumLpakQWpblcpIu3L4pgk2w-FqoK6CnZDJsargaisZGJyVQNSpnys1_SrCgJO0s" />
+                <div class="absolute -bottom-1 -right-1 bg-secondary text-on-primary p-0.5 rounded-full border-2 border-surface">
+                  <span class="material-symbols-outlined text-[14px]">check</span>
+                </div>
+              </div>
+              <div class="flex-1">
+                <div class="flex justify-between items-start">
+                  <h4 class="font-title-md text-title-md text-on-surface">Marcus Chen</h4>
+                  <span class="font-mono-data text-[10px] bg-secondary-container/10 text-secondary px-sm py-xs rounded">99.2% Match</span>
+                </div>
+                <p class="text-on-surface-variant font-mono-data text-label-md">09:01:24 AM</p>
+                <div class="mt-xs inline-flex items-center gap-xs px-sm py-[2px] bg-secondary/10 text-secondary rounded-full font-label-md text-[10px] uppercase">Verified</div>
+              </div>
+            </article>
+
+            <article class="bg-surface-container-lowest p-md rounded-2xl border border-outline-variant flex items-center gap-md hover:shadow-lg transition-all relative overflow-hidden group">
+              <div class="scan-line opacity-0 group-hover:opacity-40"></div>
+              <div class="relative">
+                <img class="w-16 h-16 rounded-xl object-cover grayscale group-hover:grayscale-0 transition-all" alt="Elena Rodriguez" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDINjgDphyMXW_0jzJ-8froLvoq7oPmUXoQfO9sVxpIEsR51z-PKcbZGslyvDbvYgGvlt3yNOSU8vhhdoHlsHJp8oCdkMkICRB0RCtmNDDQk9LrcHgJEZzSZpqfnR24i_oayFtLn_lDPmQKo0ZOcvqImORsXoLOTpwN_BHmSkThy0fqARU4QDaVCU8s2JBozhCQHl-cg-RbtjQdFgNxXG0UYWFWrei7MlysNW9dJKlQ4TXFum9_B7LHuXoR1g-qeTq29LHM-QbKRls" />
+                <div class="absolute -bottom-1 -right-1 bg-secondary text-on-primary p-0.5 rounded-full border-2 border-surface">
+                  <span class="material-symbols-outlined text-[14px]">check</span>
+                </div>
+              </div>
+              <div class="flex-1">
+                <div class="flex justify-between items-start">
+                  <h4 class="font-title-md text-title-md text-on-surface">Elena Rodriguez</h4>
+                  <span class="font-mono-data text-[10px] bg-secondary-container/10 text-secondary px-sm py-xs rounded">98.5% Match</span>
+                </div>
+                <p class="text-on-surface-variant font-mono-data text-label-md">09:02:11 AM</p>
+                <div class="mt-xs inline-flex items-center gap-xs px-sm py-[2px] bg-secondary/10 text-secondary rounded-full font-label-md text-[10px] uppercase">Verified</div>
+              </div>
+            </article>
+
+            <article class="bg-surface-container-lowest p-md rounded-2xl border border-outline-variant flex items-center gap-md hover:shadow-lg transition-all relative overflow-hidden group">
+              <div class="scan-line opacity-0 group-hover:opacity-40"></div>
+              <div class="relative">
+                <img class="w-16 h-16 rounded-xl object-cover grayscale group-hover:grayscale-0 transition-all" alt="Jordan Smith" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDhFYHbtQGiya3Jnu8uQlD8V4JfHNBI5aeS7n754ABwQ87Dj77rrpS_dioCZ9g-BdIUL-tbvZz4L2khQ0Hw_X-55z6BTbkYCEGbhs4sXgd-49jf8u9PuP8D7vdZM_itqmDcoRSBmaNKS-dQH3rEzE7_ePYRJ8ibph8ldNQfP7dUQ7IrB8bZMmimcyyFwOCXka-r4y8l_piTm7WyzgFmqsGaXGvNdPUa6vFs_ac7XC2KKwkWQIJX1tCXmsKy3Ljt4I6GzTPFlEYF4Mo" />
+                <div class="absolute -bottom-1 -right-1 bg-secondary text-on-primary p-0.5 rounded-full border-2 border-surface">
+                  <span class="material-symbols-outlined text-[14px]">check</span>
+                </div>
+              </div>
+              <div class="flex-1">
+                <div class="flex justify-between items-start">
+                  <h4 class="font-title-md text-title-md text-on-surface">Jordan Smith</h4>
+                  <span class="font-mono-data text-[10px] bg-secondary-container/10 text-secondary px-sm py-xs rounded">97.8% Match</span>
+                </div>
+                <p class="text-on-surface-variant font-mono-data text-label-md">09:03:45 AM</p>
+                <div class="mt-xs inline-flex items-center gap-xs px-sm py-[2px] bg-secondary/10 text-secondary rounded-full font-label-md text-[10px] uppercase">Verified</div>
+              </div>
+            </article>
+
+            <article class="bg-surface-container-lowest p-md rounded-2xl border border-outline-variant flex items-center gap-md opacity-80">
+              <div class="w-16 h-16 rounded-xl bg-surface-container flex items-center justify-center">
+                <span class="material-symbols-outlined text-outline">person</span>
+              </div>
+              <div class="flex-1">
+                <div class="h-4 w-24 bg-surface-container rounded mb-xs"></div>
+                <div class="h-3 w-16 bg-surface-container-low rounded"></div>
+              </div>
+            </article>
+            <article class="bg-surface-container-lowest p-md rounded-2xl border border-outline-variant flex items-center gap-md opacity-80">
+              <div class="w-16 h-16 rounded-xl bg-surface-container flex items-center justify-center">
+                <span class="material-symbols-outlined text-outline">person</span>
+              </div>
+              <div class="flex-1">
+                <div class="h-4 w-24 bg-surface-container rounded mb-xs"></div>
+                <div class="h-3 w-16 bg-surface-container-low rounded"></div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>function getActiveSession() {
+      return JSON.parse(localStorage.getItem("geoAttendActiveSession") || "null");
+    }
+
+    function setActiveSession(session) {
+      if (session?.id) {
+        localStorage.setItem("geoAttendActiveSession", JSON.stringify(session));
+      } else {
+        localStorage.removeItem("geoAttendActiveSession");
+      }
+    }
+
+    function getRegisteredAccounts() {
+      return JSON.parse(localStorage.getItem("geoAttendAccounts") || "[]");
+    }
+
+    let realtimeAttendance = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]");
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function getAttendanceLogs() {
+      return realtimeAttendance;
+    }
+
+    async function refreshActiveSessionFromServer() {
+      try {
+        const actorEmail = localStorage.getItem("geoAttendCurrentUser") || ""; const response = await fetch(`/api/live-sessions?actorEmail=${encodeURIComponent(actorEmail)}`, { cache: "no-store" });
+        if (!response.ok) throw new Error("Live sessions unavailable");
+        const data = await response.json();
+        const sessions = Array.isArray(data.sessions) ? data.sessions : [];
+        localStorage.setItem("geoAttendLiveSessions", JSON.stringify(sessions));
+        setActiveSession(data.activeSession || sessions[0] || null);
+      } catch {
+        const localSessions = JSON.parse(localStorage.getItem("geoAttendLiveSessions") || "[]")
+          .filter((session) => session && session.status === "active");
+        setActiveSession(localSessions[0] || null);
+      }
+    }
+
+    async function refreshAttendanceFromServer() {
+      try {
+        await refreshActiveSessionFromServer();
+        const localAttendance = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]");
+        const activeSession = getActiveSession();
+        if (!activeSession?.id) {
+          realtimeAttendance = [];
+          renderAttendanceResults();
+          return;
+        }
+        const actorEmail = localStorage.getItem("geoAttendCurrentUser") || ""; const attendanceUrl = `/api/attendance?sessionId=${encodeURIComponent(activeSession.id)}&actorEmail=${encodeURIComponent(actorEmail)}`;
+        const response = await fetch(attendanceUrl, { cache: "no-store" });
+        if (!response.ok) throw new Error("Attendance unavailable");
+        const data = await response.json();
+        realtimeAttendance = Array.isArray(data.attendance) ? data.attendance : [];
+        if (activeSession?.id && !realtimeAttendance.length && localAttendance.length) {
+          await Promise.all(localAttendance.map((record) => fetch("/api/attendance", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(record)
+          }).catch(() => null)));
+          realtimeAttendance = localAttendance.filter((record) => record.sessionId === activeSession.id);
+        }
+        localStorage.setItem("geoAttendAttendanceLog", JSON.stringify(realtimeAttendance));
+      } catch {
+        realtimeAttendance = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]");
+      }
+      renderAttendanceResults();
+    }
+
+    function formatCounter(value) {
+      return String(Math.max(0, Number(value || 0))).padStart(2, "0");
+    }
+
+    function getSessionStartDate(session) {
+      if (!session?.startTime) return null;
+      const [hours, minutes] = String(session.startTime).split(":").map(Number);
+      if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+      const base = session.createdAt ? new Date(session.createdAt) : new Date();
+      const start = new Date(base);
+      start.setHours(hours, minutes, 0, 0);
+      return start;
+    }
+
+    function getLateCount(session, logs) {
+      const start = getSessionStartDate(session);
+      if (!start) {
+        return logs.filter((log) => String(log.status || "").toLowerCase() === "late").length;
+      }
+      const lateAfterMs = start.getTime() + 10 * 60 * 1000;
+      return logs.filter((log) => {
+        if (String(log.status || "").toLowerCase() === "late") return true;
+        const checkedInAt = new Date(log.checkedInAt || 0).getTime();
+        return Number.isFinite(checkedInAt) && checkedInAt > lateAfterMs;
+      }).length;
+    }
+
+    function updateLiveMonitorHeader(session, sessionLogs) {
+      const status = document.getElementById("live-monitor-status");
+      const course = document.getElementById("live-monitor-course");
+      const presentCounter = document.getElementById("present-counter");
+      const lateCounter = document.getElementById("late-counter");
+      const absentCounter = document.getElementById("absent-counter");
+      const hasSession = Boolean(session?.id);
+
+      if (status) status.textContent = hasSession ? "Live Monitoring Active" : "No Live Session";
+      if (course) course.textContent = hasSession ? (session.course || "Active session") : "Waiting for live session";
+      if (presentCounter) presentCounter.innerText = formatCounter(hasSession ? sessionLogs.length : 0);
+      if (lateCounter) lateCounter.innerText = formatCounter(hasSession ? getLateCount(session, sessionLogs) : 0);
+      if (absentCounter) absentCounter.innerText = "00";
+    }
+
+    function resolveStudent(log, accounts) {
+      const account = accounts.find((savedAccount) => savedAccount.email === log.email);
+      return {
+        fullName: log.fullName || account?.fullName || log.email || "Unknown Student",
+        regNumber: log.regNumber || account?.regNumber || "--",
+        signature: log.signature || account?.fullName || "Electronically signed"
+      };
+    }
+
+    function renderAttendanceResults() {
+      const session = getActiveSession();
+      const accounts = getRegisteredAccounts();
+      const logs = getAttendanceLogs();
+      const sessionLogs = session?.id ? logs.filter((log) => log.sessionId === session.id) : [];
+      const results = document.getElementById("attendance-results");
+      updateLiveMonitorHeader(session, sessionLogs);
+
+      if (!results) return;
+      if (!session?.id) {
+        results.innerHTML = `
+          <div class="h-full min-h-[320px] flex flex-col items-center justify-center text-center rounded-3xl border border-dashed border-outline-variant bg-surface-container-lowest p-lg">
+            <span class="material-symbols-outlined text-[56px] text-on-surface-variant mb-md">event_busy</span>
+            <h3 class="font-title-md text-title-md text-on-surface">No active session</h3>
+            <p class="text-on-surface-variant mt-xs max-w-md">The finished session has been cleared from live monitoring. Its names remain saved in the PDF/report history.</p>
+          </div>
+        `;
+        return;
+      }
+      if (!sessionLogs.length) {
+        results.innerHTML = `
+          <div class="h-full min-h-[320px] flex flex-col items-center justify-center text-center rounded-3xl border border-dashed border-outline-variant bg-surface-container-lowest p-lg">
+            <span class="material-symbols-outlined text-[56px] text-on-surface-variant mb-md">fact_check</span>
+            <h3 class="font-title-md text-title-md text-on-surface">No attendance result yet</h3>
+            <p class="text-on-surface-variant mt-xs max-w-md">When students check in, their full name, registration number, and signature will appear in this table.</p>
+          </div>
+        `;
+        return;
+      }
+
+      results.innerHTML = `
+        <div class="bg-surface-container-lowest rounded-2xl border border-outline-variant overflow-hidden shadow-sm">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-md p-lg border-b border-outline-variant">
+            <div>
+              <p class="font-label-md text-label-md text-secondary uppercase tracking-widest">Attendance Result</p>
+              <h3 class="font-title-md text-title-md text-on-surface mt-xs">${escapeHtml(session?.course || sessionLogs[0]?.course || "Active Session")}</h3>
+            </div>
+            <div class="font-mono-data text-sm text-on-surface-variant">
+              ${sessionLogs.length} student${sessionLogs.length === 1 ? "" : "s"} present
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full min-w-[720px] text-left" id="live-attendance-table">
+              <thead class="bg-surface-container-low text-on-surface-variant font-label-md text-label-md uppercase tracking-wider">
+                <tr>
+                  <th class="px-md py-md w-16">S/N</th>
+                  <th class="px-md py-md">Full Name</th>
+                  <th class="px-md py-md">Registration Number</th>
+                  <th class="px-md py-md">Signature</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-outline-variant/60 bg-surface-container-lowest" id="live-attendance-body">
+                ${sessionLogs.map((log, index) => {
+                  const student = resolveStudent(log, accounts);
+                  return `
+                    <tr class="hover:bg-surface-container-low transition-colors">
+                      <td class="px-md py-md font-mono-data text-on-surface-variant">${index + 1}</td>
+                      <td class="px-md py-md font-bold text-on-surface">${escapeHtml(student.fullName)}</td>
+                      <td class="px-md py-md font-mono-data text-on-surface">${escapeHtml(student.regNumber)}</td>
+                      <td class="px-md py-md">
+                        <div class="inline-flex min-w-[180px] items-center justify-center rounded-lg border border-outline-variant bg-surface px-md py-sm font-semibold italic text-on-surface">
+                          ${escapeHtml(student.signature)}
+                        </div>
+                      </td>
+                    </tr>
+                  `;
+                }).join("")}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    refreshAttendanceFromServer();
+    setInterval(refreshAttendanceFromServer, 3000);
+    window.addEventListener("storage", () => {
+      realtimeAttendance = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]");
+      renderAttendanceResults();
+    });
+  </script>
+</body>
+</html>
+
+

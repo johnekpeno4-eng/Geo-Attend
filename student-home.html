@@ -1,0 +1,1897 @@
+﻿<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+  <title>GeoAttend | Student Home</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <script>
+    (function applySavedTheme() {
+      const theme = localStorage.getItem("geoAttendTheme") || "light";
+      document.documentElement.classList.toggle("dark", theme === "dark");
+    })();
+
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            background: "#f8f9ff",
+            surface: "#f8f9ff",
+            "surface-container-lowest": "#ffffff",
+            "surface-container-low": "#eff4ff",
+            "surface-container": "#e5eeff",
+            "surface-container-high": "#dce9ff",
+            "on-surface": "#0b1c30",
+            "on-background": "#0b1c30",
+            "on-surface-variant": "#45464d",
+            outline: "#76777d",
+            "outline-variant": "#c6c6cd",
+            primary: "#000000",
+            "primary-container": "#131b2e",
+            "on-primary": "#ffffff",
+            "on-primary-container": "#fefcff",
+            secondary: "#0058be",
+            "secondary-container": "#2170e4",
+            "on-secondary": "#ffffff",
+            "on-secondary-container": "#fefcff",
+            "secondary-fixed": "#dce9ff"
+          },
+          spacing: {
+            xs: "4px",
+            sm: "8px",
+            md: "16px",
+            lg: "24px",
+            xl: "32px"
+          },
+          fontSize: {
+            "title-md": ["20px", { lineHeight: "28px", fontWeight: "600" }],
+            "body-md": ["14px", { lineHeight: "20px", fontWeight: "400" }],
+            "label-md": ["12px", { lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "600" }],
+            "mono-data": ["13px", { lineHeight: "18px", fontWeight: "400" }]
+          },
+          fontFamily: {
+            "title-md": ["Inter", "sans-serif"],
+            "body-md": ["Inter", "sans-serif"],
+            "label-md": ["Inter", "sans-serif"],
+            "mono-data": ["JetBrains Mono", "monospace"]
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    html { scroll-behavior: smooth; }
+    body { font-family: Inter, sans-serif; }
+    .material-symbols-outlined { vertical-align: middle; font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24; }
+    .scanning-animation {
+      animation: scan 2s linear infinite;
+      background: linear-gradient(transparent, #0058be, transparent);
+      height: 2px;
+      width: 100%;
+      position: absolute;
+      top: 0;
+      opacity: 0.6;
+    }
+    @keyframes scan {
+      0% { top: 0; }
+      100% { top: 100%; }
+    }
+    .orb-pulse {
+      animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes pulse-ring {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: .5; transform: scale(1.1); }
+    }
+    .hidden-step { display: none; }
+    .safe-wrap {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    html.dark body {
+      background: #07111f;
+      color: #eaf1ff;
+    }
+    html.dark .bg-background,
+    html.dark .bg-surface {
+      background-color: #07111f !important;
+    }
+    html.dark .bg-surface-container-lowest,
+    html.dark .bg-white {
+      background-color: #101b2d !important;
+    }
+    html.dark .bg-surface-container-low,
+    html.dark .bg-surface-container,
+    html.dark .bg-secondary-fixed\/20 {
+      background-color: #17253a !important;
+    }
+    html.dark .bg-surface-container-high,
+    html.dark .bg-secondary-fixed {
+      background-color: #213145 !important;
+    }
+    html.dark .text-on-surface,
+    html.dark .text-on-background,
+    html.dark .text-primary,
+    html.dark .font-bold {
+      color: #eaf1ff !important;
+    }
+    html.dark .text-on-surface-variant {
+      color: #aebcd0 !important;
+    }
+    html.dark .border-outline-variant {
+      border-color: #31435d !important;
+    }
+    html.dark input {
+      background-color: #07111f !important;
+      color: #eaf1ff !important;
+    }
+  </style>
+  <link rel="stylesheet" href="mobile-student.css" />
+</head>
+<body class="bg-background text-on-background min-h-screen" data-role-required="student">
+  <script src="role-access.js"></script>
+  <header class="bg-background border-b border-outline-variant flex justify-between items-center w-full px-4 py-2 fixed top-0 z-50 h-14">
+    <a class="text-xl font-bold text-primary" href="student-home.html">GeoAttend</a>
+    <a class="flex items-center gap-2 rounded-full px-2 py-1" href="student-profile.html" aria-label="Account">
+      <span class="hidden max-w-[130px] truncate text-sm font-bold text-primary sm:inline" data-current-user-name data-student-user-name>Student</span>
+      <span class="material-symbols-outlined text-primary">account_circle</span>
+    </a>
+  </header>
+
+  <main class="pt-16 pb-20 px-4 max-w-xl mx-auto">
+    <section class="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-sm">
+      <div class="flex items-start justify-between gap-4">
+        <div class="min-w-0">
+          <p class="text-xs uppercase tracking-wider text-on-surface-variant font-semibold">Student Dashboard</p>
+          <h1 class="text-xl font-bold text-on-surface mt-1">Welcome back</h1>
+          <p class="text-sm text-on-surface-variant mt-1 break-words" id="student-email">Loading account...</p>
+        </div>
+        <span class="material-symbols-outlined text-secondary text-3xl">school</span>
+      </div>
+
+      <div class="grid grid-cols-4 gap-2 mt-4" aria-label="Attendance summary">
+        <div class="bg-surface-container-low rounded-lg p-2">
+          <p class="text-[10px] uppercase text-on-surface-variant font-semibold">Rate</p>
+          <p class="font-mono-data text-lg font-bold text-on-surface mt-1" id="attendance-rate">0%</p>
+        </div>
+        <div class="bg-surface-container-low rounded-lg p-2">
+          <p class="text-[10px] uppercase text-on-surface-variant font-semibold">Total</p>
+          <p class="font-mono-data text-lg font-bold text-on-surface mt-1" id="total-checkins">0</p>
+        </div>
+        <div class="bg-surface-container-low rounded-lg p-2">
+          <p class="text-[10px] uppercase text-on-surface-variant font-semibold">Present</p>
+          <p class="font-mono-data text-lg font-bold text-green-700 mt-1" id="present-count">0</p>
+        </div>
+        <div class="bg-surface-container-low rounded-lg p-2">
+          <p class="text-[10px] uppercase text-on-surface-variant font-semibold">Missed</p>
+          <p class="font-mono-data text-lg font-bold text-red-700 mt-1" id="missed-count">0</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="mt-3">
+      <a class="bg-secondary text-white rounded-xl p-4 shadow-sm flex items-center justify-between gap-4 active:scale-[0.99] transition-transform" href="#active-classes" id="primary-action-link">
+        <div>
+          <p class="font-bold" id="primary-action-title">View active classes</p>
+          <p class="text-sm opacity-80" id="primary-action-helper">Pick a live class, then confirm your saved device security prompt</p>
+        </div>
+        <span class="material-symbols-outlined text-2xl" id="primary-action-icon">event_available</span>
+      </a>
+    </section>
+
+    <section class="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-sm mt-3">
+      <div class="grid gap-4 sm:grid-cols-2">
+        <article class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+          <p class="text-xs uppercase tracking-wider text-on-surface-variant font-semibold">Today</p>
+          <h2 class="font-bold text-on-surface mt-1" id="today-status-title">Checking status...</h2>
+          <p class="text-sm text-on-surface-variant mt-1" id="today-status-helper">Loading your latest check-in.</p>
+          </div>
+          <span class="material-symbols-outlined text-secondary text-3xl" id="today-status-icon">pending_actions</span>
+        </article>
+        <article class="flex items-start justify-between gap-3 border-t border-outline-variant pt-4 sm:border-t-0 sm:border-l sm:pl-4 sm:pt-0">
+          <div class="min-w-0">
+          <p class="text-xs uppercase tracking-wider text-on-surface-variant font-semibold">Current Session</p>
+          <h2 class="font-bold text-on-surface mt-1" id="current-session-title">No active session</h2>
+          <p class="text-sm text-on-surface-variant mt-1" id="current-session-location">Tap a live class below to check in.</p>
+          <p class="font-mono-data text-sm text-secondary mt-2" id="session-countdown">Waiting for session</p>
+          </div>
+          <span class="material-symbols-outlined text-secondary text-3xl">sensors</span>
+        </article>
+      </div>
+    </section>
+
+    <section class="grid grid-cols-2 gap-3 mt-3">
+      <article class="bg-surface-container-lowest border border-outline-variant rounded-xl p-3 shadow-sm">
+        <div class="flex items-center justify-between gap-3">
+          <p class="text-xs uppercase tracking-wider text-on-surface-variant font-semibold">Identity</p>
+          <span class="material-symbols-outlined text-secondary" id="identity-icon">verified_user</span>
+        </div>
+        <p class="font-bold text-on-surface mt-2" id="identity-status">Checking...</p>
+        <a class="text-sm font-semibold text-secondary mt-2 inline-flex items-center gap-1" href="identity-verification.html" id="identity-link">
+          <span class="material-symbols-outlined text-[18px]">badge</span>
+          Setup
+        </a>
+      </article>
+      <article class="bg-surface-container-lowest border border-outline-variant rounded-xl p-3 shadow-sm">
+        <div class="flex items-center justify-between gap-3">
+          <p class="text-xs uppercase tracking-wider text-on-surface-variant font-semibold">GPS</p>
+          <span class="material-symbols-outlined text-secondary" id="gps-icon">location_on</span>
+        </div>
+        <p class="font-bold text-on-surface mt-2" id="gps-status">Checking...</p>
+        <p class="text-xs text-on-surface-variant mt-2" id="gps-helper">Location support status</p>
+      </article>
+    </section>
+
+    <section class="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-sm mt-3" id="active-classes">
+      <div class="flex items-start justify-between gap-4">
+        <div class="min-w-0">
+          <p class="text-xs uppercase tracking-wider text-on-surface-variant font-semibold">Active Classes</p>
+          <h2 class="text-xl font-bold text-on-surface mt-1">Live attendance sessions</h2>
+          <p class="text-sm text-on-surface-variant mt-1">Choose a live class. Your saved device security prompt opens automatically.</p>
+        </div>
+        <div class="flex items-center gap-xs bg-secondary-container/20 text-secondary px-3 py-1 rounded-full h-fit">
+          <span class="material-symbols-outlined text-[18px] orb-pulse" style="font-variation-settings: 'FILL' 1;">sensors</span>
+          <span class="font-label-md text-label-md" id="active-classes-count">0 live</span>
+        </div>
+      </div>
+
+      <div class="mt-4 space-y-3" id="active-classes-list"></div>
+    </section>
+
+    <div class="fixed inset-0 z-[90] hidden items-center justify-center px-4" id="checkin-modal" aria-hidden="true">
+      <div class="absolute inset-0 bg-slate-950/50 backdrop-blur-sm" data-dismiss-checkin></div>
+      <div class="relative w-full max-w-md rounded-2xl border border-outline-variant bg-surface-container-lowest shadow-2xl overflow-hidden">
+        <div class="flex items-start justify-between gap-4 p-4 border-b border-outline-variant">
+          <div class="min-w-0">
+            <p class="text-xs uppercase tracking-wider text-on-surface-variant font-semibold">Check In</p>
+            <h3 class="text-xl font-bold text-on-surface mt-1" id="checkin-modal-session-name">Select a class</h3>
+            <p class="text-sm text-on-surface-variant mt-1" id="checkin-modal-session-meta">Choose a verification method to continue.</p>
+          </div>
+          <button class="p-2 rounded-full hover:bg-surface-container-low" type="button" data-dismiss-checkin aria-label="Close check-in dialog">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+
+        <div class="p-4 space-y-4">
+          <div id="checkin-method-choice">
+            <p class="text-sm text-on-surface-variant" id="checkin-security-copy">Detecting this device security method...</p>
+            <div class="grid gap-3 mt-3">
+              <button class="rounded-xl border border-outline-variant bg-surface-container-low p-4 flex items-center gap-3 text-left hover:border-secondary transition-colors" data-checkin-method="fingerprint" type="button" id="checkin-detected-security">
+                <span class="material-symbols-outlined text-secondary text-3xl" id="checkin-detected-security-icon">fingerprint</span>
+                <span class="min-w-0">
+                  <strong class="block text-on-surface" id="checkin-detected-security-title">Device security</strong>
+                  <span class="block text-sm text-on-surface-variant" id="checkin-detected-security-helper">Fingerprint, Face ID, Windows Hello, or screen lock.</span>
+                </span>
+              </button>
+              <button class="rounded-xl border border-outline-variant bg-surface-container-low p-4 flex items-center gap-3 text-left hover:border-secondary transition-colors" data-checkin-method="password" type="button" id="checkin-pin-option">
+                <span class="material-symbols-outlined text-secondary text-3xl">pin</span>
+                <span class="min-w-0">
+                  <strong class="block text-on-surface">Attendance PIN</strong>
+                  <span class="block text-sm text-on-surface-variant">Use the PIN you set during registration.</span>
+                </span>
+              </button>
+              <button class="rounded-xl border border-outline-variant bg-surface-container-low p-4 flex items-center gap-3 text-left hover:border-secondary transition-colors" data-checkin-method="assist" type="button" id="checkin-assist-option">
+                <span class="material-symbols-outlined text-secondary text-3xl">group_add</span>
+                <span class="min-w-0">
+                  <strong class="block text-on-surface">Check in another student</strong>
+                  <span class="block text-sm text-on-surface-variant">Enter only their registration number. Limit: 3 per session.</span>
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div class="hidden space-y-3" id="checkin-face-panel">
+            <div class="relative aspect-square rounded-2xl overflow-hidden bg-primary-container border border-outline-variant">
+              <video class="w-full h-full object-cover scale-x-[-1]" id="checkin-face-video" autoplay playsinline muted></video>
+              <canvas class="hidden" id="checkin-face-canvas" width="720" height="720"></canvas>
+              <div class="absolute inset-0 grid place-items-center bg-primary-container text-white text-center p-6" id="checkin-face-placeholder">
+                <div>
+                  <span class="material-symbols-outlined text-5xl text-secondary-fixed">photo_camera_front</span>
+                  <p class="mt-2 text-sm text-white/75">Start the front camera to continue.</p>
+                </div>
+              </div>
+            </div>
+            <button class="w-full rounded-2xl bg-primary text-white px-4 py-3 font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform" id="checkin-start-camera" type="button">
+              <span class="material-symbols-outlined">photo_camera_front</span>
+              Start Front Camera
+            </button>
+            <button class="w-full rounded-2xl border border-secondary text-secondary px-4 py-3 font-bold flex items-center justify-center gap-2 hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" id="checkin-capture-face" type="button" disabled>
+              <span class="material-symbols-outlined">face</span>
+              Capture Face ID
+            </button>
+          </div>
+
+          <div class="hidden space-y-3" id="checkin-password-panel">
+            <div class="rounded-2xl bg-surface-container-low p-4 border border-outline-variant">
+              <label class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2" for="checkin-password-input">Attendance PIN</label>
+              <div class="relative"><input class="w-full rounded-xl border border-outline-variant bg-white px-4 py-3 pr-14 text-base outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="checkin-password-input" inputmode="numeric" maxlength="8" placeholder="Enter attendance PIN" type="password" /><button class="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-secondary" type="button" data-toggle-password="#checkin-password-input" aria-label="Show attendance PIN"><span class="material-symbols-outlined">visibility</span></button></div>
+            </div>
+            <button class="w-full rounded-2xl bg-primary text-white px-4 py-3 font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform" id="checkin-password-submit" type="button">
+              Verify and Check in
+              <span class="material-symbols-outlined">arrow_forward</span>
+            </button>
+          </div>
+
+          <div class="hidden space-y-3" id="checkin-fingerprint-panel">
+            <div class="rounded-2xl bg-surface-container-low p-4 border border-outline-variant">
+              <p class="font-bold text-on-surface">Use the device biometric prompt.</p>
+              <p class="text-sm text-on-surface-variant mt-1" id="checkin-platform-copy">Confirm the security prompt shown by your device.</p>
+            </div>
+            <button class="w-full rounded-2xl bg-primary text-white px-4 py-3 font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform" id="checkin-platform-button" type="button">
+              Open Device Security
+              <span class="material-symbols-outlined">fingerprint</span>
+            </button>
+          </div>
+
+          <div class="hidden space-y-3" id="checkin-assist-panel">
+            <div class="rounded-2xl bg-surface-container-low p-4 border border-outline-variant">
+              <label class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2" for="assist-reg-number-input">Student Reg No</label>
+              <input class="w-full rounded-xl border border-outline-variant bg-white px-4 py-3 text-base uppercase outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="assist-reg-number-input" inputmode="numeric" placeholder="25/EG/EE/001" type="text" autocomplete="off" />
+              <p class="text-xs text-on-surface-variant mt-2" id="assist-limit-copy">You can assist up to 3 students in this class session.</p>
+            </div>
+            <button class="w-full rounded-2xl bg-primary text-white px-4 py-3 font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform" id="assist-checkin-submit" type="button">
+              Check In Student
+              <span class="material-symbols-outlined">arrow_forward</span>
+            </button>
+          </div>
+
+          <div class="hidden rounded-2xl px-4 py-3 text-sm" id="checkin-modal-message"></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 pb-2 pt-1 bg-surface border-t border-outline-variant shadow-md h-16">
+    <a class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-full px-4 py-1 scale-90" href="student-home.html"><span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">home</span><span class="text-xs font-semibold">Home</span></a>
+    <a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1" href="student-history.html"><span class="material-symbols-outlined">history</span><span class="text-xs font-semibold">History</span></a>
+    <a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1" href="student-profile.html"><span class="material-symbols-outlined">person</span><span class="text-xs font-semibold">Profile</span></a>
+  </nav>
+
+  <script>
+    const email = localStorage.getItem("geoAttendCurrentUser") || "Student";
+    const isAdminUser = localStorage.getItem("geoAttendRole") === "admin";
+    function getLiveSessions() {
+      const sessions = JSON.parse(localStorage.getItem("geoAttendLiveSessions") || "[]");
+      const active = JSON.parse(localStorage.getItem("geoAttendActiveSession") || "null");
+      const merged = [...sessions];
+      if (active?.id && !merged.some((session) => session.id === active.id)) {
+        merged.unshift(active);
+      }
+      return merged.filter((session) => session?.status === "active");
+    }
+
+    async function refreshLiveSessionsFromServer() {
+      try {
+        const email = localStorage.getItem("geoAttendCurrentUser") || ""; const response = await fetch(`/api/live-sessions?email=${encodeURIComponent(email)}`, { cache: "no-store" });
+        if (!response.ok) return;
+        const data = await response.json();
+        const sessions = Array.isArray(data.sessions) ? data.sessions : [];
+        localStorage.setItem("geoAttendLiveSessions", JSON.stringify(sessions));
+        if (data.activeSession) {
+          localStorage.setItem("geoAttendActiveSession", JSON.stringify(data.activeSession));
+        } else {
+          localStorage.removeItem("geoAttendActiveSession");
+        }
+
+        syncActiveSession();
+        updateTodayStatus();
+        updateSession();
+        renderActiveClasses();
+      } catch {
+        // Keep the local cache visible if the server is briefly unavailable.
+      }
+    }
+
+    let activeSession = getLiveSessions()[0] || null;
+    let selectedCheckinSession = null;
+    let selectedCheckinMethod = "";
+    let faceCameraStream = null;
+    let faceCaptureImage = null;
+    let checkinInProgress = false;
+    let checkinQrTimer = null;
+    let sessionCountdownInterval = null;
+    let attendanceLogs = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]")
+      .filter((item) => !email || item.email === email);
+    const profiles = JSON.parse(localStorage.getItem("geoAttendBiometricProfiles") || "{}");
+    let biometricProfileCache = profiles[email] || null;
+    let biometricProfileLoadPromise = null;
+    let isWithinGeofence = false;
+    let latestPosition = null;
+    let locationWatchId = null;
+    let studentLocationSamples = [];
+    const TRUSTED_ADMIN_LOCATION_ACCURACY_METERS = 100;
+    const TRUSTED_STUDENT_LOCATION_ACCURACY_METERS = 100;
+    const STUDENT_LOCATION_TARGET_ACCURACY_METERS = 35;
+    const STUDENT_LOCATION_SAMPLE_MAX_AGE_MS = 90000;
+    const STUDENT_LOCATION_MAX_SAMPLES = 30;
+
+    function getStudentSettings() {
+      return JSON.parse(localStorage.getItem(`geoAttendStudentSettings:${email}`) || "{}");
+    }
+
+    function deviceSecurityEnabled() {
+      return getStudentSettings().deviceSecurityEnabled === true;
+    }
+
+    async function detectDeviceSecurity() {
+      const label = {
+        title: "Device security",
+        helper: "Fingerprint, Face ID, Windows Hello, or screen lock.",
+        icon: "fingerprint",
+        method: "Device security"
+      };
+
+      if (!window.PublicKeyCredential || !navigator.credentials?.get) {
+        return {
+          ...label,
+          title: "Unsupported browser",
+          helper: "Use a browser that supports WebAuthn platform security.",
+          icon: "gpp_bad",
+          supported: false
+        };
+      }
+
+      const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().catch(() => false);
+      const userAgent = navigator.userAgent || "";
+      const platform = navigator.platform || "";
+      const appleDevice = /iPhone|iPad|Mac/i.test(userAgent) || /Mac/i.test(platform);
+      const windowsDevice = /Windows/i.test(userAgent) || /Win/i.test(platform);
+      const androidDevice = /Android/i.test(userAgent);
+
+      if (appleDevice) {
+        label.title = "Face ID / Touch ID";
+        label.helper = "Confirm with the Apple security prompt.";
+        label.icon = "face";
+        label.method = "Face ID / Touch ID";
+      } else if (windowsDevice) {
+        label.title = "Windows Hello";
+        label.helper = "Confirm with fingerprint, face, PIN, or screen lock.";
+        label.icon = "fingerprint";
+        label.method = "Windows Hello";
+      } else if (androidDevice) {
+        label.title = "Android biometrics";
+        label.helper = "Confirm with fingerprint, face unlock, or screen lock.";
+        label.icon = "fingerprint";
+        label.method = "Android biometrics";
+      }
+
+      return { ...label, supported: available };
+    }
+
+    function updateDetectedSecurityUi(details) {
+      const title = document.getElementById("checkin-detected-security-title");
+      const helper = document.getElementById("checkin-detected-security-helper");
+      const icon = document.getElementById("checkin-detected-security-icon");
+      const copy = document.getElementById("checkin-security-copy");
+      const platformCopy = document.getElementById("checkin-platform-copy");
+      const platformButton = document.getElementById("checkin-platform-button");
+
+      if (title) title.textContent = details.title;
+      if (helper) helper.textContent = details.helper;
+      if (icon) icon.textContent = details.icon;
+      if (copy) copy.textContent = details.supported ? `${details.title} detected. Confirm the prompt to check in.` : details.helper;
+      if (platformCopy) platformCopy.textContent = details.helper;
+      if (platformButton) {
+        platformButton.firstChild.textContent = `Confirm ${details.title} `;
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function isToday(value) {
+      if (!value) return false;
+      const date = new Date(value);
+      const today = new Date();
+      return date.toDateString() === today.toDateString();
+    }
+
+    function formatDateTime(value) {
+      if (!value) return "Time unavailable";
+      return new Date(value).toLocaleString([], {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    }
+
+    function formatMeters(value) {
+      const meters = Math.round(Number(value || 0));
+      return meters ? `${meters.toLocaleString()}m` : "--";
+    }
+
+    function isWeakAdminGeofence(geofence = {}) {
+      const source = String(geofence.source || "");
+      const accuracy = Number(geofence.accuracy || 0);
+      return source.startsWith("pc-geolocation") && (!accuracy || accuracy > TRUSTED_ADMIN_LOCATION_ACCURACY_METERS);
+    }
+
+    function getAdminGeofenceWarning(geofence = {}) {
+      const accuracy = Number(geofence.accuracy || 0);
+      return `Admin location accuracy is ${accuracy || "unknown"}m, so this class geofence is not reliable. Ask the admin to choose the class location from the map or use a GPS-capable device.`;
+    }
+
+    function isStudentGpsUsable(position = latestPosition) {
+      const accuracy = Number(position?.accuracy || 0);
+      const age = position?.timestampMs ? Date.now() - position.timestampMs : 0;
+      return accuracy > 0 && accuracy <= TRUSTED_STUDENT_LOCATION_ACCURACY_METERS && age <= STUDENT_LOCATION_SAMPLE_MAX_AGE_MS;
+    }
+
+    function normalizeBrowserLocation(position) {
+      return {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+        accuracy: Math.round(position.coords.accuracy || 0),
+        altitude: position.coords.altitude,
+        altitudeAccuracy: position.coords.altitudeAccuracy,
+        heading: position.coords.heading,
+        speed: position.coords.speed,
+        timestamp: new Date(position.timestamp || Date.now()).toISOString(),
+        timestampMs: position.timestamp || Date.now()
+      };
+    }
+
+    function getBestRecentStudentLocation(sample) {
+      studentLocationSamples.push(sample);
+      const cutoff = Date.now() - STUDENT_LOCATION_SAMPLE_MAX_AGE_MS;
+      studentLocationSamples = studentLocationSamples
+        .filter((item) => item.timestampMs >= cutoff)
+        .slice(-STUDENT_LOCATION_MAX_SAMPLES);
+      return [...studentLocationSamples]
+        .filter((item) => Number.isFinite(item.lat) && Number.isFinite(item.lng))
+        .sort((a, b) => {
+          const accuracyA = a.accuracy || Number.POSITIVE_INFINITY;
+          const accuracyB = b.accuracy || Number.POSITIVE_INFINITY;
+          if (accuracyA !== accuracyB) return accuracyA - accuracyB;
+          return b.timestampMs - a.timestampMs;
+        })[0] || sample;
+    }
+
+    function getSessionEnd(session) {
+      if (!session?.createdAt || !session?.duration) return null;
+      return new Date(new Date(session.createdAt).getTime() + Number(session.duration) * 60000);
+    }
+
+    function getSessionStart(session) {
+      if (!session?.startTime) return null;
+      const [hours, minutes] = String(session.startTime).split(":").map(Number);
+      if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+      const base = session.createdAt ? new Date(session.createdAt) : new Date();
+      const start = new Date(base);
+      start.setHours(hours, minutes, 0, 0);
+      return start;
+    }
+
+    function isSessionStarted(session) {
+      const start = getSessionStart(session);
+      return !start || Date.now() >= start.getTime();
+    }
+
+    function getSessionStartMessage(session) {
+      const start = getSessionStart(session);
+      if (!start) return "This session has not started yet.";
+      return `Check-in opens at ${start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`;
+    }
+
+    function base64UrlToUint8Array(value) {
+      const base64 = String(value || "").replace(/-/g, "+").replace(/_/g, "/");
+      const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+      const binary = atob(padded);
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index += 1) {
+        bytes[index] = binary.charCodeAt(index);
+      }
+      return bytes;
+    }
+
+    function bufferToBase64Url(buffer) {
+      const bytes = new Uint8Array(buffer);
+      let binary = "";
+      bytes.forEach((byte) => binary += String.fromCharCode(byte));
+      return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+    }
+
+    async function hashAttendancePin(pin) {
+      const bytes = new TextEncoder().encode(`${email}:${pin}`);
+      const hash = await crypto.subtle.digest("SHA-256", bytes);
+      return bufferToBase64Url(hash);
+    }
+
+    function loadImageFromDataUrl(dataUrl) {
+      return new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error("Unable to process face capture."));
+        image.src = dataUrl;
+      });
+    }
+
+    async function computeFaceHash(dataUrl) {
+      const image = await loadImageFromDataUrl(dataUrl);
+      const hashCanvas = document.createElement("canvas");
+      const size = 8;
+      hashCanvas.width = size;
+      hashCanvas.height = size;
+      const context = hashCanvas.getContext("2d", { willReadFrequently: true });
+      context.drawImage(image, 0, 0, size, size);
+      const pixels = context.getImageData(0, 0, size, size).data;
+      const brightness = [];
+      let total = 0;
+
+      for (let index = 0; index < pixels.length; index += 4) {
+        const gray = Math.round(pixels[index] * 0.299 + pixels[index + 1] * 0.587 + pixels[index + 2] * 0.114);
+        brightness.push(gray);
+        total += gray;
+      }
+
+      const average = total / brightness.length;
+      return brightness.map((value) => (value >= average ? "1" : "0")).join("");
+    }
+
+    function hammingDistance(a, b) {
+      const length = Math.min(a.length, b.length);
+      let distance = Math.abs(a.length - b.length);
+      for (let index = 0; index < length; index += 1) {
+        if (a[index] !== b[index]) distance += 1;
+      }
+      return distance;
+    }
+
+    async function loadSavedBiometricProfile(forceRefresh = false) {
+      if (!forceRefresh && biometricProfileCache) return biometricProfileCache;
+      if (!forceRefresh && biometricProfileLoadPromise) return biometricProfileLoadPromise;
+
+      biometricProfileLoadPromise = (async () => {
+        const localProfiles = JSON.parse(localStorage.getItem("geoAttendBiometricProfiles") || "{}");
+        if (localProfiles[email]) {
+          biometricProfileCache = localProfiles[email];
+          return biometricProfileCache;
+        }
+
+        try {
+          const response = await fetch(`/api/biometric-profile?email=${encodeURIComponent(email)}`);
+          if (!response.ok) return null;
+          const data = await response.json();
+          if (!data?.profile) return null;
+          localProfiles[email] = data.profile;
+          localStorage.setItem("geoAttendBiometricProfiles", JSON.stringify(localProfiles));
+          biometricProfileCache = data.profile;
+          return biometricProfileCache;
+        } catch {
+          return null;
+        } finally {
+          biometricProfileLoadPromise = null;
+        }
+      })();
+
+      return biometricProfileLoadPromise;
+    }
+
+    async function compareFaceCaptureWithProfile(capturedImage) {
+      const profile = await loadSavedBiometricProfile();
+      if (!profile) {
+        throw new Error("No saved face profile found. Complete registration verification first.");
+      }
+
+      const savedImage = profile.faceTemplateHash ? null : profile.faceCaptures?.faceTemplate?.image || profile.faceCaptures?.faceTemplate?.sourceImage || null;
+      const savedHash = profile.faceTemplateHash || (savedImage ? await computeFaceHash(savedImage) : "");
+      if (!savedHash) {
+        throw new Error("No saved face template found. Complete registration verification first.");
+      }
+
+      const currentHash = await computeFaceHash(capturedImage);
+      const distance = hammingDistance(currentHash, savedHash);
+      return {
+        matched: distance <= 16,
+        distance
+      };
+    }
+
+    async function verifyFingerprintAgainstProfile() {
+      const profile = await loadSavedBiometricProfile();
+      if (!profile) {
+        throw new Error("No saved biometric profile found. Complete registration verification first.");
+      }
+
+      const credentialId = profile.platformCredentialRawId || profile.platformCredential?.rawId || profile.platformCredentialId || profile.platformCredential?.id;
+      if (!credentialId) {
+        throw new Error("No saved fingerprint profile found. Complete registration verification first.");
+      }
+
+      if (!window.PublicKeyCredential || !navigator.credentials?.get) {
+        throw new Error("Device biometric verification is not supported on this browser.");
+      }
+
+      const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().catch(() => false);
+      if (!available) {
+        throw new Error("No built-in biometric authenticator was found on this device.");
+      }
+
+      const challenge = crypto.getRandomValues(new Uint8Array(32));
+      const assertion = await navigator.credentials.get({
+        publicKey: {
+          challenge,
+          timeout: 60000,
+          userVerification: "required",
+          allowCredentials: [{
+            id: base64UrlToUint8Array(credentialId),
+            type: "public-key",
+            transports: ["internal"]
+          }]
+        }
+      });
+
+      const savedCredentialId = profile.platformCredentialId || profile.platformCredential?.id;
+      if (!assertion || (savedCredentialId && assertion.id !== savedCredentialId)) {
+        throw new Error("Device security mismatch. The prompt did not match the saved profile.");
+      }
+
+      return true;
+    }
+
+    function updateSummary() {
+      const total = attendanceLogs.length;
+      const present = attendanceLogs.filter((item) => (item.status || "present").toLowerCase() === "present").length;
+      const missed = attendanceLogs.filter((item) => (item.status || "").toLowerCase() === "missed").length;
+      const rate = total ? Math.round((present / total) * 100) : 0;
+
+      document.getElementById("attendance-rate").textContent = `${rate}%`;
+      document.getElementById("total-checkins").textContent = total;
+      document.getElementById("present-count").textContent = present;
+      document.getElementById("missed-count").textContent = missed;
+    }
+
+    function updateTodayStatus() {
+      const todayLog = attendanceLogs.slice().reverse().find((item) => isToday(item.checkedInAt));
+      const title = document.getElementById("today-status-title");
+      const helper = document.getElementById("today-status-helper");
+      const icon = document.getElementById("today-status-icon");
+
+      if (todayLog) {
+        title.textContent = "Checked in today";
+        helper.textContent = `${todayLog.course || "Attendance session"} at ${formatDateTime(todayLog.checkedInAt)}`;
+        icon.textContent = "task_alt";
+        return;
+      }
+
+      if (activeSession) {
+        title.textContent = "Check-in pending";
+        helper.textContent = "A live class is available for attendance.";
+        icon.textContent = "pending_actions";
+        return;
+      }
+
+      title.textContent = "No active class";
+      helper.textContent = "You are clear for now. Check back when a session is live.";
+      icon.textContent = "event_available";
+    }
+
+    function updateSession() {
+      if (sessionCountdownInterval) {
+        clearInterval(sessionCountdownInterval);
+        sessionCountdownInterval = null;
+      }
+      const title = document.getElementById("current-session-title");
+      const location = document.getElementById("current-session-location");
+      const countdown = document.getElementById("session-countdown");
+
+      if (!activeSession) {
+        title.textContent = "No active session";
+        location.textContent = "Tap a live class below to check in.";
+        countdown.textContent = "Waiting for session";
+        return;
+      }
+
+      title.textContent = activeSession.course || "Active session";
+      location.textContent = activeSession.locationName || activeSession.geofence?.name || "Selected location";
+
+      const end = getSessionEnd(activeSession);
+      const start = getSessionStart(activeSession);
+      if (start && Date.now() < start.getTime()) {
+        function startTick() {
+          const remaining = start.getTime() - Date.now();
+          if (remaining <= 0) {
+            countdown.textContent = "Check-in is open";
+            renderActiveClasses();
+            return;
+          }
+          const minutes = Math.floor(remaining / 60000);
+          const seconds = Math.floor((remaining % 60000) / 1000);
+          countdown.textContent = `Starts in ${minutes}m ${String(seconds).padStart(2, "0")}s`;
+        }
+        startTick();
+        sessionCountdownInterval = setInterval(startTick, 1000);
+        return;
+      }
+
+      if (!end) {
+        countdown.textContent = activeSession.startTime && activeSession.endTime
+          ? `${activeSession.startTime} - ${activeSession.endTime}`
+          : "Live session active";
+        return;
+      }
+
+      function tick() {
+        const remaining = end.getTime() - Date.now();
+        if (remaining <= 0) {
+          countdown.textContent = "Session time has ended";
+          return;
+        }
+        const minutes = Math.floor(remaining / 60000);
+        const seconds = Math.floor((remaining % 60000) / 1000);
+        countdown.textContent = `${minutes}m ${String(seconds).padStart(2, "0")}s remaining`;
+      }
+
+      tick();
+      sessionCountdownInterval = setInterval(tick, 1000);
+    }
+
+    function updateVerification() {
+      const isVerified = Boolean(profiles[email]);
+      const status = document.getElementById("identity-status");
+      const icon = document.getElementById("identity-icon");
+      const link = document.getElementById("identity-link");
+
+      status.textContent = isVerified ? "Verified" : "Setup needed";
+      icon.textContent = isVerified ? "verified_user" : "shield_lock";
+      link.textContent = isVerified ? "Review" : "Setup";
+      link.insertAdjacentHTML("afterbegin", '<span class="material-symbols-outlined text-[18px]">badge</span>');
+    }
+
+    async function updateGpsReadiness() {
+      const status = document.getElementById("gps-status");
+      const helper = document.getElementById("gps-helper");
+      const icon = document.getElementById("gps-icon");
+
+      if (!navigator.geolocation) {
+        status.textContent = "Unavailable";
+        helper.textContent = "Use a browser with GPS support.";
+        icon.textContent = "location_off";
+        return;
+      }
+
+      status.textContent = "Supported";
+      helper.textContent = "Allow location for the attendance flow.";
+      icon.textContent = "my_location";
+
+      if (navigator.permissions?.query) {
+        try {
+          const permission = await navigator.permissions.query({ name: "geolocation" });
+          status.textContent = permission.state === "granted" ? "Ready" : permission.state === "denied" ? "Blocked" : "Ask on attendance";
+          helper.textContent = permission.state === "denied" ? "Enable location permission in your browser." : "GPS will confirm your class zone.";
+          icon.textContent = permission.state === "denied" ? "location_off" : "my_location";
+        } catch (error) {
+          helper.textContent = "GPS will confirm your class zone.";
+        }
+      }
+    }
+
+    function renderRecentCheckins() {
+      const list = document.getElementById("recent-checkins");
+      if (!list) return;
+      const recent = attendanceLogs.slice().reverse().slice(0, 2);
+
+      if (!recent.length) {
+        list.innerHTML = '<div class="rounded-xl border border-dashed border-outline-variant bg-white p-4 text-center"><span class="material-symbols-outlined text-3xl text-on-surface-variant">history</span><p class="font-bold mt-1">No check-ins yet</p><p class="text-sm text-on-surface-variant mt-1">Your latest attendance records will appear here.</p></div>';
+        return;
+      }
+
+      list.innerHTML = recent.map((log) => `
+        <article class="bg-surface-container-lowest border border-outline-variant rounded-xl p-3 shadow-sm">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <h3 class="font-bold text-on-surface truncate">${escapeHtml(log.course || "Attendance session")}</h3>
+              <p class="text-sm text-on-surface-variant mt-1">${escapeHtml(formatDateTime(log.checkedInAt))}</p>
+            </div>
+            <span class="bg-green-100 text-green-700 rounded-full px-3 py-1 text-xs font-bold h-fit">${escapeHtml(log.status || "present")}</span>
+          </div>
+        </article>
+      `).join("");
+    }
+
+    function getAttendanceCountForSession(sessionId) {
+      const logs = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]");
+      return logs.filter((entry) => entry.sessionId === sessionId).length;
+    }
+
+    function formatSessionWindow(session) {
+      if (!session) return "Live now";
+      if (session.startTime && session.endTime) return `${session.startTime} - ${session.endTime}`;
+      if (session.duration) return `${session.duration} min`;
+      return "Live now";
+    }
+
+    function syncActiveSession(session = null) {
+      const liveSessions = getLiveSessions();
+      const selected = session && liveSessions.find((item) => item.id === session.id) ? session : null;
+      activeSession = selected || liveSessions[0] || null;
+      if (activeSession && latestPosition) {
+        updateLiveGps({
+          coords: {
+            latitude: latestPosition.lat,
+            longitude: latestPosition.lng,
+            accuracy: latestPosition.accuracy || 0
+          },
+          timestamp: Date.now()
+        });
+      }
+      return activeSession;
+    }
+
+    function setCheckinMessage(text, isError = false) {
+      const message = document.getElementById("checkin-modal-message");
+      if (!message) return;
+      message.textContent = text;
+      message.className = `rounded-2xl px-4 py-3 text-sm ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-green-50 text-green-700 border border-green-200"}`;
+      message.classList.remove("hidden");
+    }
+
+    function flashButtonFeedback(button, text, isError = false, duration = 900) {
+      if (!button) return;
+      const original = button.dataset.originalLabel || button.textContent.trim();
+      button.dataset.originalLabel = original;
+      button.textContent = text;
+      button.classList.add(isError ? "bg-red-600" : "bg-green-600", "text-white");
+      window.clearTimeout(Number(button.dataset.feedbackTimer || 0));
+      button.dataset.feedbackTimer = window.setTimeout(() => {
+        button.textContent = button.dataset.originalLabel || original;
+        button.classList.remove("bg-red-600", "bg-green-600", "text-white");
+      }, duration);
+    }
+
+    function getExistingCheckin(sessionId) {
+      const allAttendance = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]");
+      return allAttendance.find((record) => record && record.email === email && record.sessionId === sessionId);
+    }
+
+    function normalizeStudentRegNumber(value) {
+      const raw = String(value || "").trim().toUpperCase();
+      if (!raw) return "";
+      if (/^\d{1,3}$/.test(raw)) return `25/EG/EE/${raw.padStart(3, "0")}`;
+      return raw;
+    }
+
+    function getCurrentStudentAccount() {
+      const accounts = JSON.parse(localStorage.getItem("geoAttendAccounts") || "[]");
+      return accounts.find((savedAccount) => savedAccount.email === email) || null;
+    }
+
+    function getAssistedCountForSession(sessionId, helperRegNumber) {
+      const normalizedHelper = normalizeStudentRegNumber(helperRegNumber);
+      const allAttendance = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]");
+      return new Set(allAttendance
+        .filter((record) => record && record.sessionId === sessionId && normalizeStudentRegNumber(record.assistedByRegNumber) === normalizedHelper)
+        .map((record) => normalizeStudentRegNumber(record.regNumber || record.targetRegNumber))
+        .filter(Boolean)).size;
+    }
+
+    function clearCheckinMessage() {
+      const message = document.getElementById("checkin-modal-message");
+      if (!message) return;
+      message.className = "hidden rounded-2xl px-4 py-3 text-sm";
+      message.textContent = "";
+    }
+
+    function showCheckinPanel(method) {
+      selectedCheckinMethod = method;
+      document.getElementById("checkin-method-choice")?.classList.add("hidden");
+      document.getElementById("checkin-face-panel")?.classList.toggle("hidden", method !== "face");
+      document.getElementById("checkin-password-panel")?.classList.toggle("hidden", method !== "password");
+      document.getElementById("checkin-fingerprint-panel")?.classList.toggle("hidden", method !== "fingerprint");
+      document.getElementById("checkin-assist-panel")?.classList.toggle("hidden", method !== "assist");
+      clearCheckinMessage();
+    }
+
+    function resetCheckinModal() {
+      selectedCheckinMethod = "";
+      selectedCheckinSession = null;
+      checkinInProgress = false;
+      clearCheckinMessage();
+      document.getElementById("checkin-method-choice")?.classList.remove("hidden");
+      document.getElementById("checkin-face-panel")?.classList.add("hidden");
+      document.getElementById("checkin-password-panel")?.classList.add("hidden");
+      document.getElementById("checkin-fingerprint-panel")?.classList.add("hidden");
+      document.getElementById("checkin-assist-panel")?.classList.add("hidden");
+      const passwordInput = document.getElementById("checkin-password-input");
+      if (passwordInput) passwordInput.value = "";
+      const assistInput = document.getElementById("assist-reg-number-input");
+      if (assistInput) assistInput.value = "";
+      const platformButton = document.getElementById("checkin-platform-button");
+      if (platformButton) {
+        delete platformButton.dataset.redirectTo;
+        platformButton.innerHTML = 'Open Device Security <span class="material-symbols-outlined">fingerprint</span>';
+      }
+      const placeholder = document.getElementById("checkin-face-placeholder");
+      placeholder?.classList.remove("hidden");
+      document.getElementById("checkin-capture-face")?.setAttribute("disabled", "disabled");
+      stopCheckinFaceCamera();
+    }
+
+    async function startAutomaticDeviceSecurityCheckin() {
+      const setupUrl = "identity-verification.html";
+      const settingsUrl = "student-profile.html";
+
+      showCheckinPanel("fingerprint");
+      setCheckinMessage("Opening check-in now...");
+
+      if (!deviceSecurityEnabled()) {
+        setCheckinMessage("Turn on Biometric / Face ID check-in in website settings before checking in.", true);
+        const button = document.getElementById("checkin-platform-button");
+        if (button) {
+          button.innerHTML = 'Open Settings <span class="material-symbols-outlined">settings</span>';
+          button.dataset.redirectTo = settingsUrl;
+        }
+        return;
+      }
+
+      const profile = await loadSavedBiometricProfile();
+      if (!profile?.biometricVerified || !(profile.platformCredentialRawId || profile.platformCredential?.rawId || profile.platformCredentialId || profile.platformCredential?.id)) {
+        setCheckinMessage("Complete Face ID and biometric setup before checking in.", true);
+        const button = document.getElementById("checkin-platform-button");
+        if (button) {
+          button.innerHTML = 'Set Up Identity <span class="material-symbols-outlined">badge</span>';
+          button.dataset.redirectTo = setupUrl;
+        }
+        return;
+      }
+
+      const detected = await detectDeviceSecurity();
+      updateDetectedSecurityUi(detected);
+      if (!detected.supported) {
+        setCheckinMessage("No device security prompt is available. Set up fingerprint, Face ID, Windows Hello, or screen lock on this device first.", true);
+        return;
+      }
+
+      setCheckinMessage(`${detected.title} prompt opened. Confirm it to complete check-in.`);
+      await runFingerprintCheckin(detected.method);
+    }
+
+    function openCheckinModal(sessionId) {
+      const session = getLiveSessions().find((item) => item.id === sessionId);
+      if (!session) return;
+      if (!isSessionStarted(session)) {
+        setCheckinMessage(getSessionStartMessage(session), true);
+        return;
+      }
+      const existing = getExistingCheckin(session.id);
+      if (existing) {
+        syncActiveSession(session);
+        selectedCheckinSession = session;
+        const modal = document.getElementById("checkin-modal");
+        const sessionName = document.getElementById("checkin-modal-session-name");
+        const sessionMeta = document.getElementById("checkin-modal-session-meta");
+        if (sessionName) sessionName.textContent = session.course || "Live class";
+        if (sessionMeta) sessionMeta.textContent = `${session.locationName || session.geofence?.name || "Selected location"} | ${formatSessionWindow(session)}`;
+        modal?.classList.remove("hidden");
+        modal?.classList.add("flex");
+        modal?.setAttribute("aria-hidden", "false");
+        resetCheckinModal();
+        selectedCheckinSession = session;
+        setCheckinMessage(`You already checked in at ${formatDateTime(existing.checkedInAt)}.`);
+        return;
+      }
+      syncActiveSession(session);
+      selectedCheckinSession = session;
+      const modal = document.getElementById("checkin-modal");
+      const sessionName = document.getElementById("checkin-modal-session-name");
+      const sessionMeta = document.getElementById("checkin-modal-session-meta");
+      if (sessionName) sessionName.textContent = session.course || "Live class";
+      clearCheckinMessage();
+      resetCheckinModal();
+      selectedCheckinSession = session;
+      if (sessionMeta) {
+        const locationLabel = session.locationName || session.geofence?.name || "Selected location";
+        sessionMeta.textContent = `${locationLabel} - ${formatSessionWindow(session)}`;
+      }
+      if (isWeakAdminGeofence(session.geofence || {})) {
+        document.getElementById("checkin-method-choice")?.classList.add("hidden");
+        setCheckinMessage(getAdminGeofenceWarning(session.geofence || {}), true);
+      }
+      modal?.classList.remove("hidden");
+      modal?.classList.add("flex");
+      modal?.setAttribute("aria-hidden", "false");
+      if (!isWeakAdminGeofence(session.geofence || {})) {
+        window.requestAnimationFrame(() => {
+          window.setTimeout(startAutomaticDeviceSecurityCheckin, 0);
+        });
+      }
+    }
+
+    function closeCheckinModal() {
+      const modal = document.getElementById("checkin-modal");
+      modal?.classList.add("hidden");
+      modal?.classList.remove("flex");
+      modal?.setAttribute("aria-hidden", "true");
+      resetCheckinModal();
+    }
+
+    function renderActiveClasses() {
+      const grid = document.getElementById("active-classes-list");
+      const count = document.getElementById("active-classes-count");
+      if (!grid || !count) return;
+
+      const sessions = syncActiveSession();
+      const liveSessions = getLiveSessions();
+      count.textContent = `${liveSessions.length} live`;
+
+      if (!liveSessions.length) {
+        grid.innerHTML = `
+          <div class="rounded-xl border border-dashed border-outline-variant bg-surface-container-low p-lg text-center">
+            <span class="material-symbols-outlined text-on-surface-variant text-[40px] mb-sm">event_busy</span>
+            <p class="font-title-md text-on-surface">No live classes right now</p>
+            <p class="text-body-md text-on-surface-variant mt-xs">When an admin starts a session, it will appear here.</p>
+          </div>
+        `;
+        return;
+      }
+
+      grid.innerHTML = liveSessions.map((session) => {
+        const geofence = session.geofence || {};
+        const attendanceCount = getAttendanceCountForSession(session.id);
+        const selected = sessions?.id === session.id;
+        const sessionStarted = isSessionStarted(session);
+        let statusText = "GPS waiting";
+        const adminGeofenceWeak = isWeakAdminGeofence(geofence);
+        if (adminGeofenceWeak) {
+          statusText = `Admin GPS weak - ${Math.round(Number(geofence.accuracy || 0)) || "unknown"}m accuracy`;
+        } else if (latestPosition && !isStudentGpsUsable(latestPosition)) {
+          statusText = `Your GPS weak - ${Math.round(Number(latestPosition.accuracy || 0)) || "unknown"}m accuracy`;
+        } else if (latestPosition) {
+          const distance = distanceInMeters(latestPosition, geofence);
+          const radius = Number(geofence.radius || 75);
+          const within = distance <= radius;
+          statusText = within ? `Within zone - ${formatMeters(distance)} away` : `Outside zone - ${formatMeters(distance)} away`;
+        }
+
+        return `
+          <article class="rounded-xl border ${selected ? "border-secondary bg-secondary-fixed/20" : "border-outline-variant/50"} bg-surface-container-low p-md shadow-sm">
+            <div class="flex items-start justify-between gap-md">
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-xs text-green-600 font-label-md text-label-md uppercase mb-xs">
+                  <span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">sensors</span>
+                  Live
+                </div>
+                <h4 class="font-title-md text-on-surface safe-wrap leading-snug">${escapeHtml(session.course || "Untitled Session")}</h4>
+                <p class="text-body-md text-on-surface-variant mt-xs safe-wrap">${escapeHtml(session.locationName || geofence.name || "Selected location")}</p>
+              </div>
+              <div class="rounded-lg bg-secondary-fixed text-secondary px-sm py-xs font-mono-data text-xs safe-wrap max-w-full shrink-0">
+                ${attendanceCount} checked in
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-sm mt-md text-sm">
+              <div class="rounded-lg bg-surface-container-lowest p-sm border border-outline-variant/30">
+                <p class="font-label-md text-on-surface-variant uppercase">Window</p>
+                <p class="font-mono-data text-on-surface">${escapeHtml(formatSessionWindow(session))}</p>
+              </div>
+              <div class="rounded-lg bg-surface-container-lowest p-sm border border-outline-variant/30">
+                <p class="font-label-md text-on-surface-variant uppercase">Radius</p>
+                <p class="font-mono-data text-on-surface safe-wrap">${escapeHtml(formatMeters(geofence.radius || 75))}</p>
+              </div>
+              <div class="rounded-lg bg-surface-container-lowest p-sm border border-outline-variant/30 col-span-2">
+                <p class="font-label-md text-on-surface-variant uppercase">GPS</p>
+                <p class="font-mono-data text-on-surface">${escapeHtml(statusText)}</p>
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-sm mt-md">
+              <button class="flex-1 min-w-[120px] touch-manipulation rounded-lg px-md py-sm font-bold transition-all ${adminGeofenceWeak || !sessionStarted ? "bg-surface-container-high text-on-surface-variant cursor-not-allowed" : "bg-secondary text-on-primary hover:opacity-90 active:scale-95"}" data-open-checkin="${escapeHtml(session.id)}" type="button" ${adminGeofenceWeak || !sessionStarted ? "disabled" : ""}>
+                ${adminGeofenceWeak ? "Admin GPS Too Weak" : !sessionStarted ? "Not Started Yet" : "Check In"}
+              </button>
+            </div>
+          </article>
+        `;
+      }).join("");
+
+      grid.querySelectorAll("[data-open-checkin]").forEach((button) => {
+        let openedFromPointer = false;
+        let openQueued = false;
+        const openSelectedSession = () => {
+          if (openQueued) return;
+          openQueued = true;
+          flashButtonFeedback(button, "Opening...");
+          const session = liveSessions.find((item) => item.id === button.dataset.openCheckin);
+          if (session) openCheckinModal(session.id);
+          window.setTimeout(() => {
+            openQueued = false;
+          }, 500);
+        };
+        button.addEventListener("pointerdown", (event) => {
+          if (event.pointerType === "mouse" && event.button !== 0) return;
+          event.preventDefault();
+          openedFromPointer = true;
+          openSelectedSession();
+        });
+        button.addEventListener("click", () => {
+          if (openedFromPointer) {
+            openedFromPointer = false;
+            return;
+          }
+          openSelectedSession();
+        });
+      });
+    }
+
+    function stopCheckinFaceCamera() {
+      if (faceCameraStream) {
+        faceCameraStream.getTracks().forEach((track) => track.stop());
+        faceCameraStream = null;
+      }
+      const video = document.getElementById("checkin-face-video");
+      if (video) video.srcObject = null;
+    }
+
+    function openFaceCamera() {
+      const video = document.getElementById("checkin-face-video");
+      const placeholder = document.getElementById("checkin-face-placeholder");
+      const captureButton = document.getElementById("checkin-capture-face");
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setCheckinMessage("This browser does not support front camera access.", true);
+        return;
+      }
+
+      navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 720 } },
+        audio: false
+      }).then((stream) => {
+        faceCameraStream = stream;
+        if (video) video.srcObject = stream;
+        placeholder?.classList.add("hidden");
+        captureButton?.removeAttribute("disabled");
+        setCheckinMessage("Front camera active. Capture a face frame to continue.");
+      }).catch(() => {
+        setCheckinMessage("Camera permission was denied or no front camera was found.", true);
+      });
+    }
+
+    async function captureFaceCheckin() {
+      const captureButton = document.getElementById("checkin-capture-face");
+      flashButtonFeedback(captureButton, "Checking...");
+      const video = document.getElementById("checkin-face-video");
+      const canvas = document.getElementById("checkin-face-canvas");
+      if (!video || !canvas || !faceCameraStream || video.readyState < 2) {
+        setCheckinMessage("Start the front camera before capturing.", true);
+        return;
+      }
+
+      const context = canvas.getContext("2d");
+      context.save();
+      context.translate(canvas.width, 0);
+      context.scale(-1, 1);
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      context.restore();
+      faceCaptureImage = canvas.toDataURL("image/jpeg", 0.75);
+      setCheckinMessage("Comparing captured face with your saved registration profile...");
+
+      try {
+        const result = await compareFaceCaptureWithProfile(faceCaptureImage);
+        if (!result.matched) {
+          faceCaptureImage = null;
+          setCheckinMessage(`Face mismatch. The captured face does not match the saved profile. Try again or use fingerprint.`, true);
+          return;
+        }
+        setCheckinMessage("Face match successful. Completing check-in...");
+        finalizeAttendance("Face ID");
+      } catch (error) {
+        faceCaptureImage = null;
+        setCheckinMessage(error.message, true);
+      }
+    }
+
+    async function runFingerprintCheckin(methodLabel = "Device security") {
+      faceCaptureImage = null;
+      const platformButton = document.getElementById("checkin-platform-button");
+      flashButtonFeedback(platformButton, "Opening...");
+      if (!deviceSecurityEnabled()) {
+        setCheckinMessage("Turn on Biometric / Face ID check-in in website settings before checking in.", true);
+        return;
+      }
+      if (checkinInProgress) {
+        setCheckinMessage("Check-in is already processing. Please wait a moment.");
+        return;
+      }
+      try {
+        await verifyFingerprintAgainstProfile();
+        setCheckinMessage(`${methodLabel} confirmed. Completing check-in...`);
+        finalizeAttendance(methodLabel);
+      } catch (error) {
+        setCheckinMessage(error.message || "Device security was cancelled or failed. Check-in denied.", true);
+      }
+    }
+
+    function finalizeAttendance(methodLabel) {
+      if (checkinInProgress) {
+        setCheckinMessage("Check-in is already processing. Please wait a moment.");
+        return;
+      }
+      const session = selectedCheckinSession || activeSession;
+      if (!session) {
+        setCheckinMessage("Select a live class first.", true);
+        return;
+      }
+      const existing = getExistingCheckin(session.id || "default-session");
+      if (existing) {
+        setCheckinMessage(`You already checked in at ${formatDateTime(existing.checkedInAt)}.`);
+        return;
+      }
+      if (!isSessionStarted(session)) {
+        setCheckinMessage(getSessionStartMessage(session), true);
+        return;
+      }
+      if (!latestPosition) {
+        setCheckinMessage("Allow location access so we can confirm the attendance zone.", true);
+        return;
+      }
+
+      const geofence = session.geofence || { lat: 5.1065259, lng: 7.8103804, radius: 75 };
+      if (isWeakAdminGeofence(geofence)) {
+        setCheckinMessage(getAdminGeofenceWarning(geofence), true);
+        return;
+      }
+      if (!isStudentGpsUsable(latestPosition)) {
+        setCheckinMessage(`Your phone GPS accuracy is ${Math.round(Number(latestPosition.accuracy || 0)) || "unknown"}m. Move near a window/outdoors and enable precise location, then try again.`, true);
+        return;
+      }
+      const distance = distanceInMeters(latestPosition, geofence);
+      const radius = Number(geofence.radius || 75);
+      if (distance > radius) {
+        setCheckinMessage("You are outside the class geofence. Move closer and try again.", true);
+        return;
+      }
+
+      const accounts = JSON.parse(localStorage.getItem("geoAttendAccounts") || "[]");
+      const account = accounts.find((savedAccount) => savedAccount.email === email);
+      const attendance = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]");
+      const checkedInAt = new Date().toISOString();
+      const displayName = account?.fullName || (isAdminUser ? `Admin ${email}` : email || "Unknown Student");
+      const displayRegNumber = account?.regNumber || (isAdminUser ? "ADMIN" : "--");
+      const record = {
+        email,
+        fullName: displayName,
+        regNumber: displayRegNumber,
+        signature: displayName,
+        signatureDataUrl: account?.signatureDataUrl || "",
+        signatureStrokes: Array.isArray(account?.signatureStrokes) ? account.signatureStrokes : [],
+        attendeeRole: isAdminUser ? "admin" : "student",
+        sessionId: session.id || "default-session",
+        course: session.course || "Live class",
+        position: latestPosition,
+        geofence,
+        checkedInAt,
+        status: "present",
+        verificationMethod: methodLabel,
+        faceCapture: faceCaptureImage || null
+      };
+
+      checkinInProgress = true;
+      attendance.push(record);
+      localStorage.setItem("geoAttendAttendanceLog", JSON.stringify(attendance));
+      attendanceLogs = attendance.filter((item) => !email || item.email === email);
+      setCheckinMessage("Check-in successful. Your attendance has been recorded.");
+      fetch("/api/attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(record)
+      }).catch(() => {
+        // Keep the local record if the network/server is briefly unavailable.
+      });
+      stopCheckinFaceCamera();
+
+      setTimeout(() => {
+        closeCheckinModal();
+        updateSummary();
+        updateTodayStatus();
+        updateSession();
+        renderRecentCheckins();
+        renderActiveClasses();
+        checkinInProgress = false;
+      }, 120);
+    }
+
+    async function finalizeAssistedAttendance() {
+      if (checkinInProgress) {
+        setCheckinMessage("Assisted check-in is already processing. Please wait a moment.");
+        return;
+      }
+      const session = selectedCheckinSession || activeSession;
+      if (!session) {
+        setCheckinMessage("Select a live class first.", true);
+        return;
+      }
+      if (!isSessionStarted(session)) {
+        setCheckinMessage(getSessionStartMessage(session), true);
+        return;
+      }
+      if (!latestPosition) {
+        setCheckinMessage("Allow location access so we can confirm the attendance zone.", true);
+        return;
+      }
+
+      const geofence = session.geofence || { lat: 5.1065259, lng: 7.8103804, radius: 75 };
+      if (isWeakAdminGeofence(geofence)) {
+        setCheckinMessage(getAdminGeofenceWarning(geofence), true);
+        return;
+      }
+      if (!isStudentGpsUsable(latestPosition)) {
+        setCheckinMessage(`Your phone GPS accuracy is ${Math.round(Number(latestPosition.accuracy || 0)) || "unknown"}m. Move near a window/outdoors and enable precise location, then try again.`, true);
+        return;
+      }
+      const distance = distanceInMeters(latestPosition, geofence);
+      const radius = Number(geofence.radius || 75);
+      if (distance > radius) {
+        setCheckinMessage("You are outside the class geofence. Move closer and try again.", true);
+        return;
+      }
+
+      const helperAccount = getCurrentStudentAccount();
+      const helperRegNumber = normalizeStudentRegNumber(helperAccount?.regNumber);
+      if (!helperRegNumber) {
+        setCheckinMessage("Your account must have a registration number before you can assist another student.", true);
+        return;
+      }
+
+      const input = document.getElementById("assist-reg-number-input");
+      const targetRegNumber = normalizeStudentRegNumber(input?.value);
+      if (!targetRegNumber) {
+        setCheckinMessage("Enter the student's registration number.", true);
+        input?.focus();
+        return;
+      }
+      if (targetRegNumber === helperRegNumber) {
+        setCheckinMessage("Use the normal Check In option for your own attendance.", true);
+        return;
+      }
+
+      const sessionId = session.id || "default-session";
+      const assistedCount = getAssistedCountForSession(sessionId, helperRegNumber);
+      if (assistedCount >= 3) {
+        setCheckinMessage("You have reached the limit of 3 assisted check-ins for this class session.", true);
+        return;
+      }
+
+      const checkedInAt = new Date().toISOString();
+      const record = {
+        checkinType: "assisted-student",
+        assisted: true,
+        assistedByEmail: email,
+        assistedByName: helperAccount?.fullName || email || "Student helper",
+        assistedByRegNumber: helperRegNumber,
+        targetRegNumber,
+        regNumber: targetRegNumber,
+        sessionId,
+        course: session.course || "Live class",
+        position: latestPosition,
+        geofence,
+        checkedInAt,
+        status: "present",
+        verificationMethod: "Student assisted reg number"
+      };
+
+      checkinInProgress = true;
+      setCheckinMessage("Checking student registration number...");
+      try {
+        const response = await fetch("/api/attendance", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(record)
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Unable to check in student.");
+
+        const attendance = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]");
+        const savedRecord = data.record || record;
+        const nextAttendance = [
+          savedRecord,
+          ...attendance.filter((entry) => !(entry && entry.sessionId === sessionId && normalizeStudentRegNumber(entry.regNumber || entry.targetRegNumber) === normalizeStudentRegNumber(savedRecord.regNumber || savedRecord.targetRegNumber)))
+        ];
+        localStorage.setItem("geoAttendAttendanceLog", JSON.stringify(nextAttendance));
+        attendanceLogs = nextAttendance.filter((item) => !email || item.email === email || item.assistedByEmail === email);
+        setCheckinMessage(`${savedRecord.fullName || targetRegNumber} has been checked in.`);
+        if (input) input.value = "";
+
+        setTimeout(() => {
+          closeCheckinModal();
+          updateSummary();
+          updateTodayStatus();
+          updateSession();
+          renderRecentCheckins();
+          renderActiveClasses();
+          checkinInProgress = false;
+        }, 300);
+      } catch (error) {
+        checkinInProgress = false;
+        setCheckinMessage(error.message || "Unable to check in student.", true);
+      }
+    }
+
+    function clearSelectedSession() {
+      selectedCheckinSession = null;
+      selectedCheckinMethod = "";
+      faceCaptureImage = null;
+    }
+
+    function setupCheckinModal() {
+      document.querySelectorAll("[data-checkin-method]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const method = button.dataset.checkinMethod;
+          showCheckinPanel(method);
+          if (method === "face") {
+            document.getElementById("checkin-start-camera")?.focus();
+          }
+          if (method === "password") {
+            document.getElementById("checkin-password-input")?.focus();
+          }
+          if (method === "assist") {
+            document.getElementById("assist-reg-number-input")?.focus();
+          }
+        });
+      });
+
+      document.querySelectorAll("[data-dismiss-checkin]").forEach((button) => {
+        button.addEventListener("click", () => {
+          closeCheckinModal();
+          clearSelectedSession();
+        });
+      });
+
+      document.getElementById("checkin-start-camera")?.addEventListener("click", openFaceCamera);
+      document.getElementById("checkin-capture-face")?.addEventListener("click", captureFaceCheckin);
+      document.getElementById("checkin-password-submit")?.addEventListener("click", () => {
+        flashButtonFeedback(document.getElementById("checkin-password-submit"), "Checking...");
+        const input = document.getElementById("checkin-password-input");
+        const accounts = JSON.parse(localStorage.getItem("geoAttendAccounts") || "[]");
+        const account = accounts.find((savedAccount) => savedAccount.email === email);
+        if (!account) {
+          setCheckinMessage("No account found for this student.", true);
+          return;
+        }
+        const value = (input?.value || "").trim();
+        if (!value) {
+          setCheckinMessage("Enter your password or pattern code.", true);
+          input?.focus();
+          return;
+        }
+        const phonePattern = account.phonePattern || account.patternCode || "";
+        if (value !== account.password && value !== phonePattern) {
+          setCheckinMessage("Password or pattern code did not match.", true);
+          return;
+        }
+        setCheckinMessage("Password verified. Completing check-in...");
+        finalizeAttendance("Phone password / Pattern");
+      });
+
+      document.getElementById("assist-checkin-submit")?.addEventListener("click", () => {
+        flashButtonFeedback(document.getElementById("assist-checkin-submit"), "Checking...");
+        finalizeAssistedAttendance();
+      });
+
+      document.getElementById("assist-reg-number-input")?.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          finalizeAssistedAttendance();
+        }
+      });
+
+      document.getElementById("checkin-platform-button")?.addEventListener("click", (event) => {
+        const redirectTo = event.currentTarget.dataset.redirectTo;
+        if (redirectTo) {
+          window.location.href = redirectTo;
+          return;
+        }
+        runFingerprintCheckin();
+      });
+    }
+
+    function hydrateSessionDetails() {
+      const session = activeSession || {
+        course: "CS302 - Data Structures"
+      };
+      const title = document.getElementById("checkin-session-title");
+      if (title) title.textContent = session.course || "Attendance workflow";
+    }
+
+    function toRadians(value) {
+      return value * Math.PI / 180;
+    }
+
+    function distanceInMeters(a, b) {
+      const earthRadius = 6371000;
+      const dLat = toRadians(b.lat - a.lat);
+      const dLng = toRadians(b.lng - a.lng);
+      const lat1 = toRadians(a.lat);
+      const lat2 = toRadians(b.lat);
+      const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+      return 2 * earthRadius * Math.asin(Math.sqrt(h));
+    }
+
+    function formatSignedCoordinate(value, positiveSuffix, negativeSuffix) {
+      return `${Math.abs(value).toFixed(5)} ${value >= 0 ? positiveSuffix : negativeSuffix}`;
+    }
+
+    function setGpsState({ title, icon, color, details, distanceText, within }) {
+      const titleNode = document.getElementById("gps-status-title");
+      const iconNode = document.getElementById("gps-status-icon");
+      const coordinatesNode = document.getElementById("gps-coordinates");
+      const distanceNode = document.getElementById("gps-distance");
+      const iconWrap = document.getElementById("gps-icon-wrap");
+      const faceButton = document.getElementById("face-step-button");
+      const checkinButton = document.getElementById("checkin-button");
+
+      if (titleNode) titleNode.textContent = title;
+      if (iconNode) {
+        iconNode.textContent = icon;
+        iconNode.className = `material-symbols-outlined ${color} text-[20px]`;
+      }
+      if (coordinatesNode) coordinatesNode.textContent = details;
+      if (distanceNode) distanceNode.textContent = distanceText;
+      isWithinGeofence = within;
+
+      if (iconWrap) {
+        iconWrap.className = `w-10 h-10 rounded-full flex items-center justify-center ${within ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"}`;
+      }
+
+      if (faceButton) faceButton.disabled = !within;
+      if (checkinButton) checkinButton.disabled = !within;
+    }
+
+    function updateLiveGps(position) {
+      const session = activeSession || {
+        geofence: {
+          lat: 5.1065259,
+          lng: 7.8103804,
+          radius: 75
+        }
+      };
+      const geofence = session.geofence || {
+        lat: 5.1065259,
+        lng: 7.8103804,
+        radius: 75
+      };
+      const rawSample = normalizeBrowserLocation(position);
+      latestPosition = getBestRecentStudentLocation(rawSample);
+      const current = {
+        lat: latestPosition.lat,
+        lng: latestPosition.lng
+      };
+
+      if (isWeakAdminGeofence(geofence)) {
+        setGpsState({
+          title: "Admin GPS Too Weak",
+          icon: "location_off",
+          color: "text-red-600",
+          details: getAdminGeofenceWarning(geofence),
+          distanceText: "Distance: unavailable",
+          within: false
+        });
+        renderActiveClasses();
+        return;
+      }
+
+      if (!isStudentGpsUsable(latestPosition)) {
+        const accuracy = Math.round(Number(latestPosition.accuracy || 0)) || "unknown";
+        setGpsState({
+          title: "Phone GPS Weak",
+          icon: "location_off",
+          color: "text-red-600",
+          details: `Best recent device accuracy is ${accuracy}m. Enable precise location, Wi-Fi/mobile data, and move near a window/outdoors.`,
+          distanceText: "Distance: waiting for accurate GPS",
+          within: false
+        });
+        renderActiveClasses();
+        return;
+      }
+
+      const distance = distanceInMeters(current, geofence);
+      const radius = Number(geofence.radius || 75);
+      const within = distance <= radius;
+      const coords = `${formatSignedCoordinate(current.lat, "N", "S")}, ${formatSignedCoordinate(current.lng, "E", "W")} | Best accuracy: ${Math.round(latestPosition.accuracy)}m`;
+      const distanceText = `Distance: ${formatMeters(distance)} / Radius: ${formatMeters(radius)}`;
+
+      setGpsState({
+        title: within ? "Within Zone" : "Outside Zone",
+        icon: within ? "check_circle" : "warning",
+        color: within ? "text-green-600" : "text-red-600",
+        details: coords,
+        distanceText,
+        within
+      });
+      renderActiveClasses();
+    }
+
+    function startRealtimeGps() {
+      if (!navigator.geolocation) {
+        setGpsState({
+          title: "GPS Unsupported",
+          icon: "location_off",
+          color: "text-red-600",
+          details: "This browser does not support geolocation.",
+          distanceText: "Distance: --",
+          within: false
+        });
+        return;
+      }
+
+      setGpsState({
+        title: "Finding Accurate GPS",
+        icon: "my_location",
+        color: "text-blue-600",
+        details: `Sampling GPS, Wi-Fi, mobile network, and device sensors. Target accuracy: ${STUDENT_LOCATION_TARGET_ACCURACY_METERS}m.`,
+        distanceText: "Distance: warming up",
+        within: false
+      });
+
+      navigator.geolocation.getCurrentPosition(updateLiveGps, () => {}, {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 12000
+      });
+
+      locationWatchId = navigator.geolocation.watchPosition(updateLiveGps, (error) => {
+        setGpsState({
+          title: "GPS Permission Needed",
+          icon: "location_off",
+          color: "text-red-600",
+          details: error.message || "Allow location access to verify geofence.",
+          distanceText: "Distance: --",
+          within: false
+        });
+      }, {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 30000
+      });
+    }
+
+    function completeStep(stepNum) {
+      if (!isWithinGeofence) {
+        alert("You must be within the live GPS geofence before checking in.");
+        return;
+      }
+
+      const currentStep = document.getElementById(`step-${stepNum}`);
+      const nextStep = document.getElementById(`step-${stepNum + 1}`);
+      if (!currentStep || !nextStep) return;
+
+      if (stepNum === 2) {
+        const ripple = document.getElementById("fingerprint-ripple");
+        ripple?.classList.add("scale-150");
+        setTimeout(() => transition(currentStep, nextStep), 600);
+        return;
+      }
+
+      transition(currentStep, nextStep);
+    }
+
+    function showSuccess() {
+      if (!isWithinGeofence) {
+        alert("You are outside the geofence. Move within the session area and try again.");
+        return;
+      }
+
+      const session = activeSession || {
+        id: "default-session",
+        course: "CS302 - Data Structures",
+        geofence: {
+          lat: 5.1065259,
+          lng: 7.8103804,
+          radius: 75
+        }
+      };
+      const geofence = session.geofence || {
+        lat: 5.1065259,
+        lng: 7.8103804,
+        radius: 75
+      };
+      if (isWeakAdminGeofence(geofence)) {
+        alert(getAdminGeofenceWarning(geofence));
+        return;
+      }
+      if (!isStudentGpsUsable(latestPosition)) {
+        alert("Your phone GPS is not accurate enough yet. Enable precise location and try again.");
+        return;
+      }
+      const allAttendance = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]");
+      const accounts = JSON.parse(localStorage.getItem("geoAttendAccounts") || "[]");
+      const account = accounts.find((savedAccount) => savedAccount.email === email);
+      const checkedInAt = new Date();
+      const displayName = account?.fullName || (isAdminUser ? `Admin ${email}` : email || "Unknown Student");
+      const displayRegNumber = account?.regNumber || (isAdminUser ? "ADMIN" : "--");
+      const record = {
+        email,
+        fullName: displayName,
+        regNumber: displayRegNumber,
+        signature: displayName,
+        signatureDataUrl: account?.signatureDataUrl || "",
+        signatureStrokes: Array.isArray(account?.signatureStrokes) ? account.signatureStrokes : [],
+        attendeeRole: isAdminUser ? "admin" : "student",
+        sessionId: session.id || "default-session",
+        course: session.course || "CS302 - Data Structures",
+        position: latestPosition,
+        geofence,
+        checkedInAt: checkedInAt.toISOString(),
+        status: "present"
+      };
+
+      allAttendance.push(record);
+      localStorage.setItem("geoAttendAttendanceLog", JSON.stringify(allAttendance));
+      attendanceLogs.push(record);
+      if (locationWatchId !== null) {
+        navigator.geolocation?.clearWatch?.(locationWatchId);
+        locationWatchId = null;
+      }
+
+      const successMessage = document.getElementById("checkin-success-message");
+      if (successMessage) {
+        successMessage.textContent = `Your attendance for ${record.course} has been securely logged at ${checkedInAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`;
+      }
+
+      const actionLink = document.getElementById("primary-action-link");
+      const actionTitle = document.getElementById("primary-action-title");
+      const actionHelper = document.getElementById("primary-action-helper");
+      const actionIcon = document.getElementById("primary-action-icon");
+      if (actionLink) actionLink.href = "#active-classes";
+      if (actionTitle) actionTitle.textContent = "View active classes";
+      if (actionHelper) actionHelper.textContent = "Tap a live class, then choose a verification method";
+      if (actionIcon) actionIcon.textContent = "event_available";
+
+      updateSummary();
+      updateTodayStatus();
+      updateSession();
+      renderRecentCheckins();
+      transition(document.getElementById("step-3"), document.getElementById("success-state"));
+    }
+
+    function transition(from, to) {
+      if (!from || !to) return;
+      from.classList.add("opacity-0", "transition-opacity", "duration-300");
+      setTimeout(() => {
+        from.classList.add("hidden-step");
+        to.classList.remove("hidden-step");
+        to.classList.add("opacity-0");
+        setTimeout(() => {
+          to.classList.remove("opacity-0");
+          to.classList.add("opacity-100", "transition-opacity", "duration-500");
+        }, 50);
+      }, 300);
+    }
+
+    document.getElementById("student-email").textContent = email;
+    loadSavedBiometricProfile();
+    updateSummary();
+    updateTodayStatus();
+    updateSession();
+    updateVerification();
+    updateGpsReadiness();
+    renderActiveClasses();
+    renderRecentCheckins();
+    hydrateSessionDetails();
+    setupCheckinModal();
+    startRealtimeGps();
+    refreshLiveSessionsFromServer();
+    setInterval(refreshLiveSessionsFromServer, 5000);
+
+    window.addEventListener("storage", () => {
+      syncActiveSession();
+      updateSummary();
+      updateTodayStatus();
+      updateSession();
+      renderActiveClasses();
+      renderRecentCheckins();
+    });
+
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) refreshLiveSessionsFromServer();
+    });
+  </script>
+</body>
+</html>
+
+

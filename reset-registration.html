@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+  <title>GeoAttend | Reset Registration</title>
+  <script>
+    const wasAdmin =
+      localStorage.getItem("geoAttendRole") === "admin" &&
+      localStorage.getItem("geoAttendCurrentUser") &&
+      localStorage.getItem("geoAttendAdminEmail") &&
+      localStorage.getItem("geoAttendCurrentUser") === localStorage.getItem("geoAttendAdminEmail");
+
+    const adminSession = wasAdmin ? {
+      currentUser: localStorage.getItem("geoAttendCurrentUser"),
+      adminEmail: localStorage.getItem("geoAttendAdminEmail")
+    } : null;
+
+    [
+      "geoAttendAccounts",
+      "geoAttendBiometricProfiles",
+      "geoAttendAttendanceLog"
+    ].forEach((key) => localStorage.removeItem(key));
+
+    if (adminSession) {
+      localStorage.setItem("geoAttendCurrentUser", adminSession.currentUser);
+      localStorage.setItem("geoAttendAdminEmail", adminSession.adminEmail);
+      localStorage.setItem("geoAttendRole", "admin");
+      localStorage.setItem("geoAttendView", "admin");
+    } else {
+      localStorage.removeItem("geoAttendCurrentUser");
+      localStorage.removeItem("geoAttendAdminEmail");
+      localStorage.removeItem("geoAttendRole");
+      localStorage.removeItem("geoAttendView");
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      document.getElementById("status").textContent = "Student registrations cleared. Opening registration...";
+      setTimeout(() => {
+        window.location.replace("register.html");
+      }, 700);
+    });
+  </script>
+</head>
+<body style="font-family: Arial, sans-serif; background:#f8f9ff; color:#0b1c30; min-height:100vh; display:grid; place-items:center; margin:0;">
+  <main style="max-width:420px; text-align:center; background:white; border:1px solid #c6c6cd; border-radius:16px; padding:28px;">
+    <h1 style="margin:0 0 8px;">Resetting student registrations</h1>
+    <p id="status" style="margin:0; color:#45464d;">Clearing saved student data...</p>
+  </main>
+</body>
+</html>

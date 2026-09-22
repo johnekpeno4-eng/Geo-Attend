@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+  <title>GeoAttend | Student Records</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            background: "#f8f9ff",
+            surface: "#f8f9ff",
+            "surface-container-lowest": "#ffffff",
+            "surface-container-low": "#eff4ff",
+            "on-surface": "#0b1c30",
+            "on-surface-variant": "#45464d",
+            "outline-variant": "#c6c6cd",
+            secondary: "#0058be",
+            "on-primary": "#ffffff"
+          },
+          spacing: { xs: "4px", sm: "8px", md: "16px", lg: "24px", xl: "32px" },
+          fontFamily: {
+            "body-md": ["Inter", "sans-serif"],
+            "headline-lg": ["Inter", "sans-serif"],
+            "title-md": ["Inter", "sans-serif"],
+            "label-md": ["Inter", "sans-serif"],
+            "mono-data": ["JetBrains Mono", "monospace"]
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body { font-family: Inter, sans-serif; }
+    .material-symbols-outlined { display: inline-block; vertical-align: middle; font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24; }
+  </style>
+  <script src="role-access.js" defer></script>
+  <link rel="stylesheet" href="mobile-admin.css" />
+</head>
+<body class="bg-background text-on-surface font-body-md overflow-x-hidden" data-role-required="admin">
+  <aside class="w-[280px] h-screen fixed left-0 top-0 bg-surface-container-lowest border-r border-outline-variant shadow-sm flex flex-col py-lg px-md z-50">
+    <div class="flex items-center gap-md mb-xl px-sm">
+      <div class="w-10 h-10 rounded-lg bg-secondary text-on-primary flex items-center justify-center">
+        <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">verified_user</span>
+      </div>
+      <div>
+        <h1 class="text-3xl font-extrabold leading-tight">GeoAttend</h1>
+        <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Secure Records</p>
+      </div>
+    </div>
+
+    <nav class="flex-1 space-y-xs">
+      <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="dashboard.html">
+        <span class="material-symbols-outlined">dashboard</span>
+        <span>Dashboard</span>
+      </a>
+      <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="create-session.html">
+        <span class="material-symbols-outlined">add_circle</span>
+        <span>Create Session</span>
+      </a>
+      <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="live-monitor.html">
+        <span class="material-symbols-outlined">security</span>
+        <span>Live Monitor</span>
+      </a>
+      <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="students.html">
+        <span class="material-symbols-outlined">groups</span>
+        <span>Students</span>
+      </a>
+      <a class="flex items-center gap-md p-md rounded-lg text-secondary font-bold border-l-4 border-secondary bg-surface-container-low transition-colors" href="records.html">
+        <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">description</span>
+        <span>Records</span>
+      </a>
+    </nav>
+
+    <div class="mt-auto space-y-xs pt-lg border-t border-outline-variant">
+      <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="#">
+        <span class="material-symbols-outlined">logout</span>
+        <span>Logout</span>
+      </a>
+    </div>
+  </aside>
+
+  <main class="ml-[280px] min-h-screen">
+    <header class="flex justify-between items-center px-lg h-16 w-full bg-surface/80 backdrop-blur-md sticky top-0 z-40">
+      <div>
+        <p class="text-xs font-bold uppercase tracking-widest text-secondary">Records</p>
+        <h2 class="text-2xl font-extrabold text-on-surface">Registered Students</h2>
+      </div>
+      <span class="font-mono-data text-secondary text-sm" id="record-count">0 students</span>
+    </header>
+
+    <div class="p-lg max-w-[1200px] mx-auto">
+      <section class="bg-surface-container-lowest p-lg rounded-xl border border-outline-variant/30 shadow-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-md mb-lg">
+          <div>
+            <h3 class="text-xl font-bold text-on-surface">Student Record Table</h3>
+            <p class="text-on-surface-variant">Sorted by registration number from 001 upward.</p>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto custom-scrollbar">
+          <table class="w-full min-w-[900px] text-left" id="student-record-table">
+            <thead>
+              <tr class="border-b border-outline-variant/40 text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                <th class="pb-md pr-md">S/N</th>
+                <th class="pb-md pr-md">Full Name</th>
+                <th class="pb-md pr-md">Registration Number</th>
+                <th class="pb-md pr-md">Department</th>
+                <th class="pb-md pr-md">Level</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-outline-variant/20" id="student-record-body">
+              <tr>
+                <td class="py-lg text-center text-on-surface-variant" colspan="5">No registered students yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    function escapeHtml(value) {
+      return String(value || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function registrationSortValue(regNumber) {
+      const value = String(regNumber || "");
+      const matches = value.match(/\d+/g);
+      if (!matches) return Number.MAX_SAFE_INTEGER;
+      return Number(matches[matches.length - 1]);
+    }
+
+    async function loadStudentRecords() {
+      const body = document.getElementById("student-record-body");
+      const count = document.getElementById("record-count");
+      let accounts = [];
+      try {
+        const response = await fetch("/api/students", { cache: "no-store" });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Unable to load student records.");
+        accounts = Array.isArray(data.students) ? data.students : [];
+      } catch {
+        accounts = JSON.parse(localStorage.getItem("geoAttendAccounts") || "[]")
+          .filter((account) => (account.role || "student") === "student");
+      }
+
+      accounts.sort((a, b) => {
+        const regDiff = registrationSortValue(a.regNumber) - registrationSortValue(b.regNumber);
+        return regDiff || String(a.regNumber || "").localeCompare(String(b.regNumber || ""), undefined, { numeric: true });
+      });
+
+      if (count) count.textContent = `${accounts.length} ${accounts.length === 1 ? "student" : "students"}`;
+      if (!body) return;
+
+      if (!accounts.length) {
+        body.innerHTML = '<tr><td class="py-lg text-center text-on-surface-variant" colspan="5">No registered students yet.</td></tr>';
+        return;
+      }
+
+      body.innerHTML = accounts.map((account, index) => `
+        <tr>
+          <td class="py-md pr-md font-mono-data text-on-surface-variant">${index + 1}</td>
+          <td class="py-md pr-md font-bold text-on-surface">${escapeHtml(account.fullName || "Unknown Student")}</td>
+          <td class="py-md pr-md font-mono-data text-on-surface">${escapeHtml(account.regNumber || "--")}</td>
+          <td class="py-md pr-md text-on-surface-variant">${escapeHtml(account.departmentName || "Department of Electrical/Electronics Engineering")}</td>
+          <td class="py-md pr-md font-mono-data text-on-surface-variant">${escapeHtml(account.levelName || "100 Level")}</td>
+        </tr>
+      `).join("");
+    }
+
+    loadStudentRecords();
+    window.addEventListener("storage", loadStudentRecords);
+  </script>
+</body>
+</html>
+
+

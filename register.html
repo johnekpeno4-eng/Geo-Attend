@@ -1,0 +1,590 @@
+﻿<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+  <title>Join GeoAttend | Secure Student Registration</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            background: "#f8f9ff",
+            surface: "#f8f9ff",
+            "surface-container-lowest": "#ffffff",
+            "surface-container-low": "#eff4ff",
+            "surface-container": "#e5eeff",
+            "surface-container-high": "#dce9ff",
+            "surface-container-highest": "#d3e4fe",
+            "surface-dim": "#cbdbf5",
+            "on-surface": "#0b1c30",
+            "on-background": "#0b1c30",
+            "on-surface-variant": "#45464d",
+            outline: "#76777d",
+            "outline-variant": "#c6c6cd",
+            primary: "#000000",
+            "primary-container": "#131b2e",
+            "on-primary": "#ffffff",
+            secondary: "#0058be",
+            "secondary-container": "#2170e4",
+            "on-secondary": "#ffffff",
+            "on-secondary-container": "#fefcff",
+            "tertiary-fixed-dim": "#4cd7f6",
+            error: "#ba1a1a",
+            "error-container": "#ffdad6"
+          },
+          borderRadius: {
+            DEFAULT: "0.25rem",
+            lg: "0.5rem",
+            xl: "0.75rem",
+            full: "9999px"
+          },
+          spacing: {
+            xs: "4px",
+            sm: "8px",
+            md: "16px",
+            lg: "24px",
+            xl: "32px",
+            gutter: "24px"
+          },
+          fontFamily: {
+            "body-md": ["Inter", "sans-serif"],
+            "body-lg": ["Inter", "sans-serif"],
+            "headline-lg": ["Inter", "sans-serif"],
+            "display-lg": ["Inter", "sans-serif"],
+            "label-md": ["Inter", "sans-serif"],
+            "mono-data": ["JetBrains Mono", "monospace"]
+          },
+          fontSize: {
+            "label-md": ["12px", { lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "600" }],
+            "body-md": ["14px", { lineHeight: "20px", fontWeight: "400" }],
+            "body-lg": ["16px", { lineHeight: "24px", fontWeight: "400" }],
+            "headline-lg": ["32px", { lineHeight: "40px", fontWeight: "700" }],
+            "display-lg": ["48px", { lineHeight: "56px", fontWeight: "800" }]
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body {
+      font-family: "Inter", sans-serif;
+      background-color: #f8f9ff;
+    }
+    .material-symbols-outlined {
+      display: inline-block;
+      vertical-align: middle;
+      font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+    }
+    .glow-active {
+      box-shadow: 0 0 15px rgba(0, 88, 190, 0.18);
+    }
+    .scan-line {
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #4cd7f6, transparent);
+      position: absolute;
+      width: 100%;
+      top: 0;
+      animation: scan 3s linear infinite;
+    }
+    @keyframes scan {
+      0% { top: 0; opacity: 0; }
+      50% { opacity: 1; }
+      100% { top: 100%; opacity: 0; }
+    }
+    #terms {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 22px;
+      height: 22px;
+      min-width: 22px;
+      min-height: 22px;
+      border: 2px solid #76777d;
+      border-radius: 8px;
+      background: #ffffff;
+      display: grid;
+      place-items: center;
+    }
+    #terms:checked {
+      background: #0058be;
+      border-color: #0058be;
+    }
+    #terms:checked::after {
+      content: "";
+      width: 6px;
+      height: 11px;
+      border: solid #ffffff;
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+      margin-top: -2px;
+    }
+  </style>
+  <script src="role-access.js" defer></script>
+  <link rel="stylesheet" href="mobile-student.css" />
+</head>
+<body class="bg-surface text-on-surface overflow-x-hidden" data-role-required="public">
+  <div class="flex min-h-screen w-full">
+    <main class="flex w-full flex-col lg:w-1/2 p-6 lg:p-12 xl:p-24 overflow-y-auto">
+      <header class="mb-12 flex items-center justify-between">
+        <a class="flex items-center gap-3" href="login.html">
+          <span class="bg-primary p-2 rounded-lg text-on-primary flex items-center justify-center">
+            <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">verified_user</span>
+          </span>
+          <span class="text-xl font-bold tracking-tight text-on-background font-headline-lg">GeoAttend</span>
+        </a>
+        <a class="text-secondary font-semibold text-body-md hover:underline flex items-center gap-1 group" href="login.html">
+          Sign In
+          <span class="material-symbols-outlined text-[20px] transition-transform group-hover:translate-x-1">arrow_forward</span>
+        </a>
+      </header>
+
+      <section class="mx-auto w-full max-w-md lg:mx-0">
+        <div class="mb-10">
+          <h1 class="text-display-lg font-bold text-on-surface mb-2">Create Student Account</h1>
+          <p class="text-body-lg text-on-surface-variant">Join thousands of students using secure geo-fenced attendance tracking.</p>
+        </div>
+
+        <form class="space-y-6" id="register-form">
+          <div class="flex flex-col gap-2">
+            <label class="text-label-md font-semibold uppercase tracking-wider text-on-surface-variant" for="full-name">Full Name</label>
+            <div class="relative group rounded-xl">
+              <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-secondary transition-colors">person</span>
+              <input class="w-full bg-surface-container-lowest border-outline-variant focus:border-secondary focus:ring-4 focus:ring-secondary/10 rounded-xl py-4 pl-12 pr-4 transition-all outline-none text-body-lg" id="full-name" name="fullName" placeholder="John Doe" required type="text" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div class="flex flex-col gap-2">
+              <label class="text-label-md font-semibold uppercase tracking-wider text-on-surface-variant" for="faculty">Faculty</label>
+              <select class="w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-4 text-body-lg outline-none transition-all focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="faculty" name="facultyId" required>
+                <option value="engineering">Faculty of Engineering</option>
+              </select>
+            </div>
+            <div class="flex flex-col gap-2">
+              <label class="text-label-md font-semibold uppercase tracking-wider text-on-surface-variant" for="department">Department</label>
+              <select class="w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-4 text-body-lg outline-none transition-all focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="department" name="departmentId" required>
+                <option value="electrical-electronics-engineering">Department of Electrical/Electronics Engineering</option>
+              </select>
+            </div>
+            <div class="flex flex-col gap-2 md:col-span-2">
+              <label class="text-label-md font-semibold uppercase tracking-wider text-on-surface-variant" for="level">Level</label>
+              <select class="w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-4 text-body-lg outline-none transition-all focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="level" name="levelId" required>
+                <option value="100">100 Level</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-2">
+            <label class="text-label-md font-semibold uppercase tracking-wider text-on-surface-variant" for="reg-number">Reg Number</label>
+            <div class="relative group rounded-xl">
+              <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-secondary transition-colors">badge</span>
+              <div class="flex w-full items-center rounded-xl border border-outline-variant bg-surface-container-lowest pl-12 pr-4 focus-within:border-secondary focus-within:ring-4 focus-within:ring-secondary/10 transition-all">
+                <span class="font-mono-data text-body-lg text-on-surface-variant select-none" id="reg-number-prefix">25/EG/EE/</span>
+                <input class="min-w-0 flex-1 border-0 bg-transparent py-4 pl-1 pr-0 font-mono-data text-body-lg outline-none focus:ring-0" id="reg-number-suffix" inputmode="numeric" maxlength="3" name="regNumberSuffix" pattern="[0-9]{3}" placeholder="000" required type="text" />
+              </div>
+              <input id="reg-number" name="regNumber" type="hidden" value="25/EG/EE/000" />
+            </div>
+            <p class="text-body-md text-on-surface-variant">Only edit the last three digits, for example: <span class="font-mono-data text-secondary">25/EG/EE/001</span>.</p>
+          </div>
+
+          <div class="flex flex-col gap-2">
+            <label class="text-label-md font-semibold uppercase tracking-wider text-on-surface-variant" for="email">Email</label>
+            <div class="relative group rounded-xl">
+              <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-secondary transition-colors">alternate_email</span>
+              <input class="w-full bg-surface-container-lowest border-outline-variant focus:border-secondary focus:ring-4 focus:ring-secondary/10 rounded-xl py-4 pl-12 pr-4 transition-all outline-none text-body-lg" id="email" name="email" placeholder="john.doe@email.com" required type="email" />
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-2">
+            <label class="text-label-md font-semibold uppercase tracking-wider text-on-surface-variant" for="password">Password</label>
+            <div class="relative group rounded-xl">
+              <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-secondary transition-colors">lock</span>
+              <input class="w-full bg-surface-container-lowest border-outline-variant focus:border-secondary focus:ring-4 focus:ring-secondary/10 rounded-xl py-4 pl-12 pr-14 transition-all outline-none text-body-lg" id="password" name="password" placeholder="Password" required minlength="6" type="password" />
+              <button class="absolute right-4 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface transition-colors" id="toggle-password" type="button" aria-label="Show password">
+                <span class="material-symbols-outlined">visibility</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="flex items-start gap-3 py-2">
+            <div class="flex h-5 items-center">
+              <input class="h-5 w-5 rounded-lg border-outline-variant text-secondary focus:ring-secondary" id="terms" required type="checkbox" />
+            </div>
+            <label class="text-body-md text-on-surface-variant" for="terms">
+              I agree to the <a class="text-secondary font-semibold hover:underline" href="#">Terms of Service</a> and acknowledge the <a class="text-secondary font-semibold hover:underline" href="#">Privacy Policy</a> regarding my location data.
+            </label>
+          </div>
+
+          <div class="hidden rounded-2xl border border-secondary/30 bg-secondary/5 p-md space-y-md" id="otp-section">
+            <div>
+              <p class="font-label-md text-label-md text-secondary uppercase tracking-wider">Email OTP Verification</p>
+              <p class="text-body-md text-on-surface-variant mt-xs" id="otp-helper">Enter the 6-digit code sent to your email.</p>
+            </div>
+            <div class="relative group rounded-xl">
+              <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-secondary transition-colors">password</span>
+              <input class="w-full bg-surface-container-lowest border-outline-variant focus:border-secondary focus:ring-4 focus:ring-secondary/10 rounded-xl py-4 pl-12 pr-4 transition-all outline-none font-mono-data text-body-lg tracking-widest" id="otp-code" name="otpCode" inputmode="numeric" maxlength="6" placeholder="000000" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" />
+            </div>
+            <button class="w-full border border-secondary text-secondary font-bold py-3 rounded-xl hover:bg-secondary/10 active:scale-[0.98] transition-all flex items-center justify-center gap-sm" id="resend-otp" type="button">
+              <span class="material-symbols-outlined text-[20px]">mail</span>
+              <span id="resend-otp-label">Resend OTP</span>
+            </button>
+          </div>
+
+          <button class="w-full bg-primary text-on-primary font-bold py-5 rounded-xl shadow-lg hover:shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-3 group" type="submit">
+            <span class="text-lg" id="register-button-label">Send OTP</span>
+            <span class="material-symbols-outlined group-hover:translate-x-1 transition-transform">how_to_reg</span>
+          </button>
+
+          <p class="hidden rounded-xl bg-secondary/10 text-secondary px-md py-sm text-body-md" id="form-message"></p>
+        </form>
+
+        <div class="mt-12 text-center lg:text-left">
+          <p class="text-body-md text-on-surface-variant flex items-center justify-center lg:justify-start gap-2">
+            <span class="material-symbols-outlined text-[18px] text-secondary" style="font-variation-settings: 'FILL' 1;">verified_user</span>
+            Your data is encrypted and managed via ISO-27001 standards.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <aside class="hidden lg:flex w-1/2 bg-primary-container relative overflow-hidden">
+      <div class="absolute inset-0 z-0">
+        <img alt="Modern university campus at dusk" class="w-full h-full object-cover" src="https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=1600&q=80" />
+        <div class="absolute inset-0 bg-gradient-to-t from-primary/85 via-primary/25 to-transparent"></div>
+      </div>
+
+      <div class="relative z-10 w-full flex flex-col justify-between p-16">
+        <div class="flex gap-4">
+          <div class="h-1 w-24 bg-tertiary-fixed-dim rounded-full"></div>
+          <div class="h-1 w-12 bg-tertiary-fixed-dim/40 rounded-full"></div>
+        </div>
+
+        <div class="max-w-xl">
+          <div class="inline-flex items-center gap-2 px-3 py-1 bg-secondary/20 backdrop-blur-md rounded-full mb-6 border border-secondary/30">
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-tertiary-fixed-dim opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-tertiary-fixed-dim"></span>
+            </span>
+            <span class="text-white font-semibold text-xs tracking-widest uppercase">System Online: Geo-Fence v4.2</span>
+          </div>
+          <h2 class="text-white text-[44px] font-bold leading-tight mb-6">Securing the future of academic integrity.</h2>
+          <p class="text-white/80 text-xl leading-relaxed">
+            GeoAttend uses spatial intelligence to verify presence without the friction of manual sign-ins. Privacy stays protected by localized data processing.
+          </p>
+        </div>
+
+        <div class="bg-white/10 backdrop-blur-xl border border-white/20 p-6 rounded-2xl shadow-2xl relative overflow-hidden">
+          <div class="scan-line"></div>
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-4">
+              <div class="w-12 h-12 rounded-full bg-secondary flex items-center justify-center text-on-secondary">
+                <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">location_on</span>
+              </div>
+              <div>
+                <p class="text-white font-bold text-lg">Central Lecture Hall</p>
+                <p class="text-white/60 text-sm font-mono-data">40.7128 N, 74.0060 W</p>
+              </div>
+            </div>
+            <div class="bg-emerald-500/20 text-emerald-300 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border border-emerald-500/30">Present</div>
+          </div>
+          <div class="h-2 w-full bg-white/10 rounded-full overflow-hidden">
+            <div class="h-full w-3/4 bg-tertiary-fixed-dim rounded-full"></div>
+          </div>
+          <p class="text-white/60 text-xs mt-3 text-right">Verification Confidence: 99.8%</p>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    document.querySelectorAll("input").forEach((input) => {
+      input.addEventListener("focus", () => {
+        input.closest(".group")?.classList.add("glow-active");
+      });
+      input.addEventListener("blur", () => {
+        input.closest(".group")?.classList.remove("glow-active");
+      });
+    });
+
+    const passwordInput = document.getElementById("password");
+    const togglePassword = document.getElementById("toggle-password");
+    const regNumberInput = document.getElementById("reg-number");
+    const regNumberSuffixInput = document.getElementById("reg-number-suffix");
+    let academicScope = null;
+    let regNumberPrefix = "25/EG/EE/";
+
+    function selectedOptionText(selectId) {
+      const select = document.getElementById(selectId);
+      return select?.selectedOptions?.[0]?.textContent?.trim() || "";
+    }
+
+    function getSelectedAcademicScope() {
+      return {
+        institutionId: academicScope?.institution?.id || "university-of-uyo",
+        institutionName: academicScope?.institution?.name || "University of Uyo",
+        facultyId: document.getElementById("faculty")?.value || "engineering",
+        facultyName: selectedOptionText("faculty") || "Faculty of Engineering",
+        departmentId: document.getElementById("department")?.value || "electrical-electronics-engineering",
+        departmentName: selectedOptionText("department") || "Department of Electrical/Electronics Engineering",
+        levelId: document.getElementById("level")?.value || "100",
+        levelName: selectedOptionText("level") || "100 Level"
+      };
+    }
+
+    function fillSelect(selectId, items, valueKey = "id", labelKey = "name") {
+      const select = document.getElementById(selectId);
+      if (!select) return;
+      select.innerHTML = items.map((item) => `<option value="${item[valueKey]}">${item[labelKey]}</option>`).join("");
+    }
+
+    function refreshDepartments() {
+      if (!academicScope) return;
+      const facultyId = document.getElementById("faculty")?.value || academicScope.defaults?.facultyId;
+      const departments = academicScope.departments.filter((department) => department.facultyId === facultyId);
+      fillSelect("department", departments.length ? departments : academicScope.departments);
+      refreshRegPrefix();
+    }
+
+    function refreshRegPrefix() {
+      const departmentId = document.getElementById("department")?.value;
+      const department = academicScope?.departments?.find((item) => item.id === departmentId);
+      regNumberPrefix = department?.regPrefix || "25/EG/EE/";
+      const prefixNode = document.getElementById("reg-number-prefix");
+      if (prefixNode) prefixNode.textContent = regNumberPrefix;
+      updateRegNumberValue();
+    }
+
+    async function loadAcademicScope() {
+      try {
+        const response = await fetch("/api/academic-scope", { cache: "no-store" });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Unable to load academic scope.");
+        academicScope = data;
+        fillSelect("faculty", data.faculties || []);
+        fillSelect("level", data.levels || []);
+        const faculty = document.getElementById("faculty");
+        const level = document.getElementById("level");
+        if (faculty && data.defaults?.facultyId) faculty.value = data.defaults.facultyId;
+        if (level && data.defaults?.levelId) level.value = data.defaults.levelId;
+        refreshDepartments();
+      } catch {
+        refreshRegPrefix();
+      }
+    }
+
+    function updateRegNumberValue() {
+      const digits = (regNumberSuffixInput.value || "").replace(/\D/g, "").slice(0, 3);
+      regNumberSuffixInput.value = digits;
+      regNumberInput.value = `${regNumberPrefix}${digits.padStart(3, "0")}`;
+    }
+
+    regNumberSuffixInput.addEventListener("input", updateRegNumberValue);
+    document.getElementById("faculty")?.addEventListener("change", refreshDepartments);
+    document.getElementById("department")?.addEventListener("change", refreshRegPrefix);
+    updateRegNumberValue();
+    loadAcademicScope();
+
+    togglePassword.addEventListener("click", () => {
+      const isHidden = passwordInput.type === "password";
+      passwordInput.type = isHidden ? "text" : "password";
+      togglePassword.querySelector(".material-symbols-outlined").textContent = isHidden ? "visibility_off" : "visibility";
+    });
+
+    const registerForm = document.getElementById("register-form");
+    const message = document.getElementById("form-message");
+    const otpSection = document.getElementById("otp-section");
+    const otpHelper = document.getElementById("otp-helper");
+    const otpInput = document.getElementById("otp-code");
+    const registerButtonLabel = document.getElementById("register-button-label");
+    const resendOtp = document.getElementById("resend-otp");
+    const resendOtpLabel = document.getElementById("resend-otp-label");
+    const submitButton = registerForm.querySelector('button[type="submit"]');
+    let pendingAccount = null;
+    let resendSeconds = 0;
+    let resendTimer = null;
+
+    function getAccounts() {
+      return JSON.parse(localStorage.getItem("geoAttendAccounts") || "[]");
+    }
+
+    function saveAccounts(accounts) {
+      localStorage.setItem("geoAttendAccounts", JSON.stringify(accounts));
+    }
+
+    function showMessage(text, isError = false) {
+      message.textContent = text;
+      message.className = `rounded-xl px-md py-sm text-body-md ${isError ? "bg-error-container text-on-error-container" : "bg-secondary/10 text-secondary"}`;
+    }
+
+    async function postJson(url, payload) {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Unable to complete request.");
+      return data;
+    }
+
+    async function sendOtp() {
+      setBusy(true, "Sending OTP...");
+      const result = await postJson("/api/send-registration-otp", {
+        email: pendingAccount.email,
+        fullName: pendingAccount.fullName
+      });
+      otpSection.classList.remove("hidden");
+      registerButtonLabel.textContent = "Verify OTP & Create Account";
+      otpHelper.textContent = `Enter the 6-digit code sent to ${pendingAccount.email}.`;
+      otpInput.value = "";
+      showMessage("OTP sent to your email. Please check your inbox.");
+      setBusy(false);
+      startResendCountdown(60);
+    }
+
+    function setBusy(isBusy, label = "Send OTP") {
+      submitButton.disabled = isBusy;
+      resendOtp.disabled = isBusy || resendSeconds > 0;
+      registerButtonLabel.textContent = isBusy ? label : (pendingAccount ? "Verify OTP & Create Account" : "Send OTP");
+    }
+
+    function startResendCountdown(seconds) {
+      clearInterval(resendTimer);
+      resendSeconds = seconds;
+      updateResendButton();
+      resendTimer = setInterval(() => {
+        resendSeconds -= 1;
+        updateResendButton();
+        if (resendSeconds <= 0) clearInterval(resendTimer);
+      }, 1000);
+    }
+
+    function updateResendButton() {
+      const coolingDown = resendSeconds > 0;
+      resendOtp.disabled = coolingDown;
+      resendOtpLabel.textContent = coolingDown ? `Resend OTP in ${resendSeconds}s` : "Resend OTP";
+      resendOtp.classList.toggle("opacity-60", coolingDown);
+      resendOtp.classList.toggle("cursor-not-allowed", coolingDown);
+    }
+
+    resendOtp.addEventListener("click", async () => {
+      if (!pendingAccount) return;
+      try {
+        await sendOtp();
+      } catch (error) {
+        setBusy(false);
+        showMessage(error.message, true);
+      }
+    });
+
+    registerForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const formData = new FormData(registerForm);
+      const fullName = formData.get("fullName").trim();
+      updateRegNumberValue();
+      const regSuffix = (regNumberSuffixInput.value || "").trim();
+      const regNumber = formData.get("regNumber").trim().toUpperCase();
+      const email = formData.get("email").trim().toLowerCase();
+      const password = formData.get("password");
+      const otpCode = formData.get("otpCode").trim();
+      const accounts = getAccounts();
+
+      if (!pendingAccount) {
+        if (!/^\d{3}$/.test(regSuffix)) {
+          showMessage("Enter the last three digits of your registration number, for example 001.", true);
+          regNumberSuffixInput.focus();
+          return;
+        }
+
+        if (accounts.some((account) => account.email === email || account.regNumber.toLowerCase() === regNumber.toLowerCase())) {
+          showMessage("An account with this email or reg number already exists. Please login.", true);
+          return;
+        }
+
+        if (password.length < 6) {
+          showMessage("Password must be at least 6 characters.", true);
+          return;
+        }
+
+        pendingAccount = {
+          fullName,
+          regNumber,
+          email,
+          password,
+          role: "student",
+          ...getSelectedAcademicScope(),
+          verified: false,
+          createdAt: new Date().toISOString()
+        };
+        try {
+          await sendOtp();
+        } catch (error) {
+          pendingAccount = null;
+          setBusy(false);
+          showMessage(error.message, true);
+        }
+        return;
+      }
+
+      if (!otpCode) {
+        showMessage("Enter the OTP sent to your email.", true);
+        return;
+      }
+
+      try {
+        setBusy(true, "Verifying OTP...");
+        await postJson("/api/verify-registration-otp", {
+          email: pendingAccount.email,
+          otp: otpCode
+        });
+      } catch (error) {
+        setBusy(false);
+        showMessage(error.message, true);
+        return;
+      }
+
+      pendingAccount.verified = true;
+      try {
+        await postJson("/api/students", {
+          fullName: pendingAccount.fullName,
+          regNumber: pendingAccount.regNumber,
+          email: pendingAccount.email,
+          password: pendingAccount.password,
+          facultyId: pendingAccount.facultyId,
+          facultyName: pendingAccount.facultyName,
+          departmentId: pendingAccount.departmentId,
+          departmentName: pendingAccount.departmentName,
+          levelId: pendingAccount.levelId,
+          levelName: pendingAccount.levelName,
+          verified: true,
+          createdAt: pendingAccount.createdAt
+        });
+      } catch (error) {
+        setBusy(false);
+        showMessage(error.message, true);
+        return;
+      }
+      accounts.push(pendingAccount);
+      saveAccounts(accounts);
+      localStorage.setItem("geoAttendCurrentUser", pendingAccount.email);
+      localStorage.setItem("geoAttendRole", pendingAccount.role);
+      localStorage.setItem("geoAttendView", "student");
+      showMessage("Account verified and created. Opening identity verification...");
+
+      setTimeout(() => {
+        window.location.href = "identity-verification.html";
+      }, 800);
+    });
+  </script>
+</body>
+</html>
+
+
+
+
+
+

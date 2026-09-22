@@ -1,0 +1,300 @@
+﻿<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+  <title>GeoAttend | Session Report</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            background: "#f8f9ff",
+            surface: "#f8f9ff",
+            "surface-container-lowest": "#ffffff",
+            "surface-container-low": "#eff4ff",
+            "on-surface": "#0b1c30",
+            "on-surface-variant": "#45464d",
+            "outline-variant": "#c6c6cd",
+            secondary: "#0058be",
+            "secondary-fixed": "#d8e2ff",
+            "on-primary": "#ffffff"
+          },
+          spacing: { xs: "4px", sm: "8px", md: "16px", lg: "24px", xl: "32px" },
+          fontFamily: {
+            "body-md": ["Inter", "sans-serif"],
+            "headline-lg": ["Inter", "sans-serif"],
+            "title-md": ["Inter", "sans-serif"],
+            "label-md": ["Inter", "sans-serif"],
+            "mono-data": ["JetBrains Mono", "monospace"]
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body { font-family: Inter, sans-serif; }
+    .material-symbols-outlined { display: inline-block; vertical-align: middle; font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24; }
+  </style>
+  <script src="role-access.js" defer></script>
+  <link rel="stylesheet" href="mobile-admin.css" />
+</head>
+<body class="bg-background text-on-surface font-body-md overflow-x-hidden" data-role-required="admin">
+  <aside class="w-[280px] h-screen fixed left-0 top-0 bg-surface-container-lowest border-r border-outline-variant shadow-sm flex flex-col py-lg px-md z-50">
+    <div class="flex items-center gap-md mb-xl px-sm">
+      <div class="w-10 h-10 rounded-lg bg-secondary text-on-primary flex items-center justify-center">
+        <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">verified_user</span>
+      </div>
+      <div>
+        <h1 class="text-3xl font-extrabold leading-tight">GeoAttend</h1>
+        <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Session Report</p>
+      </div>
+    </div>
+
+    <nav class="flex-1 space-y-xs">
+      <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="dashboard.html">
+        <span class="material-symbols-outlined">dashboard</span>
+        <span>Dashboard</span>
+      </a>
+      <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="create-session.html">
+        <span class="material-symbols-outlined">add_circle</span>
+        <span>Create Session</span>
+      </a>
+      <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="live-monitor.html">
+        <span class="material-symbols-outlined">security</span>
+        <span>Live Monitor</span>
+      </a>
+      <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="students.html">
+        <span class="material-symbols-outlined">groups</span>
+        <span>Students</span>
+      </a>
+      <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="records.html">
+        <span class="material-symbols-outlined">description</span>
+        <span>Records</span>
+      </a>
+    </nav>
+  </aside>
+
+  <main class="ml-[280px] min-h-screen">
+    <header class="flex justify-between items-center px-lg h-16 w-full bg-surface/80 backdrop-blur-md sticky top-0 z-40">
+      <div>
+        <p class="text-xs font-bold uppercase tracking-widest text-secondary">Report</p>
+        <h2 class="text-2xl font-extrabold text-on-surface" id="session-title">Session Report</h2>
+      </div>
+      <div class="flex items-center gap-sm">
+        <button class="inline-flex items-center gap-sm rounded-xl bg-secondary px-md py-sm font-bold text-on-primary disabled:opacity-60" id="share-session-pdf" type="button">
+          <span class="material-symbols-outlined text-[18px]">ios_share</span>
+          Share PDF
+        </button>
+        <a class="inline-flex items-center gap-sm rounded-xl bg-surface-container-low px-md py-sm font-bold text-on-surface" href="dashboard.html#attendance-report">
+          <span class="material-symbols-outlined text-[18px]">arrow_back</span>
+          Back
+        </a>
+      </div>
+    </header>
+
+    <div class="p-lg max-w-[1200px] mx-auto">
+      <section class="bg-surface-container-lowest p-lg rounded-xl border border-outline-variant/30 shadow-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-md mb-lg">
+          <div>
+            <h3 class="text-xl font-bold text-on-surface">Checked-in Students</h3>
+            <p class="text-on-surface-variant" id="session-meta">Loading session details...</p>
+          </div>
+          <span class="font-mono-data text-secondary text-sm" id="session-report-count">0 students</span>
+        </div>
+        <p class="hidden mb-md rounded-xl bg-surface-container-low px-md py-sm font-bold text-secondary" id="session-report-message"></p>
+
+        <div class="overflow-x-auto custom-scrollbar">
+          <table class="w-full min-w-[760px] text-left" id="session-report-table">
+            <thead>
+              <tr class="border-b border-outline-variant/40 text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                <th class="pb-md pr-md">S/N</th>
+                <th class="pb-md pr-md">Full Name</th>
+                <th class="pb-md pr-md">Registration Number</th>
+                <th class="pb-md pr-md">Method</th>
+                <th class="pb-md pr-md">Time</th>
+                <th class="pb-md pr-md">Status</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-outline-variant/20" id="session-report-body">
+              <tr>
+                <td class="py-lg text-center text-on-surface-variant" colspan="7">No checked-in students for this session yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get("sessionId") || "";
+    let realtimeAttendance = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]");
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function signatureHtml(record) {
+      if (record?.signatureDataUrl) return `<img alt="Signature" class="h-9 max-w-[150px] rounded border border-outline-variant bg-white object-contain px-2" src="${escapeHtml(record.signatureDataUrl)}" />`;
+      return `<span class="font-serif italic text-on-surface">${escapeHtml(record?.signature || record?.fullName || "--")}</span>`;
+    }
+
+    function formatSessionTime(value) {
+      if (!value) return "--";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "--";
+      return date.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    }
+
+    function getSessions() {
+      const sessions = JSON.parse(localStorage.getItem("geoAttendLiveSessions") || "[]");
+      const active = JSON.parse(localStorage.getItem("geoAttendActiveSession") || "null");
+      const merged = [...sessions];
+      if (active?.id && !merged.some((session) => session.id === active.id)) merged.unshift(active);
+      return merged;
+    }
+
+    async function refreshAttendance() {
+      try {
+        const actorEmail = localStorage.getItem("geoAttendCurrentUser") || ""; const url = sessionId ? `/api/attendance?sessionId=${encodeURIComponent(sessionId)}&actorEmail=${encodeURIComponent(actorEmail)}` : `/api/attendance?actorEmail=${encodeURIComponent(actorEmail)}`;
+        const response = await fetch(url, { cache: "no-store" });
+        if (!response.ok) throw new Error("Attendance unavailable");
+        const data = await response.json();
+        realtimeAttendance = Array.isArray(data.attendance) ? data.attendance : [];
+      } catch {
+        realtimeAttendance = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]")
+          .filter((record) => !sessionId || record.sessionId === sessionId);
+      }
+      renderSessionReport();
+    }
+
+    function renderSessionReport() {
+      const title = document.getElementById("session-title");
+      const meta = document.getElementById("session-meta");
+      const count = document.getElementById("session-report-count");
+      const body = document.getElementById("session-report-body");
+      const session = getSessions().find((item) => item.id === sessionId);
+      const records = realtimeAttendance
+        .filter((record) => !sessionId || record.sessionId === sessionId)
+        .sort((a, b) => new Date(a.checkedInAt || 0) - new Date(b.checkedInAt || 0));
+
+      if (title) title.textContent = session?.course || records[0]?.course || "Session Report";
+      if (meta) {
+        const location = session?.locationName || session?.geofence?.name || "Selected location";
+        const windowText = session ? `${session.startTime || "--"} - ${session.endTime || "--"}` : "Session details unavailable";
+        meta.textContent = `${location} | ${windowText}`;
+      }
+      if (count) count.textContent = `${records.length} ${records.length === 1 ? "student" : "students"}`;
+      if (!body) return;
+
+      if (!sessionId) {
+        body.innerHTML = '<tr><td class="py-lg text-center text-on-surface-variant" colspan="7">No session selected. Open this page from a session report button.</td></tr>';
+        return;
+      }
+
+      if (!records.length) {
+        body.innerHTML = '<tr><td class="py-lg text-center text-on-surface-variant" colspan="7">No checked-in students for this session yet.</td></tr>';
+        return;
+      }
+
+      body.innerHTML = records.map((record, index) => `
+        <tr>
+          <td class="py-md pr-md font-mono-data text-on-surface-variant">${index + 1}</td>
+          <td class="py-md pr-md font-bold text-on-surface">${escapeHtml(record.fullName || record.email || "Unknown Student")}</td>
+          <td class="py-md pr-md font-mono-data text-on-surface">${escapeHtml(record.regNumber || "--")}</td>
+          <td class="py-md pr-md font-bold text-secondary">${escapeHtml(record.verificationMethod || "Verified")}</td>
+          <td class="py-md pr-md font-mono-data text-on-surface-variant">${escapeHtml(formatSessionTime(record.checkedInAt))}</td>
+          <td class="py-md pr-md"><span class="rounded-full bg-green-100 px-sm py-1 text-xs font-bold text-green-700">${escapeHtml(record.status || "present")}</span></td>
+        </tr>
+      `).join("");
+    }
+
+    function getPdfFilename(response, fallback) {
+      const disposition = response.headers.get("content-disposition") || "";
+      const match = disposition.match(/filename="?([^"]+)"?/i);
+      return match?.[1] || fallback;
+    }
+
+    function downloadPdfBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+    }
+
+    async function sharePdfBlob(blob, filename) {
+      const file = new File([blob], filename, { type: "application/pdf" });
+      if (navigator.canShare?.({ files: [file] }) && navigator.share) {
+        await navigator.share({
+          files: [file],
+          title: "GeoAttend Session Attendance Report",
+          text: "GeoAttend session attendance PDF report"
+        });
+        return "PDF opened in your device share menu. Choose WhatsApp, Bluetooth, Xender, or any available app.";
+      }
+
+      downloadPdfBlob(blob, filename);
+      return "This browser cannot share PDF files directly, so the PDF was downloaded to this device instead.";
+    }
+
+    async function shareSessionPdf() {
+      const button = document.getElementById("share-session-pdf");
+      const message = document.getElementById("session-report-message");
+      if (!sessionId) {
+        if (message) {
+          message.textContent = "Open a particular session before generating a PDF report.";
+          message.classList.remove("hidden");
+        }
+        return;
+      }
+
+      if (button) {
+        button.disabled = true;
+        button.innerHTML = '<span class="material-symbols-outlined text-[18px]">hourglass_top</span> Preparing...';
+      }
+      try {
+        const response = await fetch(`/api/attendance-pdf?sessionId=${encodeURIComponent(sessionId)}`, { cache: "no-store" });
+        if (!response.ok) throw new Error("Unable to generate PDF report.");
+        const blob = await response.blob();
+        const filename = getPdfFilename(response, "geoattend-session-report.pdf");
+        const status = await sharePdfBlob(blob, filename);
+        if (message) {
+          message.textContent = status;
+          message.classList.remove("hidden");
+        }
+      } catch (error) {
+        if (message) {
+          if (error.name !== "AbortError") {
+            message.textContent = error.message;
+            message.classList.remove("hidden");
+          }
+        }
+      } finally {
+        if (button) {
+          button.disabled = false;
+          button.innerHTML = '<span class="material-symbols-outlined text-[18px]">ios_share</span> Share PDF';
+        }
+      }
+    }
+
+    refreshAttendance();
+    setInterval(refreshAttendance, 3000);
+    window.addEventListener("storage", refreshAttendance);
+    document.getElementById("share-session-pdf")?.addEventListener("click", shareSessionPdf);
+  </script>
+</body>
+</html>
+

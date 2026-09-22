@@ -1,0 +1,595 @@
+﻿<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+  <title>GeoAttend | Admin Management</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            background: "#f8f9ff",
+            surface: "#f8f9ff",
+            "surface-container-lowest": "#ffffff",
+            "surface-container-low": "#eff4ff",
+            "on-surface": "#0b1c30",
+            "on-surface-variant": "#45464d",
+            "outline-variant": "#c6c6cd",
+            secondary: "#0058be",
+            "on-primary": "#ffffff"
+          },
+          spacing: { xs: "4px", sm: "8px", md: "16px", lg: "24px", xl: "32px" },
+          fontFamily: {
+            "body-md": ["Inter", "sans-serif"],
+            "mono-data": ["JetBrains Mono", "monospace"]
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body { font-family: Inter, sans-serif; }
+    .material-symbols-outlined { display: inline-block; vertical-align: middle; font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24; }
+    .admin-scope-select { width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #admin-department-select { max-width: 100%; }
+  </style>
+  <script src="role-access.js" defer></script>
+  <link rel="stylesheet" href="mobile-admin.css" />
+</head>
+<body class="bg-background text-on-surface font-body-md overflow-x-hidden" data-role-required="admin">
+  <aside class="w-[280px] h-screen fixed left-0 top-0 bg-surface-container-lowest border-r border-outline-variant shadow-sm flex flex-col py-lg px-md z-50">
+    <div class="flex items-center gap-md mb-xl px-sm">
+      <div class="w-10 h-10 rounded-lg bg-secondary text-on-primary flex items-center justify-center">
+        <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">verified_user</span>
+      </div>
+      <div>
+        <h1 class="text-3xl font-extrabold leading-tight">GeoAttend</h1>
+        <p class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Admin Control</p>
+      </div>
+    </div>
+
+    <nav class="flex-1 space-y-xs">
+      <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="dashboard.html"><span class="material-symbols-outlined">dashboard</span><span>Dashboard</span></a>
+      <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="create-session.html"><span class="material-symbols-outlined">add_circle</span><span>Create Session</span></a>
+      <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="live-monitor.html"><span class="material-symbols-outlined">security</span><span>Live Monitor</span></a>
+      <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="students.html"><span class="material-symbols-outlined">groups</span><span>Students</span></a>
+      <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="records.html"><span class="material-symbols-outlined">description</span><span>Records</span></a>
+    </nav>
+  </aside>
+
+  <main class="ml-[280px] min-h-screen">
+    <header class="flex justify-between items-center px-lg h-16 w-full bg-surface/80 backdrop-blur-md sticky top-0 z-40">
+      <div>
+        <p class="text-xs font-bold uppercase tracking-widest text-secondary">Profile</p>
+        <h2 class="text-2xl font-extrabold text-on-surface">Admin Management</h2>
+      </div>
+    </header>
+
+    <div class="p-lg max-w-[1100px] mx-auto grid gap-lg">
+      <section class="bg-surface-container-lowest p-lg rounded-xl border border-outline-variant/30 shadow-sm">
+        <div class="flex items-center gap-sm mb-lg">
+          <span class="material-symbols-outlined text-secondary">admin_panel_settings</span>
+          <div>
+            <h3 class="text-xl font-bold text-on-surface">Add Admin</h3>
+            <p class="text-on-surface-variant">Only the overall admin can add or remove admins.</p>
+          </div>
+        </div>
+        <form class="grid gap-md xl:grid-cols-[minmax(190px,1fr)_190px_180px_minmax(220px,260px)_150px_auto] lg:grid-cols-3 items-end" id="admin-form">
+          <label class="grid gap-xs text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+            Reg Number
+            <input class="rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base uppercase outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="admin-reg-number" placeholder="25/EG/EE/001" type="text" inputmode="numeric" autocomplete="off" required />
+          </label>
+          <label class="grid gap-xs text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+            Admin Role
+            <select class="rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base normal-case font-normal text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="admin-role-select">
+              <option value="department_admin">Department Admin</option>
+              <option value="level_admin">Level Admin</option>
+              <option value="faculty_admin">Faculty Admin</option>
+              <option value="overall_admin">Overall Admin</option>
+            </select>
+          </label>
+          <label class="grid gap-xs text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+            Faculty
+            <select class="admin-scope-select rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base normal-case font-normal text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="admin-faculty-select"></select>
+          </label>
+          <label class="grid gap-xs text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+            Department
+            <select class="admin-scope-select rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm pr-xl text-base normal-case font-normal text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="admin-department-select"></select>
+          </label>
+          <label class="grid gap-xs text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+            Level
+            <select class="admin-scope-select rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base normal-case font-normal text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="admin-level-select"></select>
+          </label>
+          <button class="rounded-xl bg-secondary px-lg py-sm font-bold text-on-primary disabled:opacity-60 min-h-[48px]" type="submit">Add Admin</button>
+        </form>
+        <div class="mt-md rounded-xl border border-outline-variant/30 bg-surface-container-low px-md py-sm text-sm text-on-surface-variant" id="admin-student-preview">Enter a registration number to fetch the linked student.</div>
+        <p class="hidden mt-md rounded-xl bg-surface-container-low px-md py-sm font-bold text-secondary" id="admin-message"></p>
+      </section>
+
+      <section class="bg-surface-container-lowest p-lg rounded-xl border border-outline-variant/30 shadow-sm">
+        <div class="flex items-center gap-sm mb-lg">
+          <span class="material-symbols-outlined text-[#ba1a1a]">person_remove</span>
+          <div>
+            <h3 class="text-xl font-bold text-on-surface">Remove Admin</h3>
+            <p class="text-on-surface-variant">Enter only the admin registration number to remove access.</p>
+          </div>
+        </div>
+        <form class="grid gap-md md:grid-cols-[1fr_auto]" id="remove-admin-form">
+          <input class="rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base uppercase outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="remove-admin-reg-number" placeholder="25/EG/EE/001" type="text" inputmode="numeric" autocomplete="off" required />
+          <button class="rounded-xl bg-[#ba1a1a] px-lg py-sm font-bold text-white disabled:opacity-60" type="submit">Remove Admin</button>
+        </form>
+        <div class="mt-md rounded-xl border border-outline-variant/30 bg-surface-container-low px-md py-sm text-sm text-on-surface-variant" id="remove-admin-preview">Enter a registration number to fetch the linked admin.</div>
+      </section>
+
+
+      <section class="bg-surface-container-lowest p-lg rounded-xl border border-outline-variant/30 shadow-sm">
+        <div class="flex items-center justify-between gap-md mb-lg">
+          <div class="flex items-center gap-sm">
+            <span class="material-symbols-outlined text-secondary">workspace_premium</span>
+            <div>
+              <h3 class="text-xl font-bold text-on-surface">Department Subscription</h3>
+              <p class="text-on-surface-variant">Store and manage the department plan in your SQLite database.</p>
+            </div>
+          </div>
+          <span class="rounded-full bg-surface-container-low px-md py-xs text-sm font-bold text-secondary" id="subscription-status">Loading</span>
+        </div>
+        <form class="grid gap-md md:grid-cols-2" id="subscription-form">
+          <label class="grid gap-xs text-sm font-bold text-on-surface-variant">
+            Department
+            <input class="rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="subscription-department" type="text" value="Department of Electrical/Electronics Engineering" required />
+          </label>
+          <label class="grid gap-xs text-sm font-bold text-on-surface-variant">
+            Plan
+            <select class="rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="subscription-plan">
+              <option>Department Plan</option>
+              <option>Faculty Plan</option>
+              <option>Institution Plan</option>
+            </select>
+          </label>
+          <label class="grid gap-xs text-sm font-bold text-on-surface-variant">
+            Student Limit
+            <input class="rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="subscription-limit" min="1" type="number" value="10000" required />
+          </label>
+          <label class="grid gap-xs text-sm font-bold text-on-surface-variant">
+            Amount (NGN)
+            <input class="rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="subscription-amount" min="0" step="100" type="number" value="0" required />
+          </label>
+          <label class="grid gap-xs text-sm font-bold text-on-surface-variant">
+            Start Date
+            <input class="rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="subscription-start" type="date" required />
+          </label>
+          <label class="grid gap-xs text-sm font-bold text-on-surface-variant">
+            Expiry Date
+            <input class="rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="subscription-expiry" type="date" required />
+          </label>
+          <div class="md:col-span-2 flex flex-wrap gap-sm">
+            <button class="rounded-xl bg-secondary px-lg py-sm font-bold text-on-primary disabled:opacity-60" type="submit">Save Subscription</button>
+            <button class="rounded-xl border border-outline-variant px-lg py-sm font-bold text-on-surface" id="subscription-refresh" type="button">Refresh</button>
+            <button class="rounded-xl border border-red-200 px-lg py-sm font-bold text-red-700" id="subscription-cancel" type="button">Cancel Subscription</button>
+          </div>
+        </form>
+        <div class="mt-md rounded-xl border border-outline-variant/30 bg-surface-container-low px-md py-sm text-sm text-on-surface-variant" id="subscription-summary">No subscription loaded yet.</div>
+      </section>
+            <section class="bg-surface-container-lowest p-lg rounded-xl border border-outline-variant/30 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-md">
+          <div class="flex items-center gap-sm">
+            <span class="material-symbols-outlined text-secondary">backup</span>
+            <div>
+              <h3 class="text-xl font-bold text-on-surface">Backup System</h3>
+              <p class="text-on-surface-variant">Save a copy of the SQLite database and saved PDF reports.</p>
+            </div>
+          </div>
+          <button class="rounded-xl bg-secondary px-lg py-sm font-bold text-on-primary" id="backup-now" type="button">Create Backup</button>
+        </div>
+        <div class="mt-md rounded-xl border border-outline-variant/30 bg-surface-container-low px-md py-sm text-sm text-on-surface-variant" id="backup-summary">No backup created in this session.</div>
+      </section>
+<section class="bg-surface-container-lowest p-lg rounded-xl border border-outline-variant/30 shadow-sm">
+        <div class="flex items-center justify-between gap-md mb-lg">
+          <h3 class="text-xl font-bold text-on-surface">Current Admins</h3>
+          <span class="font-mono-data text-secondary" id="admin-count">0 admins</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[680px] text-left" id="admin-table">
+            <thead>
+              <tr class="border-b border-outline-variant/40 text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                <th class="pb-md pr-md">Name</th>
+                <th class="pb-md pr-md">Reg Number</th>
+                <th class="pb-md pr-md">Role</th>
+                <th class="pb-md pr-md">Scope</th>
+                <th class="pb-md pr-md">Created</th>
+                <th class="pb-md pr-md text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-outline-variant/20" id="admin-body">
+              <tr><td class="py-lg text-center text-on-surface-variant" colspan="6">Loading admins...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const actorEmail = localStorage.getItem("geoAttendCurrentUser") || "";
+    let registeredStudents = [];
+    let currentAdmins = [];
+    const defaultAcademicScope = {
+      institution: { id: "university-of-uyo", name: "University of Uyo" },
+      faculties: [{ id: "engineering", name: "Engineering" }],
+      departments: [
+        { id: "electrical-electronics-engineering", facultyId: "engineering", name: "Electrical/Electronics Engineering" },
+        { id: "mechanical-engineering", facultyId: "engineering", name: "Mechanical Engineering" },
+        { id: "civil-engineering", facultyId: "engineering", name: "Civil Engineering" }
+      ],
+      levels: ["100", "200", "300", "400", "500"].map((level) => ({ id: level, name: level }))
+    };
+    let academicScope = { ...defaultAcademicScope };
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function showMessage(text, isError = false) {
+      const message = document.getElementById("admin-message");
+      if (!message) return;
+      message.textContent = text;
+      message.classList.remove("hidden");
+      message.classList.toggle("text-[#93000a]", isError);
+      message.classList.toggle("bg-[#ffdad6]", isError);
+    }
+
+
+    function fillSelect(select, items, labelKey = "name") {
+      if (!select) return;
+      select.innerHTML = items.length ? items.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item[labelKey] || item.name || item.id)}</option>`).join("") : `<option value="">No option loaded</option>`;
+    }
+
+    async function loadAcademicScope() {
+      try {
+        const response = await fetch("/api/academic-scope", { cache: "no-store" });
+        const data = await response.json().catch(() => ({}));
+        if (response.ok) {
+          const loadedScope = data.scope || data;
+          academicScope = {
+            ...defaultAcademicScope,
+            ...loadedScope,
+            faculties: [{ id: "engineering", name: "Engineering" }],
+            levels: ["100", "200", "300", "400", "500"].map((level) => ({ id: level, name: level }))
+          };
+        }
+      } catch {
+        academicScope = { ...defaultAcademicScope };
+      }
+      fillSelect(document.getElementById("admin-faculty-select"), academicScope.faculties || []);
+      fillDepartmentOptions();
+      fillSelect(document.getElementById("admin-level-select"), academicScope.levels || []);
+    }
+
+    function fillDepartmentOptions() {
+      const facultyId = document.getElementById("admin-faculty-select")?.value || "";
+      const departments = (academicScope.departments || []).filter((department) => !facultyId || department.facultyId === facultyId);
+      fillSelect(document.getElementById("admin-department-select"), departments);
+    }
+
+    function getSelectedAdminScope() {
+      const facultyId = document.getElementById("admin-faculty-select")?.value || "";
+      const departmentId = document.getElementById("admin-department-select")?.value || "";
+      const levelId = document.getElementById("admin-level-select")?.value || "";
+      const faculty = (academicScope.faculties || []).find((item) => item.id === facultyId) || {};
+      const department = (academicScope.departments || []).find((item) => item.id === departmentId) || {};
+      const level = (academicScope.levels || []).find((item) => item.id === levelId) || {};
+      return {
+        adminRole: document.getElementById("admin-role-select")?.value || "department_admin",
+        institutionId: academicScope.institution?.id || "university-of-uyo",
+        facultyId,
+        facultyName: faculty.name || "",
+        departmentId,
+        departmentName: department.name || "",
+        levelId,
+        levelName: level.name || ""
+      };
+    }
+    function normalizeRegNumber(value) {
+      const raw = String(value || "").trim().toUpperCase();
+      if (!raw) return "";
+      if (/^\d{1,3}$/.test(raw)) return `25/EG/EE/${raw.padStart(3, "0")}`;
+      return raw;
+    }
+
+    function findStudentByRegNumber(value) {
+      const regNumber = normalizeRegNumber(value);
+      if (!regNumber) return null;
+      return registeredStudents.find((student) => String(student.regNumber || "").trim().toUpperCase() === regNumber) || null;
+    }
+
+    function renderPreview(inputId, previewId, admins = []) {
+      const input = document.getElementById(inputId);
+      const preview = document.getElementById(previewId);
+      if (!input || !preview) return;
+      const regNumber = normalizeRegNumber(input.value);
+      const student = findStudentByRegNumber(regNumber);
+      const admin = admins.find((item) => String(item.regNumber || "").trim().toUpperCase() === regNumber);
+      if (!regNumber) {
+        preview.textContent = inputId === "admin-reg-number" ? "Enter a registration number to fetch the linked student." : "Enter a registration number to fetch the linked admin.";
+        return;
+      }
+      if (!student && !admin) {
+        preview.innerHTML = `<span class="font-bold text-[#93000a]">No record found for ${escapeHtml(regNumber)}.</span>`;
+        return;
+      }
+      const record = student || admin;
+      preview.innerHTML = `
+        <div class="grid gap-xs">
+          <p class="font-bold text-on-surface">${escapeHtml(record.fullName || "--")}</p>
+          <p><span class="font-bold">Reg No:</span> ${escapeHtml(record.regNumber || regNumber)}</p>
+          ${admin ? '<p class="font-bold text-secondary">Admin access is active.</p>' : ""}
+        </div>
+      `;
+    }
+
+    async function loadStudents() {
+      try {
+        const response = await fetch("/api/students", { cache: "no-store" });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Unable to load registered students.");
+        registeredStudents = Array.isArray(data.students) ? data.students : [];
+      } catch (error) {
+        registeredStudents = [];
+        showMessage(error.message, true);
+      }
+    }
+
+    async function loadAdmins() {
+      const body = document.getElementById("admin-body");
+      const count = document.getElementById("admin-count");
+      try {
+        const response = await fetch(`/api/admins?actorEmail=${encodeURIComponent(actorEmail)}`, { cache: "no-store" });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Unable to load admins.");
+        const admins = Array.isArray(data.admins) ? data.admins : [];
+        currentAdmins = admins;
+        if (count) count.textContent = `${admins.length} ${admins.length === 1 ? "admin" : "admins"}`;
+        body.innerHTML = admins.map((admin) => `
+          <tr>
+            <td class="py-md pr-md font-bold text-on-surface break-words">${escapeHtml(admin.fullName || "--")}</td>
+            <td class="py-md pr-md font-mono-data text-secondary">${escapeHtml(admin.regNumber || "--")}</td>
+            <td class="py-md pr-md font-mono-data text-secondary">${escapeHtml(admin.roleLabel || (admin.role === "owner" ? "Overall Admin" : "Admin"))}</td>
+            <td class="py-md pr-md text-on-surface-variant break-words">${escapeHtml(admin.scopeLabel || "--")}</td>
+            <td class="py-md pr-md text-on-surface-variant">${escapeHtml(admin.createdAt === "system" ? "System" : admin.createdAt ? new Date(admin.createdAt).toLocaleString() : "--")}</td>
+            <td class="py-md pr-md text-right">
+              ${admin.role === "owner" ? '<span class="text-on-surface-variant font-bold">Protected</span>' : `<button class="rounded-lg border border-red-200 px-md py-sm font-bold text-red-700" data-remove-admin-reg="${escapeHtml(admin.regNumber || "")}" type="button">Remove</button>`}
+            </td>
+          </tr>
+        `).join("");
+        renderPreview("admin-reg-number", "admin-student-preview", admins);
+        renderPreview("remove-admin-reg-number", "remove-admin-preview", admins);
+      } catch (error) {
+        if (body) body.innerHTML = `<tr><td class="py-lg text-center text-on-surface-variant" colspan="6">${escapeHtml(error.message)}</td></tr>`;
+        showMessage(error.message, true);
+      }
+    }
+
+
+    function todayInputValue(offsetDays = 0) {
+      const date = new Date();
+      date.setDate(date.getDate() + offsetDays);
+      return date.toISOString().slice(0, 10);
+    }
+
+    function formatCurrency(amount, currency = "NGN") {
+      try {
+        return new Intl.NumberFormat("en-NG", { style: "currency", currency, maximumFractionDigits: 0 }).format(Number(amount || 0));
+      } catch {
+        return `${currency} ${Number(amount || 0).toLocaleString()}`;
+      }
+    }
+
+    function renderSubscription(subscription) {
+      const status = document.getElementById("subscription-status");
+      const summary = document.getElementById("subscription-summary");
+      const department = document.getElementById("subscription-department");
+      const plan = document.getElementById("subscription-plan");
+      const limit = document.getElementById("subscription-limit");
+      const amount = document.getElementById("subscription-amount");
+      const starts = document.getElementById("subscription-start");
+      const expiry = document.getElementById("subscription-expiry");
+      if (!subscription) return;
+
+      if (department) department.value = subscription.departmentName || department.value;
+      if (plan) plan.value = subscription.planName || "Department Plan";
+      if (limit) limit.value = subscription.studentLimit || 10000;
+      if (amount) amount.value = subscription.amount || 0;
+      if (starts) starts.value = String(subscription.startsAt || todayInputValue()).slice(0, 10);
+      if (expiry) expiry.value = String(subscription.expiresAt || todayInputValue(180)).slice(0, 10);
+
+      const active = subscription.active === true;
+      if (status) {
+        status.textContent = active ? `Active | ${subscription.daysRemaining} days left` : String(subscription.status || "inactive").toUpperCase();
+        status.classList.toggle("text-[#0f7b2f]", active);
+        status.classList.toggle("text-[#93000a]", !active);
+      }
+      if (summary) {
+        summary.innerHTML = `
+          <div class="grid gap-xs">
+            <p><span class="font-bold text-on-surface">Department:</span> ${escapeHtml(subscription.departmentName || "--")}</p>
+            <p><span class="font-bold text-on-surface">Plan:</span> ${escapeHtml(subscription.planName || "--")} | <span class="font-bold text-on-surface">Limit:</span> ${Number(subscription.studentLimit || 0).toLocaleString()} students</p>
+            <p><span class="font-bold text-on-surface">Amount:</span> ${escapeHtml(formatCurrency(subscription.amount, subscription.currency))}</p>
+            <p><span class="font-bold text-on-surface">Valid:</span> ${escapeHtml(String(subscription.startsAt || "--").slice(0, 10))} to ${escapeHtml(String(subscription.expiresAt || "--").slice(0, 10))}</p>
+          </div>
+        `;
+      }
+    }
+
+    async function loadSubscription() {
+      const department = document.getElementById("subscription-department")?.value || "Department of Electrical/Electronics Engineering";
+      try {
+        const response = await fetch(`/api/subscription?department=${encodeURIComponent(department)}`, { cache: "no-store" });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Unable to load subscription.");
+        renderSubscription(data.subscription);
+      } catch (error) {
+        showMessage(error.message, true);
+      }
+    }
+
+    async function saveSubscription(event) {
+      event.preventDefault();
+      const payload = {
+        actorEmail,
+        departmentName: document.getElementById("subscription-department")?.value,
+        planName: document.getElementById("subscription-plan")?.value,
+        studentLimit: Number(document.getElementById("subscription-limit")?.value || 10000),
+        amount: Number(document.getElementById("subscription-amount")?.value || 0),
+        currency: "NGN",
+        startsAt: document.getElementById("subscription-start")?.value,
+        expiresAt: document.getElementById("subscription-expiry")?.value,
+        status: "active"
+      };
+      try {
+        const response = await fetch("/api/subscription", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Unable to save subscription.");
+        renderSubscription(data.subscription);
+        showMessage("Department subscription saved successfully.");
+      } catch (error) {
+        showMessage(error.message, true);
+      }
+    }
+
+    async function cancelSubscription() {
+      const departmentName = document.getElementById("subscription-department")?.value || "Department of Electrical/Electronics Engineering";
+      if (!window.confirm(`Cancel subscription for ${departmentName}?`)) return;
+      try {
+        const response = await fetch("/api/subscription/cancel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ actorEmail, departmentName })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Unable to cancel subscription.");
+        renderSubscription(data.subscription);
+        showMessage("Department subscription cancelled.");
+      } catch (error) {
+        showMessage(error.message, true);
+      }
+    }
+    document.getElementById("admin-form")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const regNumber = normalizeRegNumber(document.getElementById("admin-reg-number").value);
+      const student = findStudentByRegNumber(regNumber);
+      if (!student) {
+        showMessage("No registered student was found for that registration number.", true);
+        return;
+      }
+      const selectedScope = getSelectedAdminScope();
+      const shouldAdd = window.confirm(`Confirm Add Admin\n\nName: ${student.fullName || "--"}\nReg No: ${student.regNumber || regNumber}\nRole: ${selectedScope.adminRole.replaceAll("_", " ")}\nScope: ${selectedScope.departmentName || selectedScope.facultyName || "Institution"} ${selectedScope.levelName || ""}`);
+      if (!shouldAdd) return;
+      try {
+        const response = await fetch("/api/admins", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ actorEmail, regNumber, ...selectedScope })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Unable to add admin.");
+        event.target.reset();
+        showMessage("Admin added successfully. First password is the registration number.");
+        loadAdmins();
+      } catch (error) {
+        showMessage(error.message, true);
+      }
+    });
+
+    document.getElementById("remove-admin-form")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const regNumber = normalizeRegNumber(document.getElementById("remove-admin-reg-number").value);
+      try {
+        const response = await fetch("/api/admins/remove", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ actorEmail, regNumber })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Unable to remove admin.");
+        event.target.reset();
+        showMessage("Admin removed.");
+        loadAdmins();
+      } catch (error) {
+        showMessage(error.message, true);
+      }
+    });
+
+    document.getElementById("admin-body")?.addEventListener("click", async (event) => {
+      const button = event.target.closest("[data-remove-admin-reg]");
+      if (!button) return;
+      const regNumber = button.dataset.removeAdminReg || "";
+      try {
+        const response = await fetch("/api/admins/remove", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ actorEmail, regNumber })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Unable to remove admin.");
+        showMessage("Admin removed.");
+        loadAdmins();
+      } catch (error) {
+        showMessage(error.message, true);
+      }
+    });
+
+    document.getElementById("admin-reg-number")?.addEventListener("input", () => renderPreview("admin-reg-number", "admin-student-preview", currentAdmins));
+    document.getElementById("remove-admin-reg-number")?.addEventListener("input", () => renderPreview("remove-admin-reg-number", "remove-admin-preview", currentAdmins));
+    document.getElementById("subscription-form")?.addEventListener("submit", saveSubscription);
+    document.getElementById("subscription-refresh")?.addEventListener("click", loadSubscription);
+    document.getElementById("subscription-cancel")?.addEventListener("click", cancelSubscription);
+    document.getElementById("admin-faculty-select")?.addEventListener("change", fillDepartmentOptions);
+    document.getElementById("backup-now")?.addEventListener("click", async () => {
+      const summary = document.getElementById("backup-summary");
+      try {
+        const response = await fetch("/api/backup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ actorEmail }) });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Unable to create backup.");
+        if (summary) summary.textContent = `Backup created: ${data.backupPath}`;
+        showMessage("Backup created successfully.");
+      } catch (error) {
+        if (summary) summary.textContent = error.message;
+        showMessage(error.message, true);
+      }
+    });
+
+    const startInput = document.getElementById("subscription-start");
+    const expiryInput = document.getElementById("subscription-expiry");
+    if (startInput && !startInput.value) startInput.value = todayInputValue();
+    if (expiryInput && !expiryInput.value) expiryInput.value = todayInputValue(180);
+
+    (async () => {
+      await loadAcademicScope();
+      await loadStudents();
+      await loadAdmins();
+      await loadSubscription();
+    })();
+  </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+

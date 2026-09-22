@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+  <title>GeoAttend | Student Profile</title>
+  <script>
+    (function applySavedTheme() {
+      const theme = localStorage.getItem("geoAttendTheme") || "light";
+      document.documentElement.classList.toggle("dark", theme === "dark");
+      document.documentElement.classList.toggle("light", theme !== "dark");
+    })();
+  </script>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <style>
+    :root { color-scheme: light; --background:#f8f9ff; --surface:#fff; --panel:#eff4ff; --panel-strong:#dce9ff; --ink:#0b1c30; --muted:#45464d; --outline:#c6c6cd; --primary:#000; --secondary:#0058be; --secondary-strong:#2170e4; }
+    html.dark { color-scheme: dark; --background:#07111f; --surface:#101b2d; --panel:#17253a; --panel-strong:#213145; --ink:#eaf1ff; --muted:#aebcd0; --outline:#31435d; --primary:#eaf1ff; --secondary:#6ea8ff; --secondary-strong:#8ab8ff; }
+    body { background:var(--background); color:var(--ink); font-family:Inter, sans-serif; }
+    .material-symbols-outlined { vertical-align:middle; font-variation-settings:"FILL" 0,"wght" 400,"GRAD" 0,"opsz" 24; }
+    .surface { background:var(--surface); border-color:var(--outline); }
+    .panel { background:var(--panel); }
+    .muted { color:var(--muted); }
+    .secondary { color:var(--secondary); }
+    .primary-button { background:var(--primary); color:var(--background); }
+    .field { width:100%; border:1px solid var(--outline); background:var(--surface); color:var(--ink); border-radius:14px; padding:13px 14px; outline:none; }
+    .field:focus { border-color:var(--secondary); box-shadow:0 0 0 4px rgba(0,88,190,.12); }
+    html.dark .field {
+      background:#07111f !important;
+      color:#eaf1ff !important;
+      border-color:#31435d !important;
+      caret-color:#6ea8ff !important;
+    }
+    html.dark .field:focus {
+      border-color:#6ea8ff !important;
+      box-shadow:0 0 0 4px rgba(110,168,255,.18) !important;
+    }
+    html.dark .field::placeholder {
+      color:#aebcd0 !important;
+      opacity:1;
+    }
+    html.dark input:-webkit-autofill,
+    html.dark input:-webkit-autofill:hover,
+    html.dark input:-webkit-autofill:focus {
+      -webkit-text-fill-color:#eaf1ff !important;
+      box-shadow:0 0 0 1000px #07111f inset !important;
+      caret-color:#6ea8ff !important;
+    }
+    .toggle-track { width:52px; height:30px; border-radius:999px; background:var(--panel-strong); border:1px solid var(--outline); padding:3px; transition:background .2s ease; }
+    .toggle-thumb { width:22px; height:22px; border-radius:999px; background:var(--surface); box-shadow:0 2px 8px rgba(0,0,0,.22); transition:transform .2s ease; }
+    input:checked + .toggle-track { background:var(--secondary-strong); }
+    input:checked + .toggle-track .toggle-thumb { transform:translateX(22px); }
+    #signature-pad { touch-action:none; background:#fff; border:1px solid var(--outline); border-radius:16px; width:100%; height:190px; display:block; }
+    html.dark #signature-pad { background:#f8fafc; }
+  </style>
+  <link rel="stylesheet" href="mobile-student.css" />
+</head>
+<body class="min-h-screen" data-role-required="student">
+  <script src="role-access.js"></script>
+  <header class="fixed top-0 z-50 h-14 w-full border-b px-4 py-2 surface">
+    <div class="mx-auto flex h-full max-w-lg items-center justify-between">
+      <a class="text-xl font-extrabold" href="student-home.html">GeoAttend</a>
+      <div class="flex items-center gap-2">
+        <span class="hidden max-w-[130px] truncate text-sm font-bold sm:inline" data-current-user-name data-student-user-name>Student</span>
+        <button class="rounded-full p-1" type="button" data-logout aria-label="Logout"><span class="material-symbols-outlined">logout</span></button>
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-lg px-4 pb-24 pt-20">
+    <section class="rounded-xl border p-5 text-center shadow-sm surface">
+      <div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full panel secondary"><span class="material-symbols-outlined text-5xl">person</span></div>
+      <h1 class="mt-4 text-2xl font-extrabold">Student Profile</h1>
+      <p class="muted mt-1 break-words" id="profile-email">Loading...</p>
+    </section>
+
+    <section class="mt-5 rounded-xl border p-5 shadow-sm surface">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-xs font-bold uppercase tracking-widest muted">Profile Information</p>
+          <h2 class="mt-1 text-xl font-extrabold">Edit student details</h2>
+          <p class="mt-1 text-sm muted">These details are used for attendance records and printed reports.</p>
+        </div>
+        <span class="material-symbols-outlined secondary text-3xl">edit_square</span>
+      </div>
+
+      <form class="mt-5 space-y-4" id="profile-form">
+        <label class="block">
+          <span class="mb-2 block text-xs font-bold uppercase tracking-widest muted">Full name</span>
+          <input class="field" id="profile-full-name" required type="text" autocomplete="name" />
+        </label>
+        <label class="block">
+          <span class="mb-2 block text-xs font-bold uppercase tracking-widest muted">Registration number</span>
+          <input class="field font-mono" id="profile-reg-number" required type="text" inputmode="text" autocomplete="off" placeholder="25/EG/EE/001" />
+        </label>
+        <button class="primary-button w-full rounded-xl py-3 font-extrabold" type="submit">Save Profile</button>
+      </form>
+      <p class="mt-3 hidden rounded-xl px-4 py-3 text-sm font-bold" id="profile-message"></p>
+    </section>
+
+    <section class="mt-5 rounded-xl border p-5 shadow-sm surface">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-xs font-bold uppercase tracking-widest muted">Signature</p>
+          <h2 class="mt-1 text-xl font-extrabold">Attendance signature</h2>
+          <p class="mt-1 text-sm muted">Sign with your finger on your phone screen. This will appear on class attendance PDFs.</p>
+        </div>
+        <span class="material-symbols-outlined secondary text-3xl">draw</span>
+      </div>
+      <div class="mt-5">
+        <canvas id="signature-pad" width="720" height="260" aria-label="Signature pad"></canvas>
+      </div>
+      <div class="mt-4 grid grid-cols-2 gap-3">
+        <button class="rounded-xl border py-3 font-bold surface" id="clear-signature" type="button">Clear</button>
+        <button class="rounded-xl bg-[#2170e4] py-3 font-bold text-white" id="save-signature" type="button">Save Signature</button>
+      </div>
+      <p class="mt-3 hidden rounded-xl px-4 py-3 text-sm font-bold" id="signature-message"></p>
+    </section>
+
+    <section class="mt-5 rounded-xl border p-5 shadow-sm surface">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-xs font-bold uppercase tracking-widest muted">Security</p>
+          <h2 class="mt-1 text-xl font-extrabold">Biometric / Face ID check-in</h2>
+          <p class="mt-1 text-sm muted" id="security-helper">Checking identity setup...</p>
+        </div>
+        <span class="material-symbols-outlined secondary text-3xl" id="security-icon">shield_lock</span>
+      </div>
+      <label class="mt-5 flex items-center justify-between gap-4 rounded-xl border p-4 panel" for="device-security-toggle">
+        <span><strong class="block">Require device security</strong><span class="mt-1 block text-sm muted">Check-in will open your phone or computer security prompt automatically.</span></span>
+        <span class="relative shrink-0"><input class="sr-only" id="device-security-toggle" type="checkbox" /><span class="toggle-track block"><span class="toggle-thumb block"></span></span></span>
+      </label>
+      <a class="mt-4 inline-flex items-center gap-2 font-bold secondary" href="identity-verification.html" id="identity-link"><span class="material-symbols-outlined text-[20px]">badge</span><span id="identity-link-text">Review identity setup</span></a>
+    </section>
+
+    <section class="mt-5 rounded-xl border p-5 shadow-sm surface">
+      <div class="flex items-start justify-between gap-4">
+        <div><p class="text-xs font-bold uppercase tracking-widest muted">Appearance</p><h2 class="mt-1 text-xl font-extrabold">Theme</h2><p class="mt-1 text-sm muted" id="theme-helper">Light mode is active.</p></div>
+        <span class="material-symbols-outlined secondary text-3xl" id="theme-icon">light_mode</span>
+      </div>
+      <label class="mt-5 flex items-center justify-between gap-4 rounded-xl border p-4 panel" for="theme-toggle">
+        <span><strong class="block">Dark mode</strong><span class="mt-1 block text-sm muted">Switch the student interface between light and dark mode.</span></span>
+        <span class="relative shrink-0"><input class="sr-only" id="theme-toggle" type="checkbox" /><span class="toggle-track block"><span class="toggle-thumb block"></span></span></span>
+      </label>
+    </section>
+
+    <section class="mt-5 space-y-3 rounded-xl border p-5 shadow-sm surface">
+      <div class="flex justify-between gap-4"><span class="muted">Role</span><strong>Student</strong></div>
+      <div class="flex justify-between gap-4"><span class="muted">Identity</span><strong id="biometric-status">Checking</strong></div>
+      <div class="flex justify-between gap-4"><span class="muted">Total Check-ins</span><strong id="checkin-count">0</strong></div>
+    </section>
+
+    <button class="primary-button mt-5 w-full rounded-xl py-3 font-extrabold" type="button" data-logout>Logout</button>
+  </main>
+
+  <nav class="fixed bottom-0 left-0 z-50 flex h-16 w-full items-center justify-around border-t px-2 pb-2 pt-1 shadow-md surface">
+    <a class="flex flex-col items-center justify-center px-4 py-1 muted" href="student-home.html"><span class="material-symbols-outlined">home</span><span class="text-xs font-semibold">Home</span></a>
+    <a class="flex flex-col items-center justify-center px-4 py-1 muted" href="student-history.html"><span class="material-symbols-outlined">history</span><span class="text-xs font-semibold">History</span></a>
+    <a class="flex flex-col items-center justify-center rounded-full bg-[#2170e4] px-4 py-1 text-white scale-90" href="student-profile.html"><span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">person</span><span class="text-xs font-semibold">Profile</span></a>
+  </nav>
+
+  <script>
+    const email = localStorage.getItem("geoAttendCurrentUser") || "student";
+    const profiles = JSON.parse(localStorage.getItem("geoAttendBiometricProfiles") || "{}");
+    const profile = profiles[email] || null;
+    const logs = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]").filter((item) => item.email === email);
+    const settingsKey = `geoAttendStudentSettings:${email}`;
+    const securityToggle = document.getElementById("device-security-toggle");
+    const themeToggle = document.getElementById("theme-toggle");
+    const canvas = document.getElementById("signature-pad");
+    const ctx = canvas.getContext("2d");
+    let currentAccount = null;
+    let signatureStrokes = [];
+    let activeStroke = null;
+
+    function normalizeRegNumber(value) {
+      const raw = String(value || "").trim().toUpperCase();
+      if (/^\d{1,3}$/.test(raw)) return `25/EG/EE/${raw.padStart(3, "0")}`;
+      return raw;
+    }
+    function getAccounts() { return JSON.parse(localStorage.getItem("geoAttendAccounts") || "[]"); }
+    function saveAccounts(accounts) { localStorage.setItem("geoAttendAccounts", JSON.stringify(accounts)); }
+    function getSettings() { return JSON.parse(localStorage.getItem(settingsKey) || "{}"); }
+    function saveSettings(settings) { localStorage.setItem(settingsKey, JSON.stringify(settings)); }
+    function showMessage(id, text, isError = false) {
+      const node = document.getElementById(id);
+      node.textContent = text;
+      node.className = `mt-3 rounded-xl px-4 py-3 text-sm font-bold ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-green-50 text-green-700 border border-green-200"}`;
+    }
+    function resizeSignatureCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.max(360, Math.round(rect.width * window.devicePixelRatio));
+      canvas.height = Math.round(190 * window.devicePixelRatio);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(canvas.width, canvas.height);
+      redrawSignature();
+    }
+    function redrawSignature() {
+      ctx.clearRect(0, 0, 1, 1);
+      ctx.lineWidth = 0.008;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "#020617";
+      signatureStrokes.forEach((stroke) => {
+        if (stroke.length < 2) return;
+        ctx.beginPath();
+        stroke.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y));
+        ctx.stroke();
+      });
+    }
+    function pointerPoint(event) {
+      const rect = canvas.getBoundingClientRect();
+      return { x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)), y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)) };
+    }
+    canvas.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      canvas.setPointerCapture(event.pointerId);
+      activeStroke = [pointerPoint(event)];
+      signatureStrokes.push(activeStroke);
+      redrawSignature();
+    });
+    canvas.addEventListener("pointermove", (event) => {
+      if (!activeStroke) return;
+      event.preventDefault();
+      activeStroke.push(pointerPoint(event));
+      redrawSignature();
+    });
+    ["pointerup", "pointercancel", "pointerleave"].forEach((type) => canvas.addEventListener(type, () => { activeStroke = null; }));
+
+    async function loadStudentProfile() {
+      const localAccount = getAccounts().find((account) => account.email === email) || { email };
+      currentAccount = localAccount;
+      try {
+        const response = await fetch("/api/students", { cache: "no-store" });
+        const data = await response.json().catch(() => ({}));
+        if (response.ok) {
+          const remote = (data.students || []).find((student) => student.email === email);
+          if (remote) currentAccount = { ...localAccount, ...remote };
+        }
+      } catch {}
+      document.getElementById("profile-email").textContent = email;
+      document.getElementById("profile-full-name").value = currentAccount.fullName || "";
+      document.getElementById("profile-reg-number").value = currentAccount.regNumber || "";
+      signatureStrokes = Array.isArray(currentAccount.signatureStrokes) ? currentAccount.signatureStrokes : [];
+      redrawSignature();
+    }
+    async function saveStudentProfile(extra = {}) {
+      const fullName = document.getElementById("profile-full-name").value.trim();
+      const regNumber = normalizeRegNumber(document.getElementById("profile-reg-number").value);
+      if (!fullName || !regNumber) throw new Error("Full name and registration number are required.");
+      const signatureDataUrl = signatureStrokes.length ? canvas.toDataURL("image/png") : (currentAccount?.signatureDataUrl || "");
+      const payload = { ...currentAccount, ...extra, email, fullName, regNumber, signatureDataUrl, signatureStrokes };
+      const response = await fetch("/api/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Unable to save profile.");
+      currentAccount = data.student || payload;
+      const accounts = getAccounts().filter((account) => account.email !== email);
+      accounts.unshift(currentAccount);
+      saveAccounts(accounts);
+      return currentAccount;
+    }
+    document.getElementById("profile-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try { await saveStudentProfile(); showMessage("profile-message", "Profile saved."); }
+      catch (error) { showMessage("profile-message", error.message, true); }
+    });
+    document.getElementById("clear-signature").addEventListener("click", () => { signatureStrokes = []; redrawSignature(); });
+    document.getElementById("save-signature").addEventListener("click", async () => {
+      if (!signatureStrokes.length) { showMessage("signature-message", "Sign inside the box before saving.", true); return; }
+      try { await saveStudentProfile(); showMessage("signature-message", "Signature saved for attendance printing."); }
+      catch (error) { showMessage("signature-message", error.message, true); }
+    });
+    function setTheme(theme) {
+      localStorage.setItem("geoAttendTheme", theme);
+      document.documentElement.classList.toggle("dark", theme === "dark");
+      document.documentElement.classList.toggle("light", theme !== "dark");
+      themeToggle.checked = theme === "dark";
+      document.getElementById("theme-helper").textContent = theme === "dark" ? "Dark mode is active." : "Light mode is active.";
+      document.getElementById("theme-icon").textContent = theme === "dark" ? "dark_mode" : "light_mode";
+    }
+    function updateSecurityState() {
+      const settings = getSettings();
+      const hasProfile = Boolean(profile?.biometricVerified && (profile.platformCredentialRawId || profile.platformCredential?.rawId || profile.platformCredentialId));
+      securityToggle.checked = hasProfile && settings.deviceSecurityEnabled === true;
+      securityToggle.disabled = !hasProfile;
+      document.getElementById("biometric-status").textContent = hasProfile ? "Verified" : "Not verified";
+      document.getElementById("checkin-count").textContent = logs.length;
+      document.getElementById("security-icon").textContent = hasProfile ? "verified_user" : "shield_lock";
+      document.getElementById("security-helper").textContent = hasProfile ? "Your saved device security can be used for automatic check-in prompts." : "Complete identity setup before enabling biometric or Face ID check-in.";
+      document.getElementById("identity-link-text").textContent = hasProfile ? "Review identity setup" : "Set up identity verification";
+    }
+    securityToggle.addEventListener("change", () => { const settings = getSettings(); settings.deviceSecurityEnabled = securityToggle.checked; saveSettings(settings); updateSecurityState(); });
+    themeToggle.addEventListener("change", () => setTheme(themeToggle.checked ? "dark" : "light"));
+    window.addEventListener("resize", resizeSignatureCanvas);
+    updateSecurityState();
+    setTheme(localStorage.getItem("geoAttendTheme") || "light");
+    resizeSignatureCanvas();
+    loadStudentProfile().then(redrawSignature);
+  </script>
+</body>
+</html>
