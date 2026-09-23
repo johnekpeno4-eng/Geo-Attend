@@ -1,4 +1,4 @@
-﻿const crypto = require("crypto");
+const crypto = require("crypto");
 const fs = require("fs");
 const https = require("https");
 const http = require("http");
@@ -551,7 +551,12 @@ async function migrateJsonDataToSqlite() {
   for (const student of Array.isArray(students) ? students : []) {
     const normalized = publicStudent(student);
     if (!normalized.email || !normalized.regNumber) continue;
-    await upsertSqliteStudent({ ...normalized, passwordHash: student.passwordHash || student.password_hash || "" });
+    await upsertSqliteStudent({
+    ...normalized,
+    passwordHash: student.passwordHash || student.password_hash || "",
+    totpSecret: student.totpSecret || student.totp_secret || "",
+    totpEnabled: student.totpEnabled || student.totp_enabled || false
+  });
   }
 
   const profiles = readJsonFile(BIOMETRIC_PROFILES_FILE, {});
@@ -652,6 +657,8 @@ async function upsertSqliteStudent(student) {
     normalized.levelId,
     normalized.levelName,
     passwordHash,
+    totpSecret,
+    totpEnabled,
     normalized.createdAt || new Date().toISOString(),
     normalized.updatedAt || new Date().toISOString()
   ]);
@@ -2657,7 +2664,12 @@ async function writeStudentStore(student) {
     updatedAt: new Date().toISOString()
   });
 
-  await upsertSqliteStudent({ ...normalized, passwordHash: student.passwordHash || student.password_hash || "" });
+  await upsertSqliteStudent({
+    ...normalized,
+    passwordHash: student.passwordHash || student.password_hash || "",
+    totpSecret: student.totpSecret || student.totp_secret || "",
+    totpEnabled: student.totpEnabled || student.totp_enabled || false
+  });
   const students = (await readSqliteStudents()).filter((item) => item && item.email !== normalized.email && String(item.regNumber || "").toLowerCase() !== normalized.regNumber.toLowerCase());
   writeLocalJson(STUDENTS_FILE, sortStudents([normalized, ...students]));
   return normalized;
@@ -2709,6 +2721,8 @@ async function saveStudent(res, body) {
     departmentName: body.departmentName || existingStudent?.departmentName,
     levelId: body.levelId || existingStudent?.levelId,
     levelName: body.levelName || existingStudent?.levelName,
+    totpSecret: body.totpSecret || body.totp_secret || "",
+    totpEnabled: body.totpEnabled || body.totp_enabled || false,
     createdAt: body.createdAt || existingStudent?.createdAt || new Date().toISOString()
   });
 
