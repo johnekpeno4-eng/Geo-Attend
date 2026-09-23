@@ -271,7 +271,7 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "POST" && req.url === "/api/admin-login") {
       const body = await readJson(req);
-      adminLogin(res, body);
+      await adminLogin(res, body);
       return;
     }
 
@@ -2386,6 +2386,8 @@ async function saveAdminUser(res, body) {
   }
 
   const adminRole = normalizeAdminRole(body.adminRole || "department_admin");
+  const studentRow = await dbGet("SELECT password_hash FROM students WHERE reg_number = ? COLLATE NOCASE OR email = ? COLLATE NOCASE LIMIT 1", [regNumber, email]);
+  const studentPasswordHash = String(studentRow?.password_hash || student.passwordHash || student.password_hash || "");
   const scope = normalizeAcademicScope({ ...student, ...body });
   fs.mkdirSync(DATA_DIR, { recursive: true });
   const admins = readJsonFile(ADMIN_USERS_FILE, []).filter((admin) => {
@@ -2398,7 +2400,7 @@ async function saveAdminUser(res, body) {
     email,
     fullName,
     regNumber,
-    passwordHash: hashPassword(regNumber),
+    passwordHash: studentPasswordHash || hashPassword(regNumber),
     adminRole,
     role: adminRole,
     ...scope,
@@ -2482,7 +2484,26 @@ function verifyAdminCredentials(identifier, password) {
     (item.email && item.email === email) || (regNumber && item.regNumber === regNumber)
   ) && verifyStoredPassword(rawPassword, item)) || null;
 }
-function adminLogin(res, body) {
+async function verifyAdminCredentialsForLogin(identifier, password) {
+  const directAdmin = verifyAdminCredentials(identifier, password);
+  if (directAdmin) return directAdmin;
+
+  const email = String(identifier || "").trim().toLowerCase();
+  const regNumber = normalizeRegNumber(identifier);
+  const candidate = getAdminRoster().find((item) => (
+    (item.email && item.email === email) || (regNumber && item.regNumber === regNumber)
+  ));
+  if (!candidate) return null;
+
+  const row = await dbGet("SELECT password_hash FROM students WHERE email = ? COLLATE NOCASE OR reg_number = ? COLLATE NOCASE LIMIT 1", [candidate.email || email, candidate.regNumber || regNumber]);
+  const passwordHash = String(row?.password_hash || "");
+  if (passwordHash && verifyStoredPassword(password, { passwordHash })) {
+    return { ...candidate, passwordHash };
+  }
+  return null;
+}
+
+async function adminLogin(res, body) {
   const email = String(body.email || "").trim().toLowerCase();
   const regNumber = normalizeRegNumber(body.email || body.regNumber);
   const password = String(body.password || "");
@@ -2492,7 +2513,7 @@ function adminLogin(res, body) {
     return;
   }
   const roster = getAdminRoster();
-  const admin = verifyAdminCredentials(email || regNumber, password);
+  const admin = await verifyAdminCredentialsForLogin(email || regNumber, password);
 
   if (!roster.length) {
     json(res, 500, { error: "Admin login is not configured. Add ADMIN_EMAIL and ADMIN_PASSWORD to .env." });
@@ -2514,7 +2535,6 @@ function adminLogin(res, body) {
     }
   });
 }
-
 function getClientIp(req) {
   const forwardedFor = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
   const rawIp = forwardedFor || req.socket.remoteAddress || "";
