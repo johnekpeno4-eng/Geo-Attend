@@ -750,6 +750,7 @@
         faceTemplateHash: captures.faceTemplate?.hash || null,
         platformCredentialId: platformCredential?.id || null,
         platformCredentialRawId: platformCredential?.rawId || null,
+        webauthnCredential: platformCredential?.webauthnCredential || null,
         livenessVerified: faceIdComplete(),
         biometricVerified: biometricComplete(),
         identityVerified: true,

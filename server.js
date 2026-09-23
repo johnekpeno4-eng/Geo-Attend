@@ -1378,13 +1378,18 @@ async function saveBiometricProfile(res, profile) {
   }
 
   const hasSecurity = Boolean(profile?.biometric?.platformAuthenticator || profile?.biometric?.pin || profile?.biometric?.face || profile?.livenessVerified);
-  if (!profile.biometricVerified || !hasSecurity) {
+  if (!hasSecurity) {
     json(res, 400, { error: "Complete one login security method before saving." });
     return;
   }
 
   const email = profile.email.trim().toLowerCase();
-  const { profileId, savedAt } = await saveBiometricProfileObject({ ...profile, email });
+  const normalizedProfile = {
+    ...profile,
+    email,
+    webauthnCredential: profile.webauthnCredential || profile.platformCredential?.webauthnCredential || null
+  };
+  const { profileId, savedAt } = await saveBiometricProfileObject(normalizedProfile);
   json(res, 200, { ok: true, source: "sqlite", profileId, savedAt });
 }
 

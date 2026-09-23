@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html class="light" lang="en">
 <head>
   <meta charset="utf-8" />
@@ -279,13 +279,13 @@
     }
     function updateSecurityState() {
       const settings = getSettings();
-      const hasProfile = Boolean(profile?.biometricVerified && (profile.platformCredentialRawId || profile.platformCredential?.rawId || profile.platformCredentialId));
+      const hasProfile = Boolean(profile?.identityVerified || profile?.livenessVerified || profile?.biometricVerified || profile?.attendancePinHash || profile?.webauthnCredential || profile?.platformCredentialRawId || profile?.platformCredential?.rawId || profile?.platformCredentialId);
       securityToggle.checked = hasProfile && settings.deviceSecurityEnabled === true;
       securityToggle.disabled = !hasProfile;
       document.getElementById("biometric-status").textContent = hasProfile ? "Verified" : "Not verified";
       document.getElementById("checkin-count").textContent = logs.length;
       document.getElementById("security-icon").textContent = hasProfile ? "verified_user" : "shield_lock";
-      document.getElementById("security-helper").textContent = hasProfile ? "Your saved device security can be used for automatic check-in prompts." : "Complete identity setup before enabling biometric or Face ID check-in.";
+      document.getElementById("security-helper").textContent = hasProfile ? "Your saved identity method can be used for check-in prompts." : "Complete identity setup before enabling biometric or Face ID check-in.";
       document.getElementById("identity-link-text").textContent = hasProfile ? "Review identity setup" : "Set up identity verification";
     }
     securityToggle.addEventListener("change", () => { const settings = getSettings(); settings.deviceSecurityEnabled = securityToggle.checked; saveSettings(settings); updateSecurityState(); });
