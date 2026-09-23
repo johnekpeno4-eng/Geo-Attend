@@ -228,9 +228,9 @@ const server = http.createServer(async (req, res) => {
     }
 
 
-    if (req.method === "POST" && req.url === "/api/assisted-approval/create") {
+    if (req.method === "POST" && req.url === "/api/assisted-approval/toggle") {
       const body = await readJson(req);
-      createAssistedApprovalCode(res, body);
+      toggleAssistedApproval(res, body);
       return;
     }
 
@@ -1781,33 +1781,35 @@ async function sendAttendancePdf(res, body) {
   json(res, 200, { ok: true, message: `PDF report sent to ${adminEmail}.`, sentTo: adminEmail, records: attendance.length });
 }
 
-function createAssistedApprovalCode(res, body) {
+function toggleAssistedApproval(res, body) {
   const sessionId = String(body.sessionId || "").trim();
   const identifier = String(body.actorEmail || body.actorRegNumber || "").trim();
   const password = String(body.adminPassword || body.password || "");
+  const enabled = body.enabled === true || String(body.enabled || "").toLowerCase() === "true";
   const admin = verifyAdminCredentials(identifier, password);
   if (!sessionId) {
     json(res, 400, { error: "Session id is required." });
     return;
   }
   if (!admin) {
-    json(res, 403, { error: "Enter a valid admin password to approve assisted check-ins." });
+    json(res, 403, { error: "Enter a valid admin password to change assisted check-in approval." });
     return;
   }
-  const code = crypto.randomInt(100000, 1000000).toString();
-  const expiresAt = Date.now() + 10 * 60 * 1000;
-  assistedApprovalStore.set(`${sessionId}:${code}`, {
-    sessionId,
-    code,
-    expiresAt,
-    adminEmail: admin.email || "",
-    adminName: admin.fullName || admin.email || "Admin"
-  });
+  if (enabled) {
+    assistedApprovalStore.set(sessionId, {
+      sessionId,
+      enabled: true,
+      adminEmail: admin.email || "",
+      adminName: admin.fullName || admin.email || "Admin",
+      updatedAt: new Date().toISOString()
+    });
+  } else {
+    assistedApprovalStore.delete(sessionId);
+  }
   json(res, 200, {
     ok: true,
-    code,
-    expiresAt: new Date(expiresAt).toISOString(),
-    message: "Assisted check-in approval code generated."
+    enabled,
+    message: enabled ? "Student-assisted check-ins unlocked." : "Student-assisted check-ins locked."
   });
 }
 async function saveAttendance(res, record) {
@@ -1840,12 +1842,9 @@ async function saveAttendance(res, record) {
 
   if (isAssisted) {
     const assistedByRegNumber = normalizeRegNumber(record.assistedByRegNumber);
-    const approvalCode = String(record.adminApprovalCode || "").replace(/\s+/g, "");
-    const approvalKey = `${sessionId}:${approvalCode}`;
-    const approval = assistedApprovalStore.get(approvalKey);
-    if (!approval || approval.expiresAt < Date.now()) {
-      if (approval) assistedApprovalStore.delete(approvalKey);
-      json(res, 403, { error: "Admin approval code is required before assisting another student." });
+    const approval = assistedApprovalStore.get(sessionId);
+    if (!approval?.enabled) {
+      json(res, 403, { error: "Admin approval is required before assisting another student." });
       return;
     }
     if (!assistedByRegNumber) {

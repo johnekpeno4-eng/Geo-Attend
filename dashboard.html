@@ -936,26 +936,28 @@
     }
 
 
-    async function generateAssistedApprovalCode(sessionId) {
+    async function toggleStudentAssistedApproval(sessionId, enabled) {
       const session = getLiveSessions().find((item) => item.id === sessionId);
       if (!session) return;
-      const adminPassword = window.prompt("Enter your admin password to approve student-assisted check-ins for this session:");
+      const action = enabled ? "unlock" : "lock";
+      const adminPassword = window.prompt(`Enter your admin password to ${action} student-assisted check-ins for this session:`);
       if (!adminPassword) return;
       try {
-        const response = await fetch("/api/assisted-approval/create", {
+        const response = await fetch("/api/assisted-approval/toggle", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             sessionId,
+            enabled,
             actorEmail: localStorage.getItem("geoAttendCurrentUser") || "",
             adminPassword
           })
         });
         const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || "Unable to generate approval code.");
-        window.alert(`Student-assisted approval code for ${session.course || "this session"}: ${data.code}\n\nGive this code only to the student helper. It expires in 10 minutes.`);
+        if (!response.ok) throw new Error(data.error || "Unable to update assisted check-in approval.");
+        window.alert(data.message || (enabled ? "Student-assisted check-ins unlocked." : "Student-assisted check-ins locked."));
       } catch (error) {
-        window.alert(error.message || "Unable to generate approval code.");
+        window.alert(error.message || "Unable to update assisted check-in approval.");
       }
     }
     function openAssistedCheckinModal(sessionId) {
@@ -1275,8 +1277,11 @@
               <button class="flex-1 min-w-[160px] bg-primary text-on-primary rounded-lg px-md py-sm font-bold hover:opacity-90 active:scale-95 transition-all" data-assist-checkin="${session.id}">
                 Assist Check-in
               </button>
-              <button class="flex-1 min-w-[180px] bg-surface-container-lowest border border-secondary text-secondary rounded-lg px-md py-sm font-bold hover:bg-surface-container transition-all" data-approval-code="${session.id}">
-                Approval Code
+              <button class="flex-1 min-w-[180px] bg-surface-container-lowest border border-secondary text-secondary rounded-lg px-md py-sm font-bold hover:bg-surface-container transition-all" data-approval-unlock="${session.id}">
+                Unlock Student Assist
+              </button>
+              <button class="flex-1 min-w-[170px] bg-surface-container-lowest border border-outline-variant text-on-surface rounded-lg px-md py-sm font-bold hover:bg-surface-container transition-all" data-approval-lock="${session.id}">
+                Lock Student Assist
               </button>
               <button class="w-full border border-error/30 text-error rounded-lg px-md py-sm font-bold hover:bg-error-container transition-all" data-end-session="${session.id}">
                 End Session
@@ -1313,9 +1318,12 @@
       grid.querySelectorAll("[data-assist-checkin]").forEach((button) => {
         button.addEventListener("click", () => openAssistedCheckinModal(button.dataset.assistCheckin));
       });
+      grid.querySelectorAll("[data-approval-unlock]").forEach((button) => {
+        button.addEventListener("click", () => toggleStudentAssistedApproval(button.dataset.approvalUnlock, true));
+      });
 
-      grid.querySelectorAll("[data-approval-code]").forEach((button) => {
-        button.addEventListener("click", () => generateAssistedApprovalCode(button.dataset.approvalCode));
+      grid.querySelectorAll("[data-approval-lock]").forEach((button) => {
+        button.addEventListener("click", () => toggleStudentAssistedApproval(button.dataset.approvalLock, false));
       });
 
       grid.querySelectorAll("[data-end-session]").forEach((button) => {

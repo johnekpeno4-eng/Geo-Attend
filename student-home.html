@@ -276,7 +276,7 @@
                 <span class="material-symbols-outlined text-secondary text-3xl">group_add</span>
                 <span class="min-w-0">
                   <strong class="block text-on-surface">Check in another student</strong>
-                  <span class="block text-sm text-on-surface-variant">Enter their registration number and admin approval code. Limit: 2 per session.</span>
+                  <span class="block text-sm text-on-surface-variant">Enter only their registration number. Admin must unlock this session first. Limit: 2 per session.</span>
                 </span>
               </button>
             </div>
@@ -329,9 +329,7 @@
             <div class="rounded-2xl bg-surface-container-low p-4 border border-outline-variant">
               <label class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2" for="assist-reg-number-input">Student Reg No</label>
               <input class="w-full rounded-xl border border-outline-variant bg-white px-4 py-3 text-base uppercase outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="assist-reg-number-input" inputmode="numeric" placeholder="25/EG/EE/001" type="text" autocomplete="off" />
-              <p class="text-xs text-on-surface-variant mt-2" id="assist-limit-copy">You can assist up to 2 students in this class session. Admin approval is required.</p>
-              <label class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant mt-4 mb-2" for="assist-approval-code-input">Admin Approval Code</label>
-              <input class="w-full rounded-xl border border-outline-variant bg-white px-4 py-3 text-base font-mono-data outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="assist-approval-code-input" inputmode="numeric" maxlength="6" placeholder="000000" type="text" autocomplete="off" />
+              <p class="text-xs text-on-surface-variant mt-2" id="assist-limit-copy">You can assist up to 2 students in this class session after admin unlocks it.</p>
             </div>
             <button class="w-full rounded-2xl bg-primary text-white px-4 py-3 font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform" id="assist-checkin-submit" type="button">
               Check In Student
@@ -1007,8 +1005,6 @@
       if (passwordInput) passwordInput.value = "";
       const assistInput = document.getElementById("assist-reg-number-input");
       if (assistInput) assistInput.value = "";
-      const approvalInput = document.getElementById("assist-approval-code-input");
-      if (approvalInput) approvalInput.value = "";
       const platformButton = document.getElementById("checkin-platform-button");
       if (platformButton) {
         delete platformButton.dataset.redirectTo;
@@ -1459,16 +1455,7 @@
         setCheckinMessage("You have reached the limit of 2 assisted check-ins for this class session.", true);
         return;
       }
-
-      const approvalCodeInput = document.getElementById("assist-approval-code-input");
-      const adminApprovalCode = String(approvalCodeInput?.value || "").replace(/\s+/g, "");
-      if (!adminApprovalCode) {
-        setCheckinMessage("Enter the admin approval code before assisting another student.", true);
-        approvalCodeInput?.focus();
-        return;
-      }
-
-      const checkedInAt = new Date().toISOString();
+const checkedInAt = new Date().toISOString();
       const record = {
         checkinType: "assisted-student",
         assisted: true,
@@ -1483,8 +1470,7 @@
         geofence,
         checkedInAt,
         status: "present",
-        verificationMethod: "Student assisted reg number",
-        adminApprovalCode
+        verificationMethod: "Student assisted reg number"
       };
 
       checkinInProgress = true;
