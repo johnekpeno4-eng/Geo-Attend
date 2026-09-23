@@ -35,6 +35,7 @@ const otpAttemptStore = new Map();
 const loginAttemptStore = new Map();
 const totpSetupStore = new Map();
 const webAuthnChallengeStore = new Map();
+const assistedApprovalStore = new Map();
 let mailTransporter = null;
 let sqliteDb = null;
 
@@ -223,6 +224,13 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && req.url.startsWith("/api/attendance")) {
       await getAttendance(req, res);
+      return;
+    }
+
+
+    if (req.method === "POST" && req.url === "/api/assisted-approval/create") {
+      const body = await readJson(req);
+      createAssistedApprovalCode(res, body);
       return;
     }
 
@@ -1773,6 +1781,35 @@ async function sendAttendancePdf(res, body) {
   json(res, 200, { ok: true, message: `PDF report sent to ${adminEmail}.`, sentTo: adminEmail, records: attendance.length });
 }
 
+function createAssistedApprovalCode(res, body) {
+  const sessionId = String(body.sessionId || "").trim();
+  const identifier = String(body.actorEmail || body.actorRegNumber || "").trim();
+  const password = String(body.adminPassword || body.password || "");
+  const admin = verifyAdminCredentials(identifier, password);
+  if (!sessionId) {
+    json(res, 400, { error: "Session id is required." });
+    return;
+  }
+  if (!admin) {
+    json(res, 403, { error: "Enter a valid admin password to approve assisted check-ins." });
+    return;
+  }
+  const code = crypto.randomInt(100000, 1000000).toString();
+  const expiresAt = Date.now() + 10 * 60 * 1000;
+  assistedApprovalStore.set(`${sessionId}:${code}`, {
+    sessionId,
+    code,
+    expiresAt,
+    adminEmail: admin.email || "",
+    adminName: admin.fullName || admin.email || "Admin"
+  });
+  json(res, 200, {
+    ok: true,
+    code,
+    expiresAt: new Date(expiresAt).toISOString(),
+    message: "Assisted check-in approval code generated."
+  });
+}
 async function saveAttendance(res, record) {
   if (!record || typeof record !== "object") {
     json(res, 400, { error: "A valid attendance record is required." });
@@ -1803,6 +1840,14 @@ async function saveAttendance(res, record) {
 
   if (isAssisted) {
     const assistedByRegNumber = normalizeRegNumber(record.assistedByRegNumber);
+    const approvalCode = String(record.adminApprovalCode || "").replace(/\s+/g, "");
+    const approvalKey = `${sessionId}:${approvalCode}`;
+    const approval = assistedApprovalStore.get(approvalKey);
+    if (!approval || approval.expiresAt < Date.now()) {
+      if (approval) assistedApprovalStore.delete(approvalKey);
+      json(res, 403, { error: "Admin approval code is required before assisting another student." });
+      return;
+    }
     if (!assistedByRegNumber) {
       json(res, 400, { error: "Your registration number is required before assisting another student." });
       return;
@@ -1825,11 +1870,10 @@ async function saveAttendance(res, record) {
       normalizeRegNumber(entry.assistedByRegNumber) === assistedByRegNumber &&
       normalizeRegNumber(entry.regNumber || entry.targetRegNumber) === targetRegNumber
     ));
-    if (!alreadyAssistedTarget && assistedCount >= 3) {
-      json(res, 403, { error: "You have reached the limit of 3 assisted check-ins for this class session." });
+    if (!alreadyAssistedTarget && assistedCount >= 2) {
+      json(res, 403, { error: "You have reached the limit of 2 assisted check-ins for this class session." });
       return;
     }
-
     const targetStudent = await findRegisteredStudentByRegNumber(targetRegNumber);
     if (!targetStudent) {
       json(res, 404, { error: "No registered student was found for that registration number." });
@@ -1838,6 +1882,8 @@ async function saveAttendance(res, record) {
     email = String(targetStudent.email || "").trim().toLowerCase() || `${targetRegNumber.toLowerCase()}@reg.geoattend.local`;
     fullName = String(targetStudent.fullName || "").trim() || targetRegNumber;
     regNumber = targetRegNumber;
+    record.adminApprovedBy = approval.adminEmail || "admin";
+    record.adminApprovedByName = approval.adminName || "Admin";
     studentForSignature = targetStudent;
   } else {
     const students = await readStudentsStore();

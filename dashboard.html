@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html class="light" lang="en">
 <head>
   <meta charset="utf-8" />
@@ -935,6 +935,29 @@
       }
     }
 
+
+    async function generateAssistedApprovalCode(sessionId) {
+      const session = getLiveSessions().find((item) => item.id === sessionId);
+      if (!session) return;
+      const adminPassword = window.prompt("Enter your admin password to approve student-assisted check-ins for this session:");
+      if (!adminPassword) return;
+      try {
+        const response = await fetch("/api/assisted-approval/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId,
+            actorEmail: localStorage.getItem("geoAttendCurrentUser") || "",
+            adminPassword
+          })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Unable to generate approval code.");
+        window.alert(`Student-assisted approval code for ${session.course || "this session"}: ${data.code}\n\nGive this code only to the student helper. It expires in 10 minutes.`);
+      } catch (error) {
+        window.alert(error.message || "Unable to generate approval code.");
+      }
+    }
     function openAssistedCheckinModal(sessionId) {
       assistedCheckinSession = getLiveSessions().find((session) => session.id === sessionId) || null;
       if (!assistedCheckinSession) return;
@@ -1252,6 +1275,9 @@
               <button class="flex-1 min-w-[160px] bg-primary text-on-primary rounded-lg px-md py-sm font-bold hover:opacity-90 active:scale-95 transition-all" data-assist-checkin="${session.id}">
                 Assist Check-in
               </button>
+              <button class="flex-1 min-w-[180px] bg-surface-container-lowest border border-secondary text-secondary rounded-lg px-md py-sm font-bold hover:bg-surface-container transition-all" data-approval-code="${session.id}">
+                Approval Code
+              </button>
               <button class="w-full border border-error/30 text-error rounded-lg px-md py-sm font-bold hover:bg-error-container transition-all" data-end-session="${session.id}">
                 End Session
               </button>
@@ -1286,6 +1312,10 @@
 
       grid.querySelectorAll("[data-assist-checkin]").forEach((button) => {
         button.addEventListener("click", () => openAssistedCheckinModal(button.dataset.assistCheckin));
+      });
+
+      grid.querySelectorAll("[data-approval-code]").forEach((button) => {
+        button.addEventListener("click", () => generateAssistedApprovalCode(button.dataset.approvalCode));
       });
 
       grid.querySelectorAll("[data-end-session]").forEach((button) => {
