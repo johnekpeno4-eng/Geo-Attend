@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
   const savedTheme = localStorage.getItem("geoAttendTheme") || "light";
   document.documentElement.classList.toggle("dark", savedTheme === "dark");
   document.documentElement.classList.toggle("light", savedTheme !== "dark");
@@ -28,13 +28,43 @@
   function saveAccounts(accounts) {
     localStorage.setItem("geoAttendAccounts", JSON.stringify(accounts));
   }
-
-  function localResetCodeKey(email) {
-    return `geoAttendLocalResetOtp:${String(email || "").trim().toLowerCase()}`;
+  function base64UrlToBuffer(value) {
+    const padding = "=".repeat((4 - value.length % 4) % 4);
+    const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    return bytes.buffer;
   }
 
-  function generateLocalOtp() {
-    return String(Math.floor(100000 + Math.random() * 900000));
+  function bufferToBase64Url(buffer) {
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  }
+
+  function prepareRequestOptions(options) {
+    return {
+      ...options,
+      challenge: base64UrlToBuffer(options.challenge),
+      allowCredentials: (options.allowCredentials || []).map((item) => ({ ...item, id: base64UrlToBuffer(item.id) }))
+    };
+  }
+
+  function publicKeyCredentialToJSON(credential) {
+    return {
+      id: credential.id,
+      rawId: bufferToBase64Url(credential.rawId),
+      type: credential.type,
+      response: {
+        authenticatorData: bufferToBase64Url(credential.response.authenticatorData),
+        clientDataJSON: bufferToBase64Url(credential.response.clientDataJSON),
+        signature: bufferToBase64Url(credential.response.signature),
+        userHandle: credential.response.userHandle ? bufferToBase64Url(credential.response.userHandle) : undefined
+      },
+      clientExtensionResults: credential.getClientExtensionResults ? credential.getClientExtensionResults() : {}
+    };
   }
 
   async function syncRegistrationReset() {
@@ -136,7 +166,59 @@
         const formData = new FormData(loginForm);
         const email = (formData.get("email") || "").trim().toLowerCase();
         const password = formData.get("password") || "";
+        const loginMethod = formData.get("loginMethod") || "password";
         const message = document.getElementById("login-message");
+
+        async function finishStudentLogin(user, successText = "Login successful. Redirecting...") {
+          const accounts = getAccounts();
+          const existing = accounts.find((savedAccount) => savedAccount.email === user.email);
+          if (existing) Object.assign(existing, user, { verified: true });
+          else accounts.push({ ...user, verified: true, role: user.role || "student" });
+          saveAccounts(accounts);
+          const role = user.role || "student";
+          localStorage.setItem("geoAttendCurrentUser", user.email);
+          localStorage.setItem("geoAttendRole", role);
+          localStorage.setItem("geoAttendView", role === "admin" ? "admin" : "student");
+          localStorage.removeItem("geoAttendAdminEmail");
+          localStorage.removeItem("geoAttendAdminRole");
+          localStorage.removeItem("geoAttendAdminName");
+          localStorage.removeItem("geoAttendAdminFacultyId");
+          localStorage.removeItem("geoAttendAdminFacultyName");
+          localStorage.removeItem("geoAttendAdminDepartmentId");
+          localStorage.removeItem("geoAttendAdminDepartmentName");
+          localStorage.removeItem("geoAttendAdminLevelId");
+          localStorage.removeItem("geoAttendAdminLevelName");
+          if (message) {
+            message.textContent = successText;
+            message.classList.remove("hidden");
+            message.classList.remove("text-[#93000a]", "bg-[#ffdad6]");
+            message.classList.add("text-[#0058be]", "bg-[#eff4ff]");
+          }
+          setTimeout(() => {
+            window.location.href = role === "admin" ? "dashboard.html" : "student-home.html";
+          }, 500);
+        }
+
+        if (loginMethod !== "password") {
+          try {
+            if (!window.PublicKeyCredential || !navigator.credentials?.get) throw new Error("This browser does not support device biometric login.");
+            const optionsResult = await postJson("/api/webauthn/login-options", { email });
+            const credential = await navigator.credentials.get({ publicKey: prepareRequestOptions(optionsResult.options) });
+            const result = await postJson("/api/webauthn/login-verify", {
+              email,
+              response: publicKeyCredentialToJSON(credential)
+            });
+            await finishStudentLogin(result.user, `${loginMethod === "face" ? "Face ID" : "Biometric"} login successful. Redirecting...`);
+          } catch (error) {
+            if (message) {
+              message.textContent = error.message || "Device security login failed. Use password or re-enroll biometric login.";
+              message.classList.remove("hidden");
+              message.classList.remove("text-[#0058be]", "bg-[#eff4ff]");
+              message.classList.add("text-[#93000a]", "bg-[#ffdad6]");
+            }
+          }
+          return;
+        }
 
         try {
           const adminResult = await postJson("/api/admin-login", { email, password });
@@ -182,7 +264,6 @@
         if (!account) {
           try {
             await loginStudentFromServer();
-            return;
           } catch (error) {
             if (message) {
               message.textContent = error.message || "No account found with this email. Please create an account first.";
@@ -204,79 +285,69 @@
           return;
         }
 
-        if (account.password === password) {
-          localStorage.setItem("geoAttendCurrentUser", account.email);
-          localStorage.setItem("geoAttendRole", "student");
-          localStorage.setItem("geoAttendView", "student");
-          localStorage.removeItem("geoAttendAdminEmail");
-          localStorage.removeItem("geoAttendAdminRole");
-          localStorage.removeItem("geoAttendAdminName");
-          localStorage.removeItem("geoAttendAdminFacultyId");
-          localStorage.removeItem("geoAttendAdminFacultyName");
-          localStorage.removeItem("geoAttendAdminDepartmentId");
-          localStorage.removeItem("geoAttendAdminDepartmentName");
-          localStorage.removeItem("geoAttendAdminLevelId");
-          localStorage.removeItem("geoAttendAdminLevelName");
-
-          if (message) {
-            message.textContent = "Login successful. Redirecting...";
-            message.classList.remove("hidden");
-            message.classList.remove("text-[#93000a]", "bg-[#ffdad6]");
-            message.classList.add("text-[#0058be]", "bg-[#eff4ff]");
+        if (account.password !== password) {
+          try {
+            await loginStudentFromServer();
+          } catch (error) {
+            if (message) {
+              message.textContent = error.message || "Incorrect password. Please try again.";
+              message.classList.remove("hidden");
+              message.classList.remove("text-[#0058be]", "bg-[#eff4ff]");
+              message.classList.add("text-[#93000a]", "bg-[#ffdad6]");
+            }
           }
-
-          setTimeout(() => {
-            window.location.href = "student-home.html";
-          }, 500);
           return;
         }
 
-        try {
-          await loginStudentFromServer();
-        } catch (error) {
-          if (message) {
-            message.textContent = error.message || "Incorrect password. Please try again.";
-            message.classList.remove("hidden");
-            message.classList.remove("text-[#0058be]", "bg-[#eff4ff]");
-            message.classList.add("text-[#93000a]", "bg-[#ffdad6]");
-          }
-        }
+        await finishStudentLogin(account);
       });
-    }
-
-    function bindPasswordToggle(button, input) {
-      if (!button || !input || button.dataset.passwordToggleBound === "true") return;
-      button.dataset.passwordToggleBound = "true";
-
-      button.addEventListener("click", (event) => {
-        event.preventDefault();
-        const isHidden = input.type === "password";
-        input.type = isHidden ? "text" : "password";
-
-        const icon = button.querySelector(".material-symbols-outlined");
-        if (icon) {
-          icon.textContent = isHidden ? "visibility_off" : "visibility";
-        }
-
-        button.setAttribute("aria-label", isHidden ? "Hide password" : "Show password");
-        button.setAttribute("aria-pressed", String(isHidden));
-      });
-    }
-
-    const togglePassword = document.getElementById("toggle-password");
+    }    const togglePassword = document.getElementById("toggle-password");
     const passwordInput = document.getElementById("password");
-    bindPasswordToggle(togglePassword, passwordInput);
+    const loginMethodRadios = document.querySelectorAll('input[name="loginMethod"]');
+    const passwordLoginField = document.getElementById("password-login-field");
+    const biometricLoginOption = document.getElementById("biometric-login-option");
+    const faceLoginOption = document.getElementById("face-login-option");
+    async function updateLoginMethodUi() {
+      const selected = document.querySelector('input[name="loginMethod"]:checked')?.value || "password";
+      if (passwordLoginField) passwordLoginField.classList.toggle("hidden", selected !== "password");
+      if (passwordInput) passwordInput.required = selected === "password";
+      const supported = Boolean(window.PublicKeyCredential && navigator.credentials?.get)
+        && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().catch(() => false);
+      [biometricLoginOption, faceLoginOption].forEach((option) => {
+        if (!option) return;
+        option.classList.toggle("opacity-50", !supported);
+        option.classList.toggle("pointer-events-none", !supported);
+        option.title = supported ? "" : "This device/browser does not support biometric login.";
+      });
+    }
+    loginMethodRadios.forEach((radio) => radio.addEventListener("change", updateLoginMethodUi));
+    updateLoginMethodUi();
+    if (togglePassword && passwordInput) {
+      togglePassword.addEventListener("click", () => {
+        const shouldShow = passwordInput.type === "password";
+        passwordInput.type = shouldShow ? "text" : "password";
+        togglePassword.querySelector(".material-symbols-outlined").textContent = shouldShow ? "visibility_off" : "visibility";
+      });
+    }
+
 
     document.querySelectorAll("[data-toggle-password]").forEach((button) => {
-      const selector = button.getAttribute("data-toggle-password");
-      const input = selector ? document.querySelector(selector) : null;
-      bindPasswordToggle(button, input);
+      button.addEventListener("click", () => {
+        const selector = button.getAttribute("data-toggle-password");
+        const input = selector ? document.querySelector(selector) : null;
+        if (!input) return;
+        const shouldShow = input.type === "password";
+        input.type = shouldShow ? "text" : "password";
+        const icon = button.querySelector(".material-symbols-outlined");
+        if (icon) icon.textContent = shouldShow ? "visibility_off" : "visibility";
+        button.setAttribute("aria-label", shouldShow ? "Hide password" : "Show password");
+      });
     });
     function getApiTargets(url) {
       const targets = [url];
       const shouldUseLocalBackend = window.location.protocol === "file:" || window.location.port !== "5502";
       if (shouldUseLocalBackend && url.startsWith("/")) {
-        targets.push(`http://127.0.0.1:5502${url}`);
+        targets.push(`http://127.0.0.1:4100${url}`);
       }
       return [...new Set(targets)];
     }
@@ -303,7 +374,7 @@
         }
       }
 
-      const error = new Error("Could not reach the GeoAttend backend. Open http://127.0.0.1:5502/login.html and make sure the server is running.");
+      const error = new Error("Could not reach the GeoAttend backend. Open http://127.0.0.1:4100/login.html and make sure the server is running.");
       error.cause = networkError;
       throw error;
     }
@@ -411,15 +482,15 @@
       const resetHelper = document.getElementById("reset-helper");
       const resetOtp = document.getElementById("reset-otp");
       const newPassword = document.getElementById("new-password");
+      const newPasswordStep = document.getElementById("new-password-step");
       const resetButton = document.getElementById("reset-password-button");
       let resetEmail = "";
+      let resetCodeVerified = false;
 
       forgotPassword.addEventListener("click", async (event) => {
         event.preventDefault();
         const emailInput = document.getElementById("email");
         const email = (emailInput?.value || "").trim().toLowerCase();
-
-        const account = getAccounts().find((savedAccount) => savedAccount.email === email);
 
         if (!email) {
           showLoginMessage("Enter your registered email first, then click Forgot Password.", true);
@@ -427,37 +498,14 @@
           return;
         }
 
-        if (!account) {
-          showLoginMessage("No account found with this email. Please create an account first.", true);
-          return;
-        }
-
-        if (!account.verified) {
-          showLoginMessage("This account has not completed OTP verification.", true);
-          return;
-        }
-
-        forgotPassword.textContent = "Sending OTP...";
-        try {
-          const result = await postJson("/api/send-password-reset-otp", { email });
-          resetEmail = email;
-          resetSection?.classList.remove("hidden");
-          if (resetHelper) resetHelper.textContent = `Enter the code sent to ${email}, then choose a new password.`;
-          if (result?.demoOtp) {
-            showLoginMessage(`Password reset OTP created in demo mode. Use code: ${result.demoOtp}`, false);
-          } else {
-            showLoginMessage("Password reset OTP sent to your email.");
-          }
-        } catch (error) {
-          resetEmail = email;
-          const localOtp = generateLocalOtp();
-          sessionStorage.setItem(localResetCodeKey(email), localOtp);
-          resetSection?.classList.remove("hidden");
-          if (resetHelper) resetHelper.textContent = `Enter the code sent to ${email}, then choose a new password.`;
-          showLoginMessage(`Email service is unavailable, so a local reset code was generated. Use OTP: ${localOtp}`, false);
-        } finally {
-          forgotPassword.textContent = "Forgot Password?";
-        }
+        resetEmail = email;
+        resetCodeVerified = false;
+        newPasswordStep?.classList.add("hidden");
+        if (newPassword) newPassword.value = "";
+        if (resetButton) resetButton.textContent = "Verify Authenticator Code";
+        resetSection?.classList.remove("hidden");
+        if (resetHelper) resetHelper.textContent = `Open Google Authenticator and enter the current GeoAttend code for ${email}.`;
+        showLoginMessage("Enter your Google Authenticator code first.");
       });
 
       resetButton?.addEventListener("click", async () => {
@@ -465,12 +513,32 @@
         const password = newPassword?.value || "";
 
         if (!resetEmail) {
-          showLoginMessage("Request a password reset OTP first.", true);
+          showLoginMessage("Open password reset first.", true);
           return;
         }
 
         if (!otp) {
-          showLoginMessage("Enter the OTP sent to your email.", true);
+          showLoginMessage("Enter your Google Authenticator code.", true);
+          return;
+        }
+
+        if (!resetCodeVerified) {
+          resetButton.disabled = true;
+          resetButton.textContent = "Verifying Code...";
+          try {
+            await postJson("/api/verify-password-reset-totp", { email: resetEmail, code: otp });
+            resetCodeVerified = true;
+            newPasswordStep?.classList.remove("hidden");
+            if (resetHelper) resetHelper.textContent = "Authenticator code verified. Now enter a new password.";
+            resetButton.textContent = "Update Password";
+            showLoginMessage("Code verified. Enter your new password.");
+            newPassword?.focus();
+          } catch (error) {
+            showLoginMessage(error.message, true);
+          } finally {
+            resetButton.disabled = false;
+            if (!resetCodeVerified) resetButton.textContent = "Verify Authenticator Code";
+          }
           return;
         }
 
@@ -480,45 +548,29 @@
         }
 
         resetButton.disabled = true;
-        resetButton.textContent = "Verifying OTP...";
+        resetButton.textContent = "Updating Password...";
         try {
-          await postJson("/api/verify-password-reset-otp", { email: resetEmail, otp, password });
-        } catch (error) {
-          const localCode = sessionStorage.getItem(localResetCodeKey(resetEmail));
-          if (localCode && otp === localCode) {
-            const accounts = getAccounts();
-            const account = accounts.find((savedAccount) => savedAccount.email === resetEmail);
-            if (!account) throw new Error("Account no longer exists. Please create an account first.");
+          await postJson("/api/verify-password-reset-totp", { email: resetEmail, code: otp, password });
+          const accounts = getAccounts();
+          const account = accounts.find((savedAccount) => savedAccount.email === resetEmail);
+          if (account) {
             account.password = password;
             account.passwordUpdatedAt = new Date().toISOString();
             saveAccounts(accounts);
-            sessionStorage.removeItem(localResetCodeKey(resetEmail));
-            resetSection?.classList.add("hidden");
-            if (resetOtp) resetOtp.value = "";
-            if (newPassword) newPassword.value = "";
-            showLoginMessage("Password updated. You can now login with your new password.");
-            resetButton.disabled = false;
-            resetButton.textContent = "Verify OTP & Update Password";
-            return;
           }
-          showLoginMessage(error.message || "Invalid or expired OTP.", true);
+          resetSection?.classList.add("hidden");
+          newPasswordStep?.classList.add("hidden");
+          resetCodeVerified = false;
+          if (resetOtp) resetOtp.value = "";
+          if (newPassword) newPassword.value = "";
+          resetButton.textContent = "Verify Authenticator Code";
+          showLoginMessage("Password updated. You can now login with your new password.");
+        } catch (error) {
+          showLoginMessage(error.message, true);
+        } finally {
           resetButton.disabled = false;
-          resetButton.textContent = "Verify OTP & Update Password";
-          return;
+          if (resetCodeVerified) resetButton.textContent = "Update Password";
         }
-
-        const accounts = getAccounts();
-        const account = accounts.find((savedAccount) => savedAccount.email === resetEmail);
-        if (!account) throw new Error("Account no longer exists. Please create an account first.");
-        account.password = password;
-        account.passwordUpdatedAt = new Date().toISOString();
-        saveAccounts(accounts);
-        resetSection?.classList.add("hidden");
-        if (resetOtp) resetOtp.value = "";
-        if (newPassword) newPassword.value = "";
-        showLoginMessage("Password updated. You can now login with your new password.");
-        resetButton.disabled = false;
-        resetButton.textContent = "Verify OTP & Update Password";
       });
     }
 
@@ -687,6 +739,13 @@
     }
   });
 })();
+
+
+
+
+
+
+
 
 
 

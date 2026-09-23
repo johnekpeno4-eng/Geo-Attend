@@ -5,6 +5,8 @@ const http = require("http");
 const path = require("path");
 const nodemailer = require("nodemailer");
 const sqlite3 = require("sqlite3").verbose();
+const QRCode = require("qrcode");
+const { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } = require("@simplewebauthn/server");
 
 const ROOT = __dirname;
 loadEnv();
@@ -31,6 +33,8 @@ const A4_PDF_HEIGHT = 841.89;
 const otpStore = new Map();
 const otpAttemptStore = new Map();
 const loginAttemptStore = new Map();
+const totpSetupStore = new Map();
+const webAuthnChallengeStore = new Map();
 let mailTransporter = null;
 let sqliteDb = null;
 
@@ -92,21 +96,33 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "POST" && req.url === "/api/totp-registration-setup") {
+      const body = await readJson(req);
+      await setupRegistrationTotp(res, body);
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/api/verify-registration-totp") {
+      const body = await readJson(req);
+      verifyRegistrationTotp(res, body);
+      return;
+    }
+
     if (req.method === "POST" && req.url === "/api/send-registration-otp") {
       const body = await readJson(req);
-      await sendOtp(res, body.email, "register", body.fullName);
+      await setupRegistrationTotp(res, body);
       return;
     }
 
     if (req.method === "POST" && req.url === "/api/verify-registration-otp") {
       const body = await readJson(req);
-      verifyOtp(res, body.email, body.otp, "register");
+      verifyRegistrationTotp(res, { email: body.email, code: body.otp });
       return;
     }
 
     if (req.method === "POST" && req.url === "/api/send-password-reset-otp") {
       const body = await readJson(req);
-      await sendOtp(res, body.email, "reset");
+      await sendPasswordResetOtp(res, body);
       return;
     }
 
@@ -115,9 +131,38 @@ const server = http.createServer(async (req, res) => {
       await verifyPasswordResetOtp(res, body);
       return;
     }
+    if (req.method === "POST" && req.url === "/api/verify-password-reset-totp") {
+      const body = await readJson(req);
+      await verifyPasswordResetTotp(res, body);
+      return;
+    }
 
     if (req.method === "GET" && req.url === "/api/academic-scope") {
       getAcademicScope(res);
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/api/webauthn/register-options") {
+      const body = await readJson(req);
+      await getWebAuthnRegistrationOptions(req, res, body);
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/api/webauthn/register-verify") {
+      const body = await readJson(req);
+      await verifyWebAuthnRegistration(req, res, body);
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/api/webauthn/login-options") {
+      const body = await readJson(req);
+      await getWebAuthnLoginOptions(req, res, body);
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/api/webauthn/login-verify") {
+      const body = await readJson(req);
+      await verifyWebAuthnLogin(req, res, body);
       return;
     }
 
@@ -424,6 +469,8 @@ async function initDatabase() {
   await ensureColumn("students", "level_id", "TEXT DEFAULT '100'");
   await ensureColumn("students", "level_name", "TEXT DEFAULT '100 Level'");
   await ensureColumn("students", "password_hash", "TEXT DEFAULT ''");
+  await ensureColumn("students", "totp_secret", "TEXT DEFAULT ''");
+  await ensureColumn("students", "totp_enabled", "INTEGER NOT NULL DEFAULT 0");
   await dbRun("CREATE INDEX IF NOT EXISTS idx_students_scope ON students(faculty_id, department_id, level_id)");
 
   await dbRun(`CREATE TABLE IF NOT EXISTS academic_faculties (
@@ -557,15 +604,18 @@ function sqliteStudentFromRow(row) {
     levelId: row.level_id,
     levelName: row.level_name,
     createdAt: row.created_at,
-    updatedAt: row.updated_at
+    updatedAt: row.updated_at,
+    totpEnabled: row.totp_enabled === 1
   });
 }
 
 async function upsertSqliteStudent(student) {
   const normalized = publicStudent(student);
   const passwordHash = String(student.passwordHash || student.password_hash || "");
-  await dbRun(`INSERT INTO students (id, full_name, reg_number, email, role, verified, signature_data_url, signature_strokes_json, institution_id, faculty_id, faculty_name, department_id, department_name, level_id, level_name, password_hash, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  const totpSecret = String(student.totpSecret || student.totp_secret || "");
+  const totpEnabled = student.totpEnabled || student.totp_enabled ? 1 : 0;
+  await dbRun(`INSERT INTO students (id, full_name, reg_number, email, role, verified, signature_data_url, signature_strokes_json, institution_id, faculty_id, faculty_name, department_id, department_name, level_id, level_name, password_hash, totp_secret, totp_enabled, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       full_name = excluded.full_name,
       reg_number = excluded.reg_number,
@@ -582,6 +632,8 @@ async function upsertSqliteStudent(student) {
       level_id = excluded.level_id,
       level_name = excluded.level_name,
       password_hash = CASE WHEN excluded.password_hash != '' THEN excluded.password_hash ELSE students.password_hash END,
+      totp_secret = CASE WHEN excluded.totp_secret != '' THEN excluded.totp_secret ELSE students.totp_secret END,
+      totp_enabled = CASE WHEN excluded.totp_enabled = 1 THEN 1 ELSE students.totp_enabled END,
       created_at = COALESCE(students.created_at, excluded.created_at),
       updated_at = excluded.updated_at`, [
     normalized.id,
@@ -675,6 +727,119 @@ async function writeSqliteAttendance(attendance) {
   }
   writeLocalJson(ATTENDANCE_LOG_FILE, attendance);
 }
+const BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+
+function base32Encode(buffer) {
+  let bits = 0;
+  let value = 0;
+  let output = "";
+  for (const byte of buffer) {
+    value = (value << 8) | byte;
+    bits += 8;
+    while (bits >= 5) {
+      output += BASE32_ALPHABET[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  }
+  if (bits > 0) output += BASE32_ALPHABET[(value << (5 - bits)) & 31];
+  return output;
+}
+
+function base32Decode(value) {
+  const clean = String(value || "").toUpperCase().replace(/=+$/g, "").replace(/\s+/g, "");
+  let bits = 0;
+  let current = 0;
+  const bytes = [];
+  for (const char of clean) {
+    const index = BASE32_ALPHABET.indexOf(char);
+    if (index < 0) continue;
+    current = (current << 5) | index;
+    bits += 5;
+    if (bits >= 8) {
+      bytes.push((current >>> (bits - 8)) & 255);
+      bits -= 8;
+    }
+  }
+  return Buffer.from(bytes);
+}
+
+function generateTotpSecret() {
+  return base32Encode(crypto.randomBytes(20));
+}
+
+function totpKeyUri(email, issuer, secret) {
+  const label = `${issuer}:${email}`;
+  return `otpauth://totp/${encodeURIComponent(label)}?secret=${encodeURIComponent(secret)}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
+}
+
+function generateTotpCode(secret, stepOffset = 0) {
+  const key = base32Decode(secret);
+  const counter = Math.floor(Date.now() / 30000) + stepOffset;
+  const buffer = Buffer.alloc(8);
+  buffer.writeBigUInt64BE(BigInt(counter));
+  const hmac = crypto.createHmac("sha1", key).update(buffer).digest();
+  const offset = hmac[hmac.length - 1] & 0xf;
+  const binary = ((hmac[offset] & 0x7f) << 24) | ((hmac[offset + 1] & 0xff) << 16) | ((hmac[offset + 2] & 0xff) << 8) | (hmac[offset + 3] & 0xff);
+  return String(binary % 1000000).padStart(6, "0");
+}
+
+function verifyTotpCode(code, secret) {
+  const token = String(code || "").replace(/\s+/g, "");
+  if (!/^\d{6}$/.test(token) || !secret) return false;
+  return [-1, 0, 1].some((offset) => {
+    const expected = generateTotpCode(secret, offset);
+    return crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expected));
+  });
+}
+async function setupRegistrationTotp(res, body) {
+  const email = String(body.email || "").trim().toLowerCase();
+  const fullName = String(body.fullName || email || "GeoAttend Student").trim();
+  if (!isEmail(email)) {
+    json(res, 400, { error: "Enter a valid email address." });
+    return;
+  }
+  const secret = generateTotpSecret();
+  const service = "GeoAttend";
+  const otpauth = totpKeyUri(email, service, secret);
+  const qrDataUrl = await QRCode.toDataURL(otpauth, { margin: 1, width: 240 });
+  totpSetupStore.set(email, {
+    secret,
+    fullName,
+    createdAt: Date.now(),
+    expiresAt: Date.now() + 15 * 60 * 1000
+  });
+  json(res, 200, {
+    ok: true,
+    message: "Google Authenticator setup created.",
+    qrDataUrl,
+    manualKey: secret,
+    issuer: service,
+    account: email
+  });
+}
+
+function verifyRegistrationTotp(res, body) {
+  const email = String(body.email || "").trim().toLowerCase();
+  const code = String(body.code || body.otp || "").replace(/\s+/g, "");
+  const setup = totpSetupStore.get(email);
+  if (!setup || setup.expiresAt < Date.now()) {
+    totpSetupStore.delete(email);
+    json(res, 400, { error: "Authenticator setup expired. Generate a new QR code." });
+    return;
+  }
+  const ok = verifyTotpCode(code, setup.secret);
+  if (!ok) {
+    json(res, 400, { error: "Incorrect authenticator code. Check Google Authenticator and try again." });
+    return;
+  }
+  totpSetupStore.delete(email);
+  json(res, 200, {
+    ok: true,
+    message: "Authenticator verified.",
+    totpSecret: setup.secret,
+    totpEnabled: true
+  });
+}
 async function sendOtp(res, email, purpose, fullName = "") {
   if (!isEmail(email)) {
     json(res, 400, { error: "Enter a valid email address." });
@@ -734,6 +899,19 @@ async function sendOtp(res, email, purpose, fullName = "") {
   });
 }
 
+async function sendPasswordResetOtp(res, body) {
+  const email = String(body.email || "").trim().toLowerCase();
+  if (!isEmail(email)) {
+    json(res, 400, { error: "Enter a valid email address." });
+    return;
+  }
+  const row = await dbGet("SELECT full_name FROM students WHERE email = ? COLLATE NOCASE LIMIT 1", [email]);
+  if (!row) {
+    json(res, 404, { error: "No student account was found for that email." });
+    return;
+  }
+  await sendOtp(res, email, "reset", row.full_name || "");
+}
 async function verifyPasswordResetOtp(res, body) {
   const email = String(body.email || "").trim().toLowerCase();
   const otp = String(body.otp || "").trim();
@@ -763,6 +941,39 @@ async function verifyPasswordResetOtp(res, body) {
     return;
   }
   json(res, 200, { ok: true, message: "Password updated." });
+}
+async function verifyPasswordResetTotp(res, body) {
+  const email = String(body.email || "").trim().toLowerCase();
+  const code = String(body.code || body.otp || "").replace(/\s+/g, "");
+  const password = String(body.password || "");
+  if (!isEmail(email)) {
+    json(res, 400, { error: "Enter a valid email address." });
+    return;
+  }
+  const row = await dbGet("SELECT * FROM students WHERE email = ? COLLATE NOCASE LIMIT 1", [email]);
+  if (!row) {
+    json(res, 404, { error: "No student account was found for that email." });
+    return;
+  }
+  const secret = String(row.totp_secret || "");
+  if (!secret || row.totp_enabled !== 1) {
+    json(res, 409, { error: "Google Authenticator is not set up for this account. Register again or contact admin." });
+    return;
+  }
+  if (!verifyTotpCode(code, secret)) {
+    json(res, 400, { error: "Incorrect Google Authenticator code." });
+    return;
+  }
+  if (!password) {
+    json(res, 200, { ok: true, verified: true, message: "Authenticator code verified." });
+    return;
+  }
+  if (password.length < 8) {
+    json(res, 400, { error: "New password must be at least 8 characters." });
+    return;
+  }
+  await dbRun("UPDATE students SET password_hash = ?, updated_at = ? WHERE email = ? COLLATE NOCASE", [hashPassword(password), new Date().toISOString(), email]);
+  json(res, 200, { ok: true, verified: true, message: "Password updated." });
 }
 function verifyOtp(res, email, otp, purpose) {
   const saved = otpStore.get(otpKey(email, purpose));
@@ -935,18 +1146,59 @@ function setCorsHeaders(res) {
   Object.entries(getCorsHeaders()).forEach(([key, value]) => res.setHeader(key, value));
 }
 
-async function saveBiometricProfile(res, profile) {
-  if (!profile || !isEmail(profile.email)) {
-    json(res, 400, { error: "A valid profile email is required." });
-    return;
-  }
+function getWebAuthnContext(req) {
+  const host = String(req.headers.host || `127.0.0.1:${PORT}`).trim();
+  const originHeader = String(req.headers.origin || "").trim();
+  const fallbackProtocol = (req.socket && req.socket.encrypted) ? "https" : "http";
+  const origin = originHeader || `${fallbackProtocol}://${host}`;
+  let rpID = host.split(":")[0];
+  try {
+    rpID = new URL(origin).hostname;
+  } catch {}
+  return { rpName: "GeoAttend", rpID, origin };
+}
 
-  if (!profile.livenessVerified || !profile.biometricVerified) {
-    json(res, 400, { error: "Complete liveness and biometric verification before saving." });
-    return;
-  }
+function challengeKey(purpose, email) {
+  return `${purpose}:${String(email || "").trim().toLowerCase()}`;
+}
 
-  const email = profile.email.trim().toLowerCase();
+function serializeWebAuthnCredential(credential, extras = {}) {
+  if (!credential) return null;
+  return {
+    id: credential.id,
+    publicKey: Buffer.from(credential.publicKey).toString("base64url"),
+    counter: Number(credential.counter || 0),
+    transports: credential.transports || [],
+    ...extras
+  };
+}
+
+function deserializeWebAuthnCredential(credential) {
+  if (!credential?.id || !credential?.publicKey) return null;
+  return {
+    id: credential.id,
+    publicKey: Buffer.from(credential.publicKey, "base64url"),
+    counter: Number(credential.counter || 0),
+    transports: credential.transports || []
+  };
+}
+
+async function findStudentRowByIdentifier(identifier) {
+  const raw = String(identifier || "").trim();
+  const email = raw.toLowerCase();
+  const regNumber = normalizeRegNumber(raw);
+  return dbGet("SELECT * FROM students WHERE email = ? COLLATE NOCASE OR reg_number = ? COLLATE NOCASE LIMIT 1", [email, regNumber]);
+}
+
+async function loadBiometricProfileByEmail(email) {
+  const normalized = String(email || "").trim().toLowerCase();
+  const profileId = crypto.createHash("sha256").update(normalized).digest("hex");
+  const row = await dbGet("SELECT profile_json FROM biometric_profiles WHERE profile_id = ? OR email = ?", [profileId, normalized]);
+  return parseJsonColumn(row?.profile_json, null);
+}
+
+async function saveBiometricProfileObject(profile) {
+  const email = String(profile.email || "").trim().toLowerCase();
   const profileId = crypto.createHash("sha256").update(email).digest("hex");
   const savedAt = new Date().toISOString();
   const savedProfile = { ...profile, email, profileId, savedAt };
@@ -959,6 +1211,152 @@ async function saveBiometricProfile(res, profile) {
   const profiles = readJsonFile(BIOMETRIC_PROFILES_FILE, {});
   profiles[profileId] = savedProfile;
   writeLocalJson(BIOMETRIC_PROFILES_FILE, profiles);
+  return { profileId, savedAt, savedProfile };
+}
+
+async function getWebAuthnRegistrationOptions(req, res, body) {
+  const row = await findStudentRowByIdentifier(body.email || body.regNumber);
+  if (!row) {
+    json(res, 404, { error: "No student account was found. Please register first." });
+    return;
+  }
+  const { rpName, rpID, origin } = getWebAuthnContext(req);
+  const email = String(row.email || "").trim().toLowerCase();
+  const existingProfile = await loadBiometricProfileByEmail(email);
+  const existingCredential = existingProfile?.webauthnCredential;
+  const options = await generateRegistrationOptions({
+    rpName,
+    rpID,
+    userName: email,
+    userDisplayName: row.full_name || email,
+    userID: Buffer.from(String(row.id || email)),
+    attestationType: "none",
+    authenticatorSelection: {
+      authenticatorAttachment: "platform",
+      residentKey: "preferred",
+      userVerification: "required"
+    },
+    excludeCredentials: existingCredential?.id ? [{ id: existingCredential.id, transports: existingCredential.transports || [] }] : []
+  });
+  webAuthnChallengeStore.set(challengeKey("register", email), {
+    challenge: options.challenge,
+    rpID,
+    origin,
+    expiresAt: Date.now() + 5 * 60 * 1000
+  });
+  json(res, 200, { ok: true, options, email });
+}
+
+async function verifyWebAuthnRegistration(req, res, body) {
+  const row = await findStudentRowByIdentifier(body.email || body.regNumber);
+  if (!row) {
+    json(res, 404, { error: "No student account was found. Please register first." });
+    return;
+  }
+  const email = String(row.email || "").trim().toLowerCase();
+  const saved = webAuthnChallengeStore.get(challengeKey("register", email));
+  if (!saved || saved.expiresAt < Date.now()) {
+    webAuthnChallengeStore.delete(challengeKey("register", email));
+    json(res, 400, { error: "Device security request expired. Try again." });
+    return;
+  }
+  const verification = await verifyRegistrationResponse({
+    response: body.response,
+    expectedChallenge: saved.challenge,
+    expectedOrigin: saved.origin,
+    expectedRPID: saved.rpID,
+    requireUserVerification: true
+  });
+  if (!verification.verified || !verification.registrationInfo?.credential) {
+    json(res, 401, { error: "Device security verification failed." });
+    return;
+  }
+  webAuthnChallengeStore.delete(challengeKey("register", email));
+  const credential = serializeWebAuthnCredential(verification.registrationInfo.credential, {
+    credentialDeviceType: verification.registrationInfo.credentialDeviceType,
+    credentialBackedUp: verification.registrationInfo.credentialBackedUp
+  });
+  json(res, 200, { ok: true, email, credential, method: "biometric" });
+}
+
+async function getWebAuthnLoginOptions(req, res, body) {
+  const row = await findStudentRowByIdentifier(body.email || body.regNumber);
+  if (!row) {
+    json(res, 404, { error: "No student account was found. Please register first." });
+    return;
+  }
+  const email = String(row.email || "").trim().toLowerCase();
+  const profile = await loadBiometricProfileByEmail(email);
+  const credential = profile?.webauthnCredential;
+  if (!credential?.id) {
+    json(res, 409, { error: "No biometric or Face ID login is enrolled for this student. Use password or complete identity verification." });
+    return;
+  }
+  const { rpID, origin } = getWebAuthnContext(req);
+  const options = await generateAuthenticationOptions({
+    rpID,
+    allowCredentials: [{ id: credential.id, transports: credential.transports || [] }],
+    userVerification: "required"
+  });
+  webAuthnChallengeStore.set(challengeKey("login", email), {
+    challenge: options.challenge,
+    rpID,
+    origin,
+    expiresAt: Date.now() + 5 * 60 * 1000
+  });
+  json(res, 200, { ok: true, options, email });
+}
+
+async function verifyWebAuthnLogin(req, res, body) {
+  const row = await findStudentRowByIdentifier(body.email || body.regNumber);
+  if (!row) {
+    json(res, 404, { error: "No student account was found. Please register first." });
+    return;
+  }
+  const email = String(row.email || "").trim().toLowerCase();
+  const saved = webAuthnChallengeStore.get(challengeKey("login", email));
+  if (!saved || saved.expiresAt < Date.now()) {
+    webAuthnChallengeStore.delete(challengeKey("login", email));
+    json(res, 400, { error: "Login security request expired. Try again." });
+    return;
+  }
+  const profile = await loadBiometricProfileByEmail(email);
+  const storedCredential = deserializeWebAuthnCredential(profile?.webauthnCredential);
+  if (!storedCredential) {
+    json(res, 409, { error: "No biometric or Face ID login is enrolled for this student." });
+    return;
+  }
+  const verification = await verifyAuthenticationResponse({
+    response: body.response,
+    expectedChallenge: saved.challenge,
+    expectedOrigin: saved.origin,
+    expectedRPID: saved.rpID,
+    credential: storedCredential,
+    requireUserVerification: true
+  });
+  if (!verification.verified) {
+    json(res, 401, { error: "Device security login failed." });
+    return;
+  }
+  webAuthnChallengeStore.delete(challengeKey("login", email));
+  profile.webauthnCredential.counter = verification.authenticationInfo.newCounter;
+  await saveBiometricProfileObject(profile);
+  json(res, 200, { ok: true, user: sqliteStudentFromRow(row), method: profile.checkinAuthMethod || "biometric" });
+}
+async function saveBiometricProfile(res, profile) {
+  if (!profile || !isEmail(profile.email)) {
+    json(res, 400, { error: "A valid profile email is required." });
+    return;
+  }
+
+  const hasSecurity = Boolean(profile?.biometric?.platformAuthenticator || profile?.biometric?.pin || profile?.biometric?.face || profile?.livenessVerified);
+  if (!profile.biometricVerified || !hasSecurity) {
+    json(res, 400, { error: "Complete one login security method before saving." });
+    return;
+  }
+
+  const email = profile.email.trim().toLowerCase();
+  const { profileId, savedAt } = await saveBiometricProfileObject({ ...profile, email });
   json(res, 200, { ok: true, source: "sqlite", profileId, savedAt });
 }
 
@@ -1522,7 +1920,7 @@ function publicDepartmentSubscription(row) {
     active,
     daysRemaining: active && expiryTime ? Math.max(0, Math.ceil((expiryTime - now) / 86400000)) : 0,
     createdAt: row.created_at || null,
-    updatedAt: row.updated_at || null
+    updatedAt: row.updated_at
   };
 }
 
@@ -1837,7 +2235,6 @@ function getAdmins(req, res) {
 function normalizeRegNumber(value) {
   const raw = String(value || "").trim().toUpperCase();
   if (!raw) return "";
-  if (/^\d{1,3}$/.test(raw)) return `25/EG/EE/${raw.padStart(3, "0")}`;
   return raw;
 }
 
@@ -2586,6 +2983,18 @@ function escapeHtml(value) {
     "'": "&#039;"
   }[char]));
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

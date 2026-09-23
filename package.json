@@ -7,7 +7,10 @@
     "start": "node server.js || nodejs server.js"
   },
   "dependencies": {
+    "@simplewebauthn/server": "^14.0.2",
     "nodemailer": "^6.9.15",
+    "otplib": "^13.5.0",
+    "qrcode": "^1.5.4",
     "sqlite3": "^6.0.1"
   }
 }

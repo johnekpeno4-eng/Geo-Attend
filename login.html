@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html class="light" lang="en">
 <head>
   <meta charset="utf-8" />
@@ -34,7 +34,7 @@
       <form class="bg-white border border-[#c6c6cd] rounded-3xl p-8 md:p-10 shadow-xl" data-login-form>
         <p class="text-xs font-bold uppercase tracking-widest text-[#0058be]">Sign in</p>
         <h2 class="mt-2 text-3xl font-extrabold">Welcome Back</h2>
-        <p class="mt-3 text-[#45464d]">Enter your email and password to access GeoAttend.</p>
+        <p class="mt-3 text-[#45464d]">Choose password, biometric, or Face ID to access GeoAttend.</p>
 
         <div class="mt-8 grid gap-5">
           <div>
@@ -45,7 +45,23 @@
             </div>
           </div>
 
-          <div>
+          <fieldset class="grid grid-cols-3 gap-2" id="login-methods">
+            <legend class="sr-only">Login method</legend>
+            <label class="login-method-option rounded-2xl border border-[#c6c6cd] bg-[#f8f9ff] px-3 py-3 text-center text-xs font-bold text-[#45464d] transition has-[:checked]:border-[#0058be] has-[:checked]:bg-[#eff4ff] has-[:checked]:text-[#0058be]">
+              <input class="sr-only" name="loginMethod" type="radio" value="password" checked>
+              Password
+            </label>
+            <label class="login-method-option rounded-2xl border border-[#c6c6cd] bg-[#f8f9ff] px-3 py-3 text-center text-xs font-bold text-[#45464d] transition has-[:checked]:border-[#0058be] has-[:checked]:bg-[#eff4ff] has-[:checked]:text-[#0058be]" id="biometric-login-option">
+              <input class="sr-only" name="loginMethod" type="radio" value="biometric">
+              Biometric
+            </label>
+            <label class="login-method-option rounded-2xl border border-[#c6c6cd] bg-[#f8f9ff] px-3 py-3 text-center text-xs font-bold text-[#45464d] transition has-[:checked]:border-[#0058be] has-[:checked]:bg-[#eff4ff] has-[:checked]:text-[#0058be]" id="face-login-option">
+              <input class="sr-only" name="loginMethod" type="radio" value="face">
+              Face ID
+            </label>
+          </fieldset>
+
+          <div id="password-login-field">
             <div class="mb-2 flex items-center justify-between gap-3">
               <label class="block text-xs font-bold uppercase tracking-widest text-[#45464d]" for="password">Password</label>
               <a class="text-sm font-bold text-[#0058be] hover:underline" href="#" id="forgot-password">Forgot Password?</a>
@@ -66,19 +82,20 @@
         </button>
 
         <div class="hidden mt-6 rounded-2xl border border-[#0058be]/30 bg-[#eff4ff] p-4" id="reset-password-section">
-          <p class="text-xs font-bold uppercase tracking-widest text-[#0058be]">Password Reset OTP</p>
-          <p class="mt-1 text-sm text-[#45464d]" id="reset-helper">Enter the code sent to your email, then choose a new password.</p>
+          <p class="text-xs font-bold uppercase tracking-widest text-[#0058be]">Password Reset Authenticator</p>
+          <p class="mt-1 text-sm text-[#45464d]" id="reset-helper">Enter your current Google Authenticator code first.</p>
+          <div class="mt-3 rounded-xl border border-[#0058be]/20 bg-white/70 p-3 text-sm text-[#45464d]" id="reset-auth-note">Open Google Authenticator and use the existing <strong>GeoAttend</strong> code. The QR code/setup key is shown during registration only. If GeoAttend is missing from your Authenticator app, register again or contact an admin.</div>
           <div class="mt-4 grid gap-4">
             <div>
-              <label class="block text-xs font-bold uppercase tracking-widest text-[#45464d] mb-2" for="reset-otp">OTP Code</label>
+              <label class="block text-xs font-bold uppercase tracking-widest text-[#45464d] mb-2" for="reset-otp">Authenticator Code</label>
               <input class="w-full rounded-2xl border border-[#c6c6cd] bg-white py-3 px-4 font-mono outline-none transition focus:border-[#0058be] focus:ring-4 focus:ring-[#0058be]/10" id="reset-otp" inputmode="numeric" maxlength="6" placeholder="000000" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
             </div>
-            <div>
+            <div class="hidden" id="new-password-step">
               <label class="block text-xs font-bold uppercase tracking-widest text-[#45464d] mb-2" for="new-password">New Password</label>
               <div class="relative"><input class="w-full rounded-2xl border border-[#c6c6cd] bg-white py-3 px-4 pr-14 outline-none transition focus:border-[#0058be] focus:ring-4 focus:ring-[#0058be]/10" id="new-password" minlength="8" placeholder="At least 8 characters" type="password"><button class="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl text-[#76777d] hover:bg-[#e9eef8] hover:text-[#0b1c30]" type="button" data-toggle-password="#new-password" aria-label="Show new password"><span class="material-symbols-outlined text-[22px]">visibility</span></button></div>
             </div>
             <button class="w-full rounded-2xl bg-[#0058be] py-3 font-bold text-white active:scale-[0.98] transition-transform" id="reset-password-button" type="button">
-              Verify OTP & Update Password
+              Verify Authenticator Code
             </button>
           </div>
         </div>
@@ -90,4 +107,8 @@
   </main>
 </body>
 </html>
+
+
+
+
 

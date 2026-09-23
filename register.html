@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html class="light" lang="en">
 <head>
   <meta charset="utf-8" />
@@ -150,7 +150,7 @@
         <form class="space-y-6" id="register-form">
           <div class="flex flex-col gap-2">
             <label class="text-label-md font-semibold uppercase tracking-wider text-on-surface-variant" for="full-name">Full Name</label>
-            <div class="relative group rounded-xl">
+<div class="relative group rounded-xl">
               <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-secondary transition-colors">person</span>
               <input class="w-full bg-surface-container-lowest border-outline-variant focus:border-secondary focus:ring-4 focus:ring-secondary/10 rounded-xl py-4 pl-12 pr-4 transition-all outline-none text-body-lg" id="full-name" name="fullName" placeholder="John Doe" required type="text" />
             </div>
@@ -179,20 +179,16 @@
 
           <div class="flex flex-col gap-2">
             <label class="text-label-md font-semibold uppercase tracking-wider text-on-surface-variant" for="reg-number">Reg Number</label>
-            <div class="relative group rounded-xl">
+<div class="relative group rounded-xl">
               <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-secondary transition-colors">badge</span>
-              <div class="flex w-full items-center rounded-xl border border-outline-variant bg-surface-container-lowest pl-12 pr-4 focus-within:border-secondary focus-within:ring-4 focus-within:ring-secondary/10 transition-all">
-                <span class="font-mono-data text-body-lg text-on-surface-variant select-none" id="reg-number-prefix">25/EG/EE/</span>
-                <input class="min-w-0 flex-1 border-0 bg-transparent py-4 pl-1 pr-0 font-mono-data text-body-lg outline-none focus:ring-0" id="reg-number-suffix" inputmode="numeric" maxlength="3" name="regNumberSuffix" pattern="[0-9]{3}" placeholder="000" required type="text" />
-              </div>
-              <input id="reg-number" name="regNumber" type="hidden" value="25/EG/EE/000" />
+              <input class="w-full bg-surface-container-lowest border-outline-variant focus:border-secondary focus:ring-4 focus:ring-secondary/10 rounded-xl py-4 pl-12 pr-4 transition-all outline-none text-body-lg font-mono-data uppercase" id="reg-number" name="regNumber" placeholder="Example: 25/EG/EE/001" required type="text" />
             </div>
-            <p class="text-body-md text-on-surface-variant">Only edit the last three digits, for example: <span class="font-mono-data text-secondary">25/EG/EE/001</span>.</p>
+            <p class="text-body-md text-on-surface-variant">Type your full registration number manually, for example: <span class="font-mono-data text-secondary">25/EG/EE/001</span>.</p>
           </div>
 
           <div class="flex flex-col gap-2">
             <label class="text-label-md font-semibold uppercase tracking-wider text-on-surface-variant" for="email">Email</label>
-            <div class="relative group rounded-xl">
+<div class="relative group rounded-xl">
               <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-secondary transition-colors">alternate_email</span>
               <input class="w-full bg-surface-container-lowest border-outline-variant focus:border-secondary focus:ring-4 focus:ring-secondary/10 rounded-xl py-4 pl-12 pr-4 transition-all outline-none text-body-lg" id="email" name="email" placeholder="john.doe@email.com" required type="email" />
             </div>
@@ -200,12 +196,9 @@
 
           <div class="flex flex-col gap-2">
             <label class="text-label-md font-semibold uppercase tracking-wider text-on-surface-variant" for="password">Password</label>
-            <div class="relative group rounded-xl">
+<div class="relative group rounded-xl">
               <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-secondary transition-colors">lock</span>
-              <input class="w-full bg-surface-container-lowest border-outline-variant focus:border-secondary focus:ring-4 focus:ring-secondary/10 rounded-xl py-4 pl-12 pr-14 transition-all outline-none text-body-lg" id="password" name="password" placeholder="Password" required minlength="6" type="password" />
-              <button class="absolute right-4 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface transition-colors" id="toggle-password" type="button" aria-label="Show password">
-                <span class="material-symbols-outlined">visibility</span>
-              </button>
+              <input class="w-full bg-surface-container-lowest border-outline-variant focus:border-secondary focus:ring-4 focus:ring-secondary/10 rounded-xl py-4 pl-12 pr-4 transition-all outline-none text-body-lg" id="password" name="password" placeholder="Password" required minlength="6" type="password" />
             </div>
           </div>
 
@@ -220,21 +213,26 @@
 
           <div class="hidden rounded-2xl border border-secondary/30 bg-secondary/5 p-md space-y-md" id="otp-section">
             <div>
-              <p class="font-label-md text-label-md text-secondary uppercase tracking-wider">Email OTP Verification</p>
-              <p class="text-body-md text-on-surface-variant mt-xs" id="otp-helper">Enter the 6-digit code sent to your email.</p>
+              <p class="font-label-md text-label-md text-secondary uppercase tracking-wider">Google Authenticator Setup</p>
+              <p class="text-body-md text-on-surface-variant mt-xs" id="otp-helper">Scan the QR code in Google Authenticator, then enter the 6-digit code.</p>
+            </div>
+            <div class="hidden rounded-2xl border border-secondary/20 bg-surface-container-lowest p-md text-center" id="totp-qr-box">
+              <img alt="Google Authenticator QR code" class="mx-auto h-48 w-48 rounded-xl bg-white p-2" id="totp-qr" src="" />
+              <p class="mt-sm text-label-md font-bold uppercase tracking-wider text-on-surface-variant">Enter setup key</p>
+              <p class="mt-xs break-all rounded-xl bg-surface-container-high px-sm py-xs font-mono-data text-body-md text-secondary" id="totp-manual-key"></p>
             </div>
             <div class="relative group rounded-xl">
               <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-secondary transition-colors">password</span>
               <input class="w-full bg-surface-container-lowest border-outline-variant focus:border-secondary focus:ring-4 focus:ring-secondary/10 rounded-xl py-4 pl-12 pr-4 transition-all outline-none font-mono-data text-body-lg tracking-widest" id="otp-code" name="otpCode" inputmode="numeric" maxlength="6" placeholder="000000" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" />
             </div>
             <button class="w-full border border-secondary text-secondary font-bold py-3 rounded-xl hover:bg-secondary/10 active:scale-[0.98] transition-all flex items-center justify-center gap-sm" id="resend-otp" type="button">
-              <span class="material-symbols-outlined text-[20px]">mail</span>
-              <span id="resend-otp-label">Resend OTP</span>
+              <span class="material-symbols-outlined text-[20px]">qr_code_2</span>
+              <span id="resend-otp-label">Generate New QR</span>
             </button>
           </div>
 
           <button class="w-full bg-primary text-on-primary font-bold py-5 rounded-xl shadow-lg hover:shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-3 group" type="submit">
-            <span class="text-lg" id="register-button-label">Send OTP</span>
+            <span class="text-lg" id="register-button-label">Set Up Authenticator</span>
             <span class="material-symbols-outlined group-hover:translate-x-1 transition-transform">how_to_reg</span>
           </button>
 
@@ -308,13 +306,8 @@
         input.closest(".group")?.classList.remove("glow-active");
       });
     });
-
-    const passwordInput = document.getElementById("password");
-    const togglePassword = document.getElementById("toggle-password");
     const regNumberInput = document.getElementById("reg-number");
-    const regNumberSuffixInput = document.getElementById("reg-number-suffix");
     let academicScope = null;
-    let regNumberPrefix = "25/EG/EE/";
 
     function selectedOptionText(selectId) {
       const select = document.getElementById(selectId);
@@ -345,15 +338,6 @@
       const facultyId = document.getElementById("faculty")?.value || academicScope.defaults?.facultyId;
       const departments = academicScope.departments.filter((department) => department.facultyId === facultyId);
       fillSelect("department", departments.length ? departments : academicScope.departments);
-      refreshRegPrefix();
-    }
-
-    function refreshRegPrefix() {
-      const departmentId = document.getElementById("department")?.value;
-      const department = academicScope?.departments?.find((item) => item.id === departmentId);
-      regNumberPrefix = department?.regPrefix || "25/EG/EE/";
-      const prefixNode = document.getElementById("reg-number-prefix");
-      if (prefixNode) prefixNode.textContent = regNumberPrefix;
       updateRegNumberValue();
     }
 
@@ -371,48 +355,28 @@
         if (level && data.defaults?.levelId) level.value = data.defaults.levelId;
         refreshDepartments();
       } catch {
-        refreshRegPrefix();
+        updateRegNumberValue();
       }
     }
-
     function updateRegNumberValue() {
-      const digits = (regNumberSuffixInput.value || "").replace(/\D/g, "").slice(0, 3);
-      regNumberSuffixInput.value = digits;
-      regNumberInput.value = `${regNumberPrefix}${digits.padStart(3, "0")}`;
+      if (!regNumberInput) return;
+      regNumberInput.value = String(regNumberInput.value || "").trim().toUpperCase();
     }
 
-    regNumberSuffixInput.addEventListener("input", updateRegNumberValue);
+    regNumberInput?.addEventListener("input", () => { regNumberInput.value = regNumberInput.value.toUpperCase(); });
     document.getElementById("faculty")?.addEventListener("change", refreshDepartments);
-    document.getElementById("department")?.addEventListener("change", refreshRegPrefix);
+    document.getElementById("department")?.addEventListener("change", updateRegNumberValue);
     updateRegNumberValue();
     loadAcademicScope();
-
-    function bindPasswordToggle(button, input) {
-      if (!button || !input || button.dataset.passwordToggleBound === "true") return;
-      button.dataset.passwordToggleBound = "true";
-
-      button.addEventListener("click", (event) => {
-        event.preventDefault();
-        const isHidden = input.type === "password";
-        input.type = isHidden ? "text" : "password";
-
-        const icon = button.querySelector(".material-symbols-outlined");
-        if (icon) {
-          icon.textContent = isHidden ? "visibility_off" : "visibility";
-        }
-
-        button.setAttribute("aria-label", isHidden ? "Hide password" : "Show password");
-        button.setAttribute("aria-pressed", String(isHidden));
-      });
-    }
-
-    bindPasswordToggle(togglePassword, passwordInput);
 
     const registerForm = document.getElementById("register-form");
     const message = document.getElementById("form-message");
     const otpSection = document.getElementById("otp-section");
     const otpHelper = document.getElementById("otp-helper");
     const otpInput = document.getElementById("otp-code");
+    const totpQrBox = document.getElementById("totp-qr-box");
+    const totpQr = document.getElementById("totp-qr");
+    const totpManualKey = document.getElementById("totp-manual-key");
     const registerButtonLabel = document.getElementById("register-button-label");
     const resendOtp = document.getElementById("resend-otp");
     const resendOtpLabel = document.getElementById("resend-otp-label");
@@ -445,64 +409,28 @@
       return data;
     }
 
-    function saveLocalAccount(account) {
-      const accounts = getAccounts();
-      const normalizedAccount = {
-        ...account,
-        verified: true,
-        createdAt: account.createdAt || new Date().toISOString(),
-        role: account.role || "student"
-      };
-
-      const accountExists = accounts.some((item) => item.email === normalizedAccount.email || item.regNumber.toLowerCase() === normalizedAccount.regNumber.toLowerCase());
-      if (!accountExists) {
-        accounts.push(normalizedAccount);
-        saveAccounts(accounts);
-      }
-
-      localStorage.setItem("geoAttendCurrentUser", normalizedAccount.email);
-      localStorage.setItem("geoAttendRole", "student");
-      localStorage.setItem("geoAttendView", "student");
-      return normalizedAccount;
-    }
-
     async function sendOtp() {
-      setBusy(true, "Sending OTP...");
-      try {
-        const result = await postJson("/api/send-registration-otp", {
-          email: pendingAccount.email,
-          fullName: pendingAccount.fullName
-        });
-        otpSection.classList.remove("hidden");
-        registerButtonLabel.textContent = "Verify OTP & Create Account";
-        otpHelper.textContent = `Enter the 6-digit code sent to ${pendingAccount.email}.`;
-        otpInput.value = "";
-        if (result?.demoOtp) {
-          showMessage(`OTP created in demo mode. Use code: ${result.demoOtp}`, false);
-        } else {
-          showMessage("OTP sent to your email. Please check your inbox.");
-        }
-        setBusy(false);
-        startResendCountdown(60);
-        return;
-      } catch (error) {
-        const savedAccount = saveLocalAccount(pendingAccount);
-        showMessage(`Email service is unavailable, so your account was created locally. Continue to identity verification.`, false);
-        otpSection.classList.remove("hidden");
-        otpHelper.textContent = `Demo mode active for ${savedAccount.email}. Please continue to finish setup.`;
-        otpInput.value = "";
-        registerButtonLabel.textContent = "Create Account";
-        setBusy(false);
-        setTimeout(() => {
-          window.location.href = "identity-verification.html";
-        }, 900);
-      }
+      setBusy(true, "Generating QR...");
+      const result = await postJson("/api/totp-registration-setup", {
+        email: pendingAccount.email,
+        fullName: pendingAccount.fullName
+      });
+      otpSection.classList.remove("hidden");
+      registerButtonLabel.textContent = "Verify Authenticator & Create Account";
+      otpHelper.textContent = `Scan this QR code in Google Authenticator for ${pendingAccount.email}, then enter the current 6-digit code.`;
+      if (totpQrBox) totpQrBox.classList.remove("hidden");
+      if (totpQr) totpQr.src = result.qrDataUrl;
+      if (totpManualKey) totpManualKey.textContent = `Manual key: ${result.manualKey}`;
+      otpInput.value = "";
+      showMessage("Google Authenticator QR generated. Scan it and enter the 6-digit code.");
+      setBusy(false);
+      startResendCountdown(15);
     }
 
-    function setBusy(isBusy, label = "Send OTP") {
+    function setBusy(isBusy, label = "Set Up Authenticator") {
       submitButton.disabled = isBusy;
       resendOtp.disabled = isBusy || resendSeconds > 0;
-      registerButtonLabel.textContent = isBusy ? label : (pendingAccount ? "Verify OTP & Create Account" : "Send OTP");
+      registerButtonLabel.textContent = isBusy ? label : (pendingAccount ? "Verify Authenticator & Create Account" : "Set Up Authenticator");
     }
 
     function startResendCountdown(seconds) {
@@ -519,7 +447,7 @@
     function updateResendButton() {
       const coolingDown = resendSeconds > 0;
       resendOtp.disabled = coolingDown;
-      resendOtpLabel.textContent = coolingDown ? `Resend OTP in ${resendSeconds}s` : "Resend OTP";
+      resendOtpLabel.textContent = coolingDown ? `Generate New QR in ${resendSeconds}s` : "Generate New QR";
       resendOtp.classList.toggle("opacity-60", coolingDown);
       resendOtp.classList.toggle("cursor-not-allowed", coolingDown);
     }
@@ -540,7 +468,6 @@
       const formData = new FormData(registerForm);
       const fullName = formData.get("fullName").trim();
       updateRegNumberValue();
-      const regSuffix = (regNumberSuffixInput.value || "").trim();
       const regNumber = formData.get("regNumber").trim().toUpperCase();
       const email = formData.get("email").trim().toLowerCase();
       const password = formData.get("password");
@@ -548,9 +475,9 @@
       const accounts = getAccounts();
 
       if (!pendingAccount) {
-        if (!/^\d{3}$/.test(regSuffix)) {
-          showMessage("Enter the last three digits of your registration number, for example 001.", true);
-          regNumberSuffixInput.focus();
+        if (!regNumber) {
+          showMessage("Enter your full registration number, for example 25/EG/EE/001.", true);
+          regNumberInput.focus();
           return;
         }
 
@@ -585,16 +512,18 @@
       }
 
       if (!otpCode) {
-        showMessage("Enter the OTP sent to your email.", true);
+        showMessage("Enter the 6-digit Google Authenticator code.", true);
         return;
       }
 
       try {
-        setBusy(true, "Verifying OTP...");
-        await postJson("/api/verify-registration-otp", {
+        setBusy(true, "Verifying Authenticator...");
+        const verification = await postJson("/api/verify-registration-totp", {
           email: pendingAccount.email,
-          otp: otpCode
+          code: otpCode
         });
+        pendingAccount.totpSecret = verification.totpSecret;
+        pendingAccount.totpEnabled = true;
       } catch (error) {
         setBusy(false);
         showMessage(error.message, true);
@@ -627,7 +556,7 @@
       localStorage.setItem("geoAttendCurrentUser", pendingAccount.email);
       localStorage.setItem("geoAttendRole", pendingAccount.role);
       localStorage.setItem("geoAttendView", "student");
-      showMessage("Account verified and created. Opening identity verification...");
+      showMessage("Authenticator verified and account created. Opening identity verification...");
 
       setTimeout(() => {
         window.location.href = "identity-verification.html";
@@ -636,6 +565,12 @@
   </script>
 </body>
 </html>
+
+
+
+
+
+
 
 
 

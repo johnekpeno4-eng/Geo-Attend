@@ -957,7 +957,6 @@
     function normalizeStudentRegNumber(value) {
       const raw = String(value || "").trim().toUpperCase();
       if (!raw) return "";
-      if (/^\d{1,3}$/.test(raw)) return `25/EG/EE/${raw.padStart(3, "0")}`;
       return raw;
     }
 
@@ -1893,5 +1892,6 @@
   </script>
 </body>
 </html>
+
 
 
