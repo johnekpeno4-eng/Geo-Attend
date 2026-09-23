@@ -3,825 +3,140 @@
 <head>
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-  <title>GeoAttend | Identity Verification</title>
+  <title>GeoAttend - Attendance PIN</title>
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-  <script src="role-access.js" defer></script>
-  <link rel="stylesheet" href="mobile-student.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
   <script>
     tailwind.config = {
       theme: {
         extend: {
-          colors: {
-            background: "#f8f9ff",
-            surface: "#ffffff",
-            panel: "#eff4ff",
-            ink: "#0b1c30",
-            muted: "#45464d",
-            outline: "#c6c6cd",
-            primary: "#000000",
-            secondary: "#0058be",
-            accent: "#4cd7f6"
-          },
-          fontFamily: {
-            sans: ["Inter", "sans-serif"],
-            mono: ["JetBrains Mono", "monospace"]
-          }
+          colors: { surface: "#ffffff", panel: "#eff4ff", ink: "#0b1c30", muted: "#45464d", outline: "#c6c6cd", primary: "#000000", secondary: "#0058be", accent: "#4cd7f6" },
+          fontFamily: { sans: ["Inter", "sans-serif"] }
         }
       }
     };
   </script>
-  <style>
-    body { font-family: Inter, sans-serif; }
-    .material-symbols-outlined { font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24; }
-    .scan-line {
-      position: absolute;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, #4cd7f6, transparent);
-      animation: scan 2.4s linear infinite;
-    }
-    @keyframes scan {
-      0% { top: 8%; opacity: 0; }
-      20% { opacity: 1; }
-      100% { top: 92%; opacity: 0; }
-    }
-  </style>
 </head>
-<body class="bg-background text-ink min-h-screen">
-  <header class="sticky top-0 z-40 bg-background/90 backdrop-blur border-b border-outline px-4 py-3">
-    <div class="max-w-5xl mx-auto flex items-center justify-between">
-      <a class="font-extrabold text-lg" href="register.html">GeoAttend</a>
-      <span class="text-xs font-bold uppercase tracking-widest text-secondary">Identity Setup</span>
-    </div>
-  </header>
-
-  <main class="max-w-5xl mx-auto px-4 py-6 md:py-10">
-    <section class="grid gap-6 lg:grid-cols-[0.9fr_1.1fr] items-start">
-      <div class="bg-primary text-white rounded-3xl p-6 md:p-8 overflow-hidden relative">
-        <div class="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_right,#4cd7f6,transparent_40%)]"></div>
-        <div class="relative">
-          <p class="text-xs font-bold uppercase tracking-widest text-accent">Step 2 of 2</p>
-          <h1 class="mt-3 text-3xl md:text-5xl font-extrabold leading-tight">Choose one verification method</h1>
-          <p class="mt-4 text-white/75">Choose Face ID, device biometric, or attendance PIN. Complete only one method before entering the student check-in interface.</p>
-        </div>
-        <div class="relative mt-8 grid gap-3 text-sm text-white/80">
-          <p class="flex gap-2"><span class="material-symbols-outlined text-accent">face</span> Liveness checks reduce fake account risk.</p>
-          <p class="flex gap-2"><span class="material-symbols-outlined text-accent">fingerprint</span> Stored profile is used by the prototype check-in flow.</p>
-        </div>
+<body class="min-h-screen bg-[#f8f9ff] text-ink font-sans" data-role-required="student">
+  <script src="role-access.js"></script>
+  <main class="mx-auto grid min-h-screen w-full max-w-6xl items-center gap-6 p-6 lg:grid-cols-[0.9fr_1.1fr]">
+    <section class="relative overflow-hidden rounded-3xl bg-[#131b2e] p-8 text-white shadow-2xl lg:min-h-[620px] lg:p-12">
+      <div class="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_right,#4cd7f6,transparent_40%)]"></div>
+      <div class="relative">
+        <p class="text-xs font-bold uppercase tracking-widest text-accent">Step 2 of 2</p>
+        <h1 class="mt-3 text-3xl font-extrabold leading-tight md:text-5xl">Set your attendance PIN</h1>
+        <p class="mt-4 text-white/75">Create a private 4-digit PIN. This PIN is required every time you check in for attendance.</p>
       </div>
-
-      <div class="space-y-5">
-        <div class="grid grid-cols-2 gap-2 rounded-2xl bg-panel p-2 border border-outline">
-          <button class="verification-tab rounded-xl bg-primary text-white px-4 py-3 font-bold flex items-center justify-center gap-2" data-target="face-panel" type="button">
-            <span class="material-symbols-outlined text-[20px]">face</span>
-            Face ID
-          </button>
-          <button class="verification-tab rounded-xl px-4 py-3 font-bold flex items-center justify-center gap-2 text-muted" data-target="biometric-panel" type="button">
-            <span class="material-symbols-outlined text-[20px]">fingerprint</span>
-            Biometrics
-          </button>
-        </div>
-
-        <section class="verification-panel bg-surface border border-outline rounded-3xl p-5 md:p-6 shadow-sm" id="face-panel">
-          <div class="flex items-center justify-between gap-4">
-            <div>
-              <p class="text-xs font-bold uppercase tracking-widest text-secondary">Face ID Verification</p>
-              <h2 class="text-2xl font-extrabold mt-1">Confirm a live student</h2>
-            </div>
-            <span class="material-symbols-outlined text-secondary text-4xl">center_focus_strong</span>
-          </div>
-
-          <div class="relative mt-5 aspect-square max-w-[320px] mx-auto rounded-full bg-[#131b2e] overflow-hidden border-4 border-secondary">
-            <video class="w-full h-full object-cover scale-x-[-1]" id="camera-preview" autoplay playsinline muted></video>
-            <div class="absolute inset-0 grid place-items-center bg-[#131b2e] text-white p-6 text-center" id="camera-placeholder">
-              <div>
-                <span class="material-symbols-outlined text-5xl text-accent">photo_camera_front</span>
-                <p class="mt-2 text-sm text-white/70">Start your front camera to continue.</p>
-              </div>
-            </div>
-            <div class="scan-line"></div>
-            <div class="absolute inset-8 rounded-full border-2 border-dashed border-accent/70"></div>
-          </div>
-          <canvas class="hidden" id="face-canvas" width="320" height="320"></canvas>
-
-          <button class="mt-5 w-full rounded-2xl bg-primary text-white px-4 py-3 font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform" id="start-camera" type="button">
-            <span class="material-symbols-outlined">photo_camera_front</span>
-            Start Front Camera
-          </button>
-
-          <div class="mt-5 rounded-3xl border border-outline bg-panel p-4">
-            <div class="flex items-center justify-between gap-3">
-              <div>
-                <p class="text-xs font-bold uppercase tracking-widest text-secondary">Current Face ID Stage</p>
-                <h3 class="text-2xl font-extrabold" id="liveness-prompt">Blink</h3>
-              </div>
-              <span class="rounded-full bg-white px-3 py-1 text-xs font-bold text-muted" id="liveness-progress">1 of 4</span>
-            </div>
-          <p class="mt-2 text-sm text-muted" id="liveness-instruction">Blink once. The next stage will capture automatically.</p>
-          <button class="mt-4 w-full rounded-2xl border border-outline bg-white px-4 py-3 font-bold hover:border-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed" id="capture-current-stage" type="button" disabled>
-              Auto Capture Ready
-          </button>
-          </div>
-
-          <div class="grid grid-cols-3 gap-2 mt-4 text-center text-xs font-bold text-muted">
-            <div class="rounded-2xl bg-panel p-3" id="step-pill-blink">Blink</div>
-            <div class="rounded-2xl bg-panel p-3" id="step-pill-turn">Turn</div>
-            <div class="rounded-2xl bg-panel p-3" id="step-pill-smile">Smile</div>
-          </div>
-
-          <button class="mt-4 w-full border border-secondary text-secondary rounded-2xl px-4 py-3 font-bold flex items-center justify-center gap-2 hover:bg-blue-50 transition-colors" data-switch-to="biometric-panel" type="button">
-            Switch to Biometrics
-            <span class="material-symbols-outlined text-[20px]">arrow_forward</span>
-          </button>
-        </section>
-
-        <section class="verification-panel hidden bg-surface border border-outline rounded-3xl p-5 md:p-6 shadow-sm" id="biometric-panel">
-          <div class="flex items-center justify-between gap-4">
-            <div>
-              <p class="text-xs font-bold uppercase tracking-widest text-secondary">Biometric Verification</p>
-              <h2 class="text-2xl font-extrabold mt-1">Choose one login security</h2>
-            </div>
-            <span class="material-symbols-outlined text-secondary text-4xl">fingerprint</span>
-          </div>
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5">
-            <button class="biometric-action rounded-2xl bg-panel border border-outline p-5 text-left hover:border-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed" data-type="face" type="button" disabled>
-              <span class="material-symbols-outlined text-secondary text-4xl">face</span>
-              <strong class="block mt-3">Face Template</strong>
-              <span class="text-sm text-muted">Capture from the front camera.</span>
-            </button>
-            <button class="rounded-2xl bg-panel border border-outline p-5 text-left hover:border-secondary transition-colors" id="enroll-device-biometric" type="button">
-              <span class="material-symbols-outlined text-secondary text-4xl">fingerprint</span>
-              <strong class="block mt-3">Device Biometric</strong>
-              <span class="text-sm text-muted" id="device-biometric-copy">Tap once to open the security method supported by this phone.</span>
-            </button>
-            <button class="rounded-2xl bg-panel border border-outline p-5 text-left hover:border-secondary transition-colors" id="choose-attendance-pin" type="button">
-              <span class="material-symbols-outlined text-secondary text-4xl">pin</span>
-              <strong class="block mt-3">Attendance PIN</strong>
-              <span class="text-sm text-muted">Set a private PIN you can use to check in.</span>
-            </button>
-          </div>
-
-          <div class="hidden mt-5 rounded-3xl border border-outline bg-panel p-5" id="attendance-pin-panel">
-            <label class="block">
-              <span class="text-xs font-bold uppercase tracking-widest text-muted">Set Attendance PIN</span>
-              <div class="relative mt-2"><input class="w-full rounded-2xl border border-outline bg-white px-4 py-3 pr-14 text-lg outline-none focus:border-secondary focus:ring-4 focus:ring-blue-100" id="attendance-pin" inputmode="numeric" maxlength="8" minlength="4" placeholder="Enter 4-8 digit PIN" type="password" /><button class="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl text-muted hover:bg-blue-50 hover:text-secondary" type="button" data-toggle-password="#attendance-pin" aria-label="Show attendance PIN"><span class="material-symbols-outlined">visibility</span></button></div>
-            </label>
-            <label class="block mt-3">
-              <span class="text-xs font-bold uppercase tracking-widest text-muted">Confirm PIN</span>
-              <div class="relative mt-2"><input class="w-full rounded-2xl border border-outline bg-white px-4 py-3 pr-14 text-lg outline-none focus:border-secondary focus:ring-4 focus:ring-blue-100" id="attendance-pin-confirm" inputmode="numeric" maxlength="8" minlength="4" placeholder="Confirm PIN" type="password" /><button class="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl text-muted hover:bg-blue-50 hover:text-secondary" type="button" data-toggle-password="#attendance-pin-confirm" aria-label="Show confirm PIN"><span class="material-symbols-outlined">visibility</span></button></div>
-            </label>
-            <button class="mt-4 w-full rounded-2xl bg-primary px-4 py-3 font-bold text-white active:scale-[0.98] transition-transform" id="save-attendance-pin" type="button">
-              Save PIN for Check-in
-            </button>
-          </div>
-
-          <div class="mt-5 rounded-3xl bg-[#131b2e] p-6 text-white text-center overflow-hidden relative" id="biometric-capture-pad">
-            <div class="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_center,#4cd7f6,transparent_45%)]"></div>
-            <div class="relative">
-              <button class="mx-auto grid h-28 w-28 place-items-center rounded-full border-4 border-accent/60 bg-white/10 text-accent active:scale-95 transition-transform" id="biometric-pad-button" type="button" aria-label="Start biometric verification">
-                <span class="material-symbols-outlined text-6xl">fingerprint</span>
-              </button>
-              <h3 class="mt-4 text-xl font-extrabold" id="biometric-pad-title">Touch device sensor</h3>
-              <p class="mt-1 text-sm text-white/70" id="biometric-pad-copy">Tap the pad and the device prompt opens immediately.</p>
-            </div>
-          </div>
-
-          <button class="mt-4 w-full border border-secondary text-secondary rounded-2xl px-4 py-3 font-bold flex items-center justify-center gap-2 hover:bg-blue-50 transition-colors" data-switch-to="face-panel" type="button">
-            <span class="material-symbols-outlined text-[20px]">arrow_back</span>
-            Switch to Face ID
-          </button>
-        </section>
-
-        <section class="bg-surface border border-outline rounded-3xl p-5 md:p-6 shadow-sm">
-          <div class="flex items-center justify-between gap-3 mb-4">
-            <h2 class="text-xl font-extrabold">Verification status</h2>
-            <span class="text-xs font-mono text-muted" id="profile-owner">No user</span>
-          </div>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-            <div class="rounded-2xl bg-panel p-3"><span class="block text-muted">Blink</span><strong id="status-blink">Pending</strong></div>
-            <div class="rounded-2xl bg-panel p-3"><span class="block text-muted">Turn</span><strong id="status-turn">Pending</strong></div>
-            <div class="rounded-2xl bg-panel p-3"><span class="block text-muted">Smile</span><strong id="status-smile">Pending</strong></div>
-            <div class="rounded-2xl bg-panel p-3"><span class="block text-muted">Device</span><strong id="status-biometric">Pending</strong></div>
-          </div>
-          <div class="hidden mt-5 rounded-3xl bg-green-50 border border-green-200 p-5 text-green-700" id="success-panel">
-            <div class="flex items-start gap-3">
-              <span class="material-symbols-outlined text-4xl" style="font-variation-settings:'FILL' 1;">verified_user</span>
-              <div>
-                <h3 class="text-xl font-extrabold">Verification Successful</h3>
-                <p class="mt-1 text-sm">Your selected login security is complete. You can now continue to student check-in.</p>
-              </div>
-            </div>
-          </div>
-          <p class="hidden mt-4 rounded-2xl px-4 py-3 text-sm" id="verification-message"></p>
-          <button class="mt-5 w-full bg-primary text-white rounded-2xl py-4 font-extrabold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2" id="finish-verification" disabled type="button">
-            Finish and Continue
-            <span class="material-symbols-outlined">arrow_forward</span>
-          </button>
-        </section>
+      <div class="relative mt-8 grid gap-3 text-sm text-white/80">
+        <p class="flex gap-2"><span class="material-symbols-outlined text-accent">pin</span> Your PIN confirms attendance check-in.</p>
+        <p class="flex gap-2"><span class="material-symbols-outlined text-accent">lock</span> Use exactly 4 digits and keep it private.</p>
       </div>
+    </section>
+
+    <section class="rounded-3xl border border-outline bg-surface p-6 shadow-xl md:p-8">
+      <p class="text-xs font-bold uppercase tracking-widest text-secondary">Attendance Security</p>
+      <h2 class="mt-2 text-3xl font-extrabold">Create 4-digit PIN</h2>
+      <p class="mt-2 text-muted">Attendance check-in will request this PIN only.</p>
+      <p class="mt-3 rounded-2xl bg-panel px-4 py-3 text-sm font-mono text-muted" id="profile-owner">Loading...</p>
+
+      <form class="mt-6 grid gap-4" id="pin-form">
+        <label class="block">
+          <span class="text-xs font-bold uppercase tracking-widest text-muted">Attendance PIN</span>
+          <div class="relative mt-2">
+            <input class="w-full rounded-2xl border border-outline bg-white px-4 py-4 pr-14 text-lg tracking-widest outline-none focus:border-secondary focus:ring-4 focus:ring-blue-100" id="attendance-pin" inputmode="numeric" maxlength="4" minlength="4" placeholder="0000" type="password" autocomplete="off" />
+            <button class="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl text-muted hover:bg-blue-50 hover:text-secondary" type="button" data-toggle-password="#attendance-pin" aria-label="Show attendance PIN"><span class="material-symbols-outlined">visibility</span></button>
+          </div>
+        </label>
+        <label class="block">
+          <span class="text-xs font-bold uppercase tracking-widest text-muted">Confirm PIN</span>
+          <div class="relative mt-2">
+            <input class="w-full rounded-2xl border border-outline bg-white px-4 py-4 pr-14 text-lg tracking-widest outline-none focus:border-secondary focus:ring-4 focus:ring-blue-100" id="attendance-pin-confirm" inputmode="numeric" maxlength="4" minlength="4" placeholder="0000" type="password" autocomplete="off" />
+            <button class="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl text-muted hover:bg-blue-50 hover:text-secondary" type="button" data-toggle-password="#attendance-pin-confirm" aria-label="Show confirm PIN"><span class="material-symbols-outlined">visibility</span></button>
+          </div>
+        </label>
+        <button class="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-4 font-extrabold text-white active:scale-[0.98]" type="submit" id="save-pin-button">
+          Save PIN and Continue
+          <span class="material-symbols-outlined">arrow_forward</span>
+        </button>
+      </form>
+      <p class="mt-4 hidden rounded-2xl px-4 py-3 text-sm font-bold" id="pin-message"></p>
     </section>
   </main>
 
   <script>
     const currentUser = localStorage.getItem("geoAttendCurrentUser");
-    const liveness = { blink: false, turn: false, smile: false };
-    const biometric = { face: false, platformAuthenticator: false, pin: false };
-    const captures = {};
-    let mediaStream = null;
-    let platformCredential = null;
-    let attendancePinHash = null;
-    let checkinAuthMethod = "";
-    let saveStarted = false;
-    let autoRedirectTimer = null;
-    let livenessStageIndex = 0;
-    let autoCaptureRunning = false;
-    let autoCaptureTimer = null;
-    const livenessStages = [
-      { key: "blink", label: "Blink", instruction: "Blink once. Auto capture starts in a moment." },
-      { key: "turn", label: "Turn Head", instruction: "Turn your head slightly. Auto capture continues." },
-      { key: "smile", label: "Smile", instruction: "Smile clearly. This final Face ID capture opens biometrics next." }
-    ];
-    const message = document.getElementById("verification-message");
-    const finishButton = document.getElementById("finish-verification");
-    const successPanel = document.getElementById("success-panel");
-    const video = document.getElementById("camera-preview");
-    const canvas = document.getElementById("face-canvas");
-    const cameraPlaceholder = document.getElementById("camera-placeholder");
-    const startCameraButton = document.getElementById("start-camera");
-    const deviceBiometricButton = document.getElementById("enroll-device-biometric");
-    const biometricPadButton = document.getElementById("biometric-pad-button");
-    const biometricPadTitle = document.getElementById("biometric-pad-title");
-    const biometricPadCopy = document.getElementById("biometric-pad-copy");
-    const chooseAttendancePinButton = document.getElementById("choose-attendance-pin");
-    const attendancePinPanel = document.getElementById("attendance-pin-panel");
-    const attendancePinInput = document.getElementById("attendance-pin");
-    const attendancePinConfirmInput = document.getElementById("attendance-pin-confirm");
-    const saveAttendancePinButton = document.getElementById("save-attendance-pin");
-    const captureCurrentStageButton = document.getElementById("capture-current-stage");
-    const livenessPrompt = document.getElementById("liveness-prompt");
-    const livenessInstruction = document.getElementById("liveness-instruction");
-    const livenessProgress = document.getElementById("liveness-progress");
-    const deviceBiometricCopy = document.getElementById("device-biometric-copy");
+    const message = document.getElementById("pin-message");
+    const owner = document.getElementById("profile-owner");
+    if (!currentUser) window.location.href = "register.html";
+    if (owner) owner.textContent = currentUser || "No user";
 
-    function detectDeviceSecurityLabel() {
-      const ua = navigator.userAgent || "";
-      const platform = navigator.platform || "";
-      const isApple = /iPhone|iPad|iPod|Mac/i.test(ua + " " + platform);
-      const isAndroid = /Android/i.test(ua);
-      if (isApple) return "Face ID / Touch ID";
-      if (isAndroid) return "Fingerprint / device biometric";
-      return "Device biometric";
-    }
-    function getWebAuthnOriginIssue() {
-      const host = window.location.hostname;
-      const isLocalhost = host === "localhost" || host === "127.0.0.1" || host === "::1";
-      if (window.isSecureContext || isLocalhost) return "";
-      return "Device biometric needs HTTPS or localhost. If you opened GeoAttend from a phone using your laptop IP address, use Face ID camera/PIN for now, or host the site on an HTTPS domain.";
-    }
-
-    async function updateDeviceBiometricAvailability() {
-      const label = detectDeviceSecurityLabel();
-      const originIssue = getWebAuthnOriginIssue();
-      if (deviceBiometricCopy) deviceBiometricCopy.textContent = originIssue || `Tap once to open ${label} if this device supports it.`;
-      if (biometricPadTitle) biometricPadTitle.textContent = label;
-      if (originIssue) {
-        deviceBiometricButton.disabled = true;
-        biometricPadButton.disabled = true;
-        if (biometricPadCopy) biometricPadCopy.textContent = "Use Face ID camera capture or set an attendance PIN on this connection.";
-        return;
-      }
-      if (!window.PublicKeyCredential || !PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) return;
-      const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().catch(() => false);
-      if (!available) {
-        deviceBiometricButton.disabled = true;
-        biometricPadButton.disabled = true;
-        if (deviceBiometricCopy) deviceBiometricCopy.textContent = "No supported phone biometric was detected. Use Face ID camera capture or set a PIN.";
-        if (biometricPadCopy) biometricPadCopy.textContent = "This browser/device cannot open a biometric prompt.";
-      }
-    }
-
-    if (!currentUser) {
-      window.location.href = "register.html";
-    }
-
-    document.getElementById("profile-owner").textContent = currentUser || "No user";
-
-    function markStatus(id, done) {
-      const el = document.getElementById(id);
-      el.textContent = done ? "Done" : "Pending";
-      el.className = done ? "text-green-600" : "text-ink";
-    }
-
-    function showMessage(text, error = false) {
+    function showMessage(text, isError = false) {
       message.textContent = text;
-      message.className = `mt-4 rounded-2xl px-4 py-3 text-sm ${error ? "bg-red-50 text-red-700" : "bg-blue-50 text-secondary"}`;
+      message.className = `mt-4 rounded-2xl px-4 py-3 text-sm font-bold ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-green-50 text-green-700 border border-green-200"}`;
     }
-
-    function base64UrlToBuffer(value) {
-      const padding = "=".repeat((4 - value.length % 4) % 4);
-      const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
-      const binary = atob(base64);
-      const bytes = new Uint8Array(binary.length);
-      for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-      return bytes.buffer;
-    }
-
     function bufferToBase64Url(buffer) {
       const bytes = new Uint8Array(buffer);
       let binary = "";
-      bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+      bytes.forEach((byte) => binary += String.fromCharCode(byte));
       return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
     }
-
-    function publicKeyCredentialToJSON(credential) {
-      return {
-        id: credential.id,
-        rawId: bufferToBase64Url(credential.rawId),
-        type: credential.type,
-        response: {
-          attestationObject: credential.response.attestationObject ? bufferToBase64Url(credential.response.attestationObject) : undefined,
-          authenticatorData: credential.response.authenticatorData ? bufferToBase64Url(credential.response.authenticatorData) : undefined,
-          clientDataJSON: bufferToBase64Url(credential.response.clientDataJSON),
-          signature: credential.response.signature ? bufferToBase64Url(credential.response.signature) : undefined,
-          userHandle: credential.response.userHandle ? bufferToBase64Url(credential.response.userHandle) : undefined
-        },
-        clientExtensionResults: credential.getClientExtensionResults ? credential.getClientExtensionResults() : {}
-      };
-    }
-
-    function prepareCreationOptions(options) {
-      return {
-        ...options,
-        challenge: base64UrlToBuffer(options.challenge),
-        user: { ...options.user, id: base64UrlToBuffer(options.user.id) },
-        excludeCredentials: (options.excludeCredentials || []).map((item) => ({ ...item, id: base64UrlToBuffer(item.id) }))
-      };
-    }
-    async function postJson(url, payload) {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "Unable to save verification profile.");
-      return data;
-    }
-
-    function faceIdComplete() {
-      return liveness.blink && liveness.turn && liveness.smile;
-    }
-
-    function biometricComplete() {
-      return biometric.platformAuthenticator || biometric.pin;
-    }
-
-    function verificationComplete() {
-      return faceIdComplete() || biometricComplete();
-    }
-
-    function updateState() {
-      markStatus("status-blink", liveness.blink);
-      markStatus("status-turn", liveness.turn);
-      markStatus("status-smile", liveness.smile);
-      markStatus("status-biometric", biometricComplete());
-      const complete = verificationComplete();
-      finishButton.disabled = !complete;
-      finishButton.innerHTML = complete
-        ? 'Continue to Student Check-in <span class="material-symbols-outlined">arrow_forward</span>'
-        : 'Finish and Continue <span class="material-symbols-outlined">arrow_forward</span>';
-      finishButton.classList.toggle("bg-primary", complete);
-      finishButton.classList.toggle("bg-gray-500", !complete);
-      successPanel.classList.toggle("hidden", !complete);
-      if (complete) {
-        showMessage("Successful. Your selected login security is complete. Saving your profile...");
-        queueAutoSaveAndContinue();
-      }
-      updateStageUi();
-      updateBiometricPad();
-    }
-
-    function queueAutoSaveAndContinue() {
-      if (saveStarted || autoRedirectTimer) return;
-      autoRedirectTimer = setTimeout(() => {
-        saveVerificationAndContinue();
-      }, 700);
-    }
-
-    function updateStageUi() {
-      const stage = livenessStages[Math.min(livenessStageIndex, livenessStages.length - 1)];
-      livenessPrompt.textContent = faceIdComplete() ? "Face ID Complete" : stage.label;
-      livenessInstruction.textContent = faceIdComplete()
-        ? "Face ID is complete. You can finish now or switch to device biometric/PIN instead."
-        : stage.instruction;
-      livenessProgress.textContent = `${Math.min(livenessStageIndex + 1, livenessStages.length)} of ${livenessStages.length}`;
-      captureCurrentStageButton.textContent = faceIdComplete()
-        ? "Face ID Captured"
-        : autoCaptureRunning ? `Auto capturing ${stage.label}...` : `Auto Capture ${stage.label}`;
-      captureCurrentStageButton.disabled = !mediaStream || faceIdComplete() || autoCaptureRunning;
-
-      ["blink", "turn", "smile"].forEach((key) => {
-        const pill = document.getElementById(`step-pill-${key}`);
-        pill.classList.toggle("bg-green-100", Boolean(liveness[key]));
-        pill.classList.toggle("text-green-700", Boolean(liveness[key]));
-      });
-    }
-
-    function updateBiometricPad() {
-      if (biometricComplete()) {
-        biometricPadTitle.textContent = biometric.pin ? "PIN Saved" : "Biometric Captured";
-        biometricPadCopy.textContent = biometric.pin ? "Attendance PIN is ready for check-in." : "Device biometric verification is successful.";
-        biometricPadButton.classList.add("border-green-300", "text-green-300");
-        biometricPadButton.innerHTML = '<span class="material-symbols-outlined text-6xl">check_circle</span>';
-      }
-    }
-
-    function showPanel(targetId) {
-      document.querySelectorAll(".verification-panel").forEach((panel) => {
-        panel.classList.toggle("hidden", panel.id !== targetId);
-      });
-      document.querySelectorAll(".verification-tab").forEach((tab) => {
-        const active = tab.dataset.target === targetId;
-        tab.classList.toggle("bg-primary", active);
-        tab.classList.toggle("text-white", active);
-        tab.classList.toggle("text-muted", !active);
-      });
-    }
-
-    function setCaptureButtonsEnabled(enabled) {
-      document.querySelectorAll(".biometric-action").forEach((button) => {
-        button.disabled = !enabled;
-      });
-      captureCurrentStageButton.disabled = !enabled || faceIdComplete();
-    }
-
-    async function startCamera() {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        showMessage("This browser does not support camera capture. Use Chrome, Edge, Safari, or Firefox on a device with a front camera.", true);
-        return;
-      }
-
-      try {
-        mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: "user",
-            width: { ideal: 720 },
-            height: { ideal: 720 }
-          },
-          audio: false
-        });
-        video.srcObject = mediaStream;
-        cameraPlaceholder.classList.add("hidden");
-        startCameraButton.innerHTML = '<span class="material-symbols-outlined">check_circle</span> Front Camera Active';
-        startCameraButton.disabled = true;
-        startCameraButton.classList.add("opacity-80");
-        setCaptureButtonsEnabled(true);
-        showMessage("Front camera is active. Face ID will capture each stage automatically.");
-        queueAutoFaceCapture(900);
-      } catch (error) {
-        showMessage("Camera permission was denied or no front camera was found.", true);
-      }
-    }
-
-    async function captureFaceFrame(label) {
-      if (!mediaStream || video.readyState < 2) {
-        showMessage("Start the front camera before capturing.", true);
-        return null;
-      }
-
-      const context = canvas.getContext("2d");
-      context.save();
-      context.translate(canvas.width, 0);
-      context.scale(-1, 1);
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      context.restore();
-
-      const image = canvas.toDataURL("image/jpeg", 0.72);
-      try {
-        const hash = await computeFaceHash(image);
-        captures[label] = {
-          image,
-          hash,
-          capturedAt: new Date().toISOString()
-        };
-        return image;
-      } catch (error) {
-        showMessage(error.message || "Unable to process the face capture.", true);
-        return null;
-      }
-    }
-
-
     async function hashAttendancePin(pin) {
       const bytes = new TextEncoder().encode(`${currentUser}:${pin}`);
       const hash = await crypto.subtle.digest("SHA-256", bytes);
       return bufferToBase64Url(hash);
     }
-
-    function loadImageFromDataUrl(dataUrl) {
-      return new Promise((resolve, reject) => {
-        const image = new Image();
-        image.onload = () => resolve(image);
-        image.onerror = () => reject(new Error("Unable to process face capture."));
-        image.src = dataUrl;
-      });
+    async function postJson(url, payload) {
+      const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Unable to complete request.");
+      return data;
     }
-
-    async function computeFaceHash(dataUrl) {
-      const image = await loadImageFromDataUrl(dataUrl);
-      const hashCanvas = document.createElement("canvas");
-      const size = 8;
-      hashCanvas.width = size;
-      hashCanvas.height = size;
-      const context = hashCanvas.getContext("2d", { willReadFrequently: true });
-      context.drawImage(image, 0, 0, size, size);
-      const pixels = context.getImageData(0, 0, size, size).data;
-      const brightness = [];
-      let total = 0;
-
-      for (let index = 0; index < pixels.length; index += 4) {
-        const gray = Math.round(pixels[index] * 0.299 + pixels[index + 1] * 0.587 + pixels[index + 2] * 0.114);
-        brightness.push(gray);
-        total += gray;
-      }
-
-      const average = total / brightness.length;
-      return brightness.map((value) => (value >= average ? "1" : "0")).join("");
-    }
-
-    function hammingDistance(a, b) {
-      const length = Math.min(a.length, b.length);
-      let distance = Math.abs(a.length - b.length);
-      for (let index = 0; index < length; index += 1) {
-        if (a[index] !== b[index]) distance += 1;
-      }
-      return distance;
-    }
-
-    async function enrollPlatformBiometric() {
-      if (biometricComplete() || saveStarted) return;
-      const originIssue = getWebAuthnOriginIssue();
-      if (originIssue) {
-        showMessage(originIssue, true);
-        return;
-      }
-      if (!window.PublicKeyCredential || !navigator.credentials?.create) {
-        showMessage("Device biometric enrollment is not supported on this browser.", true);
-        return;
-      }
-
-      const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().catch(() => false);
-      if (!available) {
-        showMessage("No built-in biometric authenticator was found. Set up fingerprint, Face ID, Windows Hello, or screen lock on this device first.", true);
-        return;
-      }
-
-      try {
-        deviceBiometricButton.disabled = true;
-        biometricPadButton.disabled = true;
-        biometricPadTitle.textContent = "Opening device prompt";
-        biometricPadCopy.textContent = "Confirm the phone biometric, Face ID, fingerprint, or screen-lock prompt on this device.";
-        const optionsResult = await postJson("/api/webauthn/register-options", { email: currentUser });
-        const credential = await navigator.credentials.create({ publicKey: prepareCreationOptions(optionsResult.options) });
-        const verified = await postJson("/api/webauthn/register-verify", {
-          email: currentUser,
-          response: publicKeyCredentialToJSON(credential)
-        });
-
-        platformCredential = {
-          id: credential.id,
-          rawId: bufferToBase64Url(credential.rawId),
-          type: credential.type,
-          capturedAt: new Date().toISOString(),
-          authenticator: "platform",
-          webauthnCredential: verified.credential
-        };
-        biometric.platformAuthenticator = true;
-        biometric.face = false;
-        biometric.pin = false;
-        attendancePinHash = null;
-        checkinAuthMethod = "biometric";
-        deviceBiometricButton.classList.add("border-secondary", "ring-4", "ring-blue-100");
-        chooseAttendancePinButton?.classList.remove("border-secondary", "ring-4", "ring-blue-100");
-        showMessage(`${detectDeviceSecurityLabel()} verified and saved for login.`);
-        updateState();
-      } catch (error) {
-        deviceBiometricButton.disabled = false;
-        biometricPadButton.disabled = false;
-        biometricPadTitle.textContent = detectDeviceSecurityLabel();
-        biometricPadCopy.textContent = "Tap the pad and the device prompt opens immediately.";
-        const browserMessage = String(error?.message || "");
-        const friendlyMessage = /relying party|rp id|registrable domain|current domain|well-known\/webauthn/i.test(browserMessage)
-          ? "Device biometric cannot run from this address. Open GeoAttend on HTTPS with a real domain, use localhost on this same device, or choose Face ID camera/PIN."
-          : browserMessage || "Biometric verification was cancelled or failed. Try again.";
-        showMessage(friendlyMessage, true);
-      }
-    }
-
-    startCameraButton.addEventListener("click", startCamera);
-
-    document.querySelectorAll(".verification-tab").forEach((tab) => {
-      tab.addEventListener("click", () => showPanel(tab.dataset.target));
-    });
-
-    document.querySelectorAll("[data-switch-to]").forEach((button) => {
-      button.addEventListener("click", () => showPanel(button.dataset.switchTo));
-    });
-
-    function queueAutoFaceCapture(delay = 1200) {
-      window.clearTimeout(autoCaptureTimer);
-      if (!mediaStream || faceIdComplete() || autoCaptureRunning) return;
-      autoCaptureTimer = window.setTimeout(() => {
-        captureCurrentLivenessStage(true);
-      }, delay);
-      updateStageUi();
-    }
-
-    async function captureCurrentLivenessStage(isAutomatic = false) {
-      const stage = livenessStages[livenessStageIndex];
-      if (!stage || faceIdComplete()) return;
-      if (autoCaptureRunning) return;
-
-      autoCaptureRunning = true;
-      updateStageUi();
-      if (isAutomatic) showMessage(`Auto capturing ${stage.label}. Keep your face in the frame.`);
-
-      const image = await captureFaceFrame(stage.key);
-      if (!image) {
-        autoCaptureRunning = false;
-        updateStageUi();
-        queueAutoFaceCapture(1400);
-        return;
-      }
-
-      liveness[stage.key] = true;
-      if (stage.key === "smile") {
-        biometric.face = true;
-        captures.faceTemplate = {
-          image,
-          capturedAt: new Date().toISOString(),
-          source: "smile-final-face-id-frame"
-        };
-      }
-
-      showMessage(`${stage.label} captured automatically. Moving to the next verification stage.`);
-      livenessStageIndex += 1;
-      autoCaptureRunning = false;
-      updateState();
-
-      if (faceIdComplete() && !biometricComplete()) {
-        checkinAuthMethod = "face";
-        showMessage("Face ID successful. You can finish now or choose device biometric/PIN instead.");
-      } else {
-        queueAutoFaceCapture(1200);
-      }
-    }
-
-    captureCurrentStageButton.addEventListener("click", () => {
-      captureCurrentLivenessStage(false);
-    });
-
-    document.querySelectorAll(".biometric-action").forEach((button) => {
-      button.addEventListener("click", async () => {
-        const image = await captureFaceFrame("faceTemplate");
-        if (!image) return;
-        biometric.face = true;
-        button.classList.add("border-secondary", "ring-4", "ring-blue-100");
-        showMessage("Face template captured from the front camera.");
-        updateState();
-        if (faceIdComplete() && !biometricComplete()) {
-          showMessage("Face ID successful. You can finish now.");
-        }
-      });
-    });
-
-    function bindImmediateBiometricPrompt(button) {
-      if (!button) return;
-      let openedFromPointer = false;
-      button.addEventListener("pointerdown", (event) => {
-        if (event.pointerType === "mouse" && event.button !== 0) return;
-        openedFromPointer = true;
-        enrollPlatformBiometric();
-      });
+    document.querySelectorAll("[data-toggle-password]").forEach((button) => {
       button.addEventListener("click", () => {
-        if (openedFromPointer) {
-          openedFromPointer = false;
-          return;
-        }
-        enrollPlatformBiometric();
+        const input = document.querySelector(button.dataset.togglePassword);
+        if (!input) return;
+        const show = input.type === "password";
+        input.type = show ? "text" : "password";
+        button.querySelector(".material-symbols-outlined").textContent = show ? "visibility_off" : "visibility";
       });
-    }
-
-    bindImmediateBiometricPrompt(deviceBiometricButton);
-    bindImmediateBiometricPrompt(biometricPadButton);
-
-    chooseAttendancePinButton?.addEventListener("click", () => {
-      attendancePinPanel?.classList.toggle("hidden");
-      attendancePinInput?.focus();
     });
-
-    saveAttendancePinButton?.addEventListener("click", async () => {
-      const pin = (attendancePinInput?.value || "").trim();
-      const confirmPin = (attendancePinConfirmInput?.value || "").trim();
-      if (!/^\d{4,8}$/.test(pin)) {
-        showMessage("PIN must be 4 to 8 digits.", true);
-        attendancePinInput?.focus();
+    document.getElementById("pin-form")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const pinInput = document.getElementById("attendance-pin");
+      const confirmInput = document.getElementById("attendance-pin-confirm");
+      const pin = (pinInput.value || "").trim();
+      const confirmPin = (confirmInput.value || "").trim();
+      if (!/^\d{4}$/.test(pin)) {
+        showMessage("PIN must be exactly 4 digits.", true);
+        pinInput.focus();
         return;
       }
       if (pin !== confirmPin) {
         showMessage("PIN confirmation does not match.", true);
-        attendancePinConfirmInput?.focus();
+        confirmInput.focus();
         return;
       }
-
-      attendancePinHash = await hashAttendancePin(pin);
-      biometric.pin = true;
-      biometric.platformAuthenticator = false;
-      platformCredential = null;
-      checkinAuthMethod = "pin";
-      chooseAttendancePinButton.classList.add("border-secondary", "ring-4", "ring-blue-100");
-      deviceBiometricButton?.classList.remove("border-secondary", "ring-4", "ring-blue-100");
-      if (attendancePinInput) attendancePinInput.value = "";
-      if (attendancePinConfirmInput) attendancePinConfirmInput.value = "";
-      attendancePinPanel?.classList.add("hidden");
-      showMessage("Attendance PIN saved. You can use this PIN to check in.");
-      updateState();
-    });
-
-    async function saveVerificationAndContinue() {
-      if (saveStarted) return;
-      if (!verificationComplete()) {
-        showMessage("Choose and complete Face ID, device biometric, or attendance PIN before continuing.", true);
-        updateState();
-        return;
-      }
-      saveStarted = true;
-
-      const profiles = JSON.parse(localStorage.getItem("geoAttendBiometricProfiles") || "{}");
-      const profile = {
-        email: currentUser,
-        liveness,
-        biometric,
-        faceCaptures: captures,
-        platformCredential,
-        checkinAuthMethod: checkinAuthMethod || (biometric.pin ? "pin" : biometric.platformAuthenticator ? "biometric" : "face"),
-        attendancePinHash,
-        faceTemplateHash: captures.faceTemplate?.hash || null,
-        platformCredentialId: platformCredential?.id || null,
-        platformCredentialRawId: platformCredential?.rawId || null,
-        webauthnCredential: platformCredential?.webauthnCredential || null,
-        livenessVerified: faceIdComplete(),
-        biometricVerified: biometricComplete(),
-        identityVerified: true,
-        storedAt: new Date().toISOString(),
-        storageMode: "prototype-localStorage"
-      };
-      profiles[currentUser] = profile;
-      localStorage.setItem("geoAttendBiometricProfiles", JSON.stringify(profiles));
-
-      const accounts = JSON.parse(localStorage.getItem("geoAttendAccounts") || "[]");
-      const updated = accounts.map((account) => account.email === currentUser ? {
-        ...account,
-        livenessVerified: faceIdComplete(),
-        biometricVerified: biometricComplete(),
-        identityVerified: true,
-        checkinAuthMethod: profile.checkinAuthMethod,
-        attendancePinHash,
-        biometricProfileStoredAt: profiles[currentUser].storedAt
-      } : account);
-      localStorage.setItem("geoAttendAccounts", JSON.stringify(updated));
-
-      finishButton.disabled = true;
-      finishButton.innerHTML = 'Saving verification... <span class="material-symbols-outlined">sync</span>';
-
+      const button = document.getElementById("save-pin-button");
+      button.disabled = true;
+      button.textContent = "Saving PIN...";
       try {
-        const saved = await postJson("/api/save-biometric-profile", {
-          ...profile,
-          storageMode: "server-json-prototype"
-        });
-        profiles[currentUser].serverProfileId = saved.profileId;
-        profiles[currentUser].serverSavedAt = saved.savedAt;
+        const attendancePinHash = await hashAttendancePin(pin);
+        const profile = { email: currentUser, security: { pin: true }, biometric: { pin: true }, checkinAuthMethod: "pin", attendancePinHash, livenessVerified: false, pinVerified: true, biometricVerified: true, identityVerified: true, storedAt: new Date().toISOString(), storageMode: "pin-only" };
+        const profiles = JSON.parse(localStorage.getItem("geoAttendBiometricProfiles") || "{}");
+        profiles[currentUser] = profile;
         localStorage.setItem("geoAttendBiometricProfiles", JSON.stringify(profiles));
-        showMessage("Verification saved successfully. Logging you in...");
+        const accounts = JSON.parse(localStorage.getItem("geoAttendAccounts") || "[]");
+        localStorage.setItem("geoAttendAccounts", JSON.stringify(accounts.map((account) => account.email === currentUser ? { ...account, attendancePinHash, checkinAuthMethod: "pin", identityVerified: true, pinVerified: true, biometricVerified: true, biometricProfileStoredAt: profile.storedAt, pinProfileStoredAt: profile.storedAt } : account)));
+        try { await postJson("/api/save-biometric-profile", { ...profile, storageMode: "server-pin-only" }); } catch {}
+        showMessage("Attendance PIN saved. Opening student dashboard...");
+        setTimeout(() => { window.location.href = "student-home.html#active-classes"; }, 700);
       } catch (error) {
-        showMessage(`${error.message} Saved locally on this device for now. Logging you in...`, true);
+        showMessage(error.message || "Unable to save attendance PIN.", true);
+        button.disabled = false;
+        button.innerHTML = 'Save PIN and Continue <span class="material-symbols-outlined">arrow_forward</span>';
       }
-
-      setTimeout(() => {
-        window.location.href = "student-checkin.html";
-      }, 700);
-    }
-
-    finishButton.addEventListener("click", saveVerificationAndContinue);
-
-    updateState();
+    });
   </script>
 </body>
 </html>
-
-
-
-

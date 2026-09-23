@@ -28,45 +28,6 @@
   function saveAccounts(accounts) {
     localStorage.setItem("geoAttendAccounts", JSON.stringify(accounts));
   }
-  function base64UrlToBuffer(value) {
-    const padding = "=".repeat((4 - value.length % 4) % 4);
-    const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-    return bytes.buffer;
-  }
-
-  function bufferToBase64Url(buffer) {
-    const bytes = new Uint8Array(buffer);
-    let binary = "";
-    bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
-    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-  }
-
-  function prepareRequestOptions(options) {
-    return {
-      ...options,
-      challenge: base64UrlToBuffer(options.challenge),
-      allowCredentials: (options.allowCredentials || []).map((item) => ({ ...item, id: base64UrlToBuffer(item.id) }))
-    };
-  }
-
-  function publicKeyCredentialToJSON(credential) {
-    return {
-      id: credential.id,
-      rawId: bufferToBase64Url(credential.rawId),
-      type: credential.type,
-      response: {
-        authenticatorData: bufferToBase64Url(credential.response.authenticatorData),
-        clientDataJSON: bufferToBase64Url(credential.response.clientDataJSON),
-        signature: bufferToBase64Url(credential.response.signature),
-        userHandle: credential.response.userHandle ? bufferToBase64Url(credential.response.userHandle) : undefined
-      },
-      clientExtensionResults: credential.getClientExtensionResults ? credential.getClientExtensionResults() : {}
-    };
-  }
-
   async function syncRegistrationReset() {
     try {
       const response = await fetch("/api/registration-reset", { cache: "no-store" });
@@ -99,7 +60,7 @@
     if (!email) return false;
     const profiles = JSON.parse(localStorage.getItem("geoAttendBiometricProfiles") || "{}");
     const profile = profiles[email];
-    return Boolean(profile?.identityVerified || account?.identityVerified || account?.biometricProfileStoredAt);
+    return Boolean(profile?.identityVerified || profile?.attendancePinHash || account?.identityVerified || account?.pinProfileStoredAt || account?.biometricProfileStoredAt);
   }
   function firstTwoNames(value) {
     const text = String(value || "").trim();
@@ -178,7 +139,7 @@
         const formData = new FormData(loginForm);
         const email = (formData.get("email") || "").trim().toLowerCase();
         const password = formData.get("password") || "";
-        const loginMethod = formData.get("loginMethod") || "password";
+
         const message = document.getElementById("login-message");
 
         async function finishStudentLogin(user, successText = "Login successful. Redirecting...") {
@@ -211,26 +172,6 @@
           }, 500);
         }
 
-        if (loginMethod !== "password") {
-          try {
-            if (!window.PublicKeyCredential || !navigator.credentials?.get) throw new Error("This browser does not support device biometric login.");
-            const optionsResult = await postJson("/api/webauthn/login-options", { email });
-            const credential = await navigator.credentials.get({ publicKey: prepareRequestOptions(optionsResult.options) });
-            const result = await postJson("/api/webauthn/login-verify", {
-              email,
-              response: publicKeyCredentialToJSON(credential)
-            });
-            await finishStudentLogin(result.user, `${loginMethod === "face" ? "Face ID" : "Biometric"} login successful. Redirecting...`);
-          } catch (error) {
-            if (message) {
-              message.textContent = error.message || "Device security login failed. Use password or re-enroll biometric login.";
-              message.classList.remove("hidden");
-              message.classList.remove("text-[#0058be]", "bg-[#eff4ff]");
-              message.classList.add("text-[#93000a]", "bg-[#ffdad6]");
-            }
-          }
-          return;
-        }
 
         try {
           const adminResult = await postJson("/api/admin-login", { email, password });
@@ -315,25 +256,7 @@
       });
     }    const togglePassword = document.getElementById("toggle-password");
     const passwordInput = document.getElementById("password");
-    const loginMethodRadios = document.querySelectorAll('input[name="loginMethod"]');
-    const passwordLoginField = document.getElementById("password-login-field");
-    const biometricLoginOption = document.getElementById("biometric-login-option");
-    const faceLoginOption = document.getElementById("face-login-option");
-    async function updateLoginMethodUi() {
-      const selected = document.querySelector('input[name="loginMethod"]:checked')?.value || "password";
-      if (passwordLoginField) passwordLoginField.classList.toggle("hidden", selected !== "password");
-      if (passwordInput) passwordInput.required = selected === "password";
-      const supported = Boolean(window.PublicKeyCredential && navigator.credentials?.get)
-        && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().catch(() => false);
-      [biometricLoginOption, faceLoginOption].forEach((option) => {
-        if (!option) return;
-        option.classList.toggle("opacity-50", !supported);
-        option.classList.toggle("pointer-events-none", !supported);
-        option.title = supported ? "" : "This device/browser does not support biometric login.";
-      });
-    }
-    loginMethodRadios.forEach((radio) => radio.addEventListener("change", updateLoginMethodUi));
-    updateLoginMethodUi();
+
     if (togglePassword && passwordInput) {
       togglePassword.addEventListener("click", () => {
         const shouldShow = passwordInput.type === "password";

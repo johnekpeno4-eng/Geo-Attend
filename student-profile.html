@@ -123,7 +123,7 @@
       <div class="flex items-start justify-between gap-4">
         <div>
           <p class="text-xs font-bold uppercase tracking-widest muted">Security</p>
-          <h2 class="mt-1 text-xl font-extrabold">Biometric / Face ID check-in</h2>
+          <h2 class="mt-1 text-xl font-extrabold">Attendance PIN check-in</h2>
           <p class="mt-1 text-sm muted" id="security-helper">Checking identity setup...</p>
         </div>
         <span class="material-symbols-outlined secondary text-3xl" id="security-icon">shield_lock</span>
@@ -148,7 +148,7 @@
 
     <section class="mt-5 space-y-3 rounded-xl border p-5 shadow-sm surface">
       <div class="flex justify-between gap-4"><span class="muted">Role</span><strong>Student</strong></div>
-      <div class="flex justify-between gap-4"><span class="muted">Identity</span><strong id="biometric-status">Checking</strong></div>
+      <div class="flex justify-between gap-4"><span class="muted">Identity</span><strong id="pin-status">Checking</strong></div>
       <div class="flex justify-between gap-4"><span class="muted">Total Check-ins</span><strong id="checkin-count">0</strong></div>
     </section>
 
@@ -318,13 +318,13 @@
     }
     function updateSecurityState() {
       const settings = getSettings();
-      const hasProfile = Boolean(profile?.identityVerified || profile?.livenessVerified || profile?.biometricVerified || profile?.attendancePinHash || profile?.webauthnCredential || profile?.platformCredentialRawId || profile?.platformCredential?.rawId || profile?.platformCredentialId);
+      const hasProfile = Boolean(profile?.identityVerified || profile?.pinVerified || profile?.attendancePinHash);
       securityToggle.checked = hasProfile && settings.deviceSecurityEnabled === true;
       securityToggle.disabled = !hasProfile;
-      document.getElementById("biometric-status").textContent = hasProfile ? "Verified" : "Not verified";
+      document.getElementById("pin-status").textContent = hasProfile ? "Verified" : "Not verified";
       document.getElementById("checkin-count").textContent = logs.length;
       document.getElementById("security-icon").textContent = hasProfile ? "verified_user" : "shield_lock";
-      document.getElementById("security-helper").textContent = hasProfile ? "Your saved identity method can be used for check-in prompts." : "Complete identity setup before enabling biometric or Face ID check-in.";
+      document.getElementById("security-helper").textContent = hasProfile ? "Your 4-digit PIN is ready for attendance check-in." : "Set your 4-digit attendance PIN before checking in.";
       document.getElementById("identity-link-text").textContent = hasProfile ? "Review identity setup" : "Set up identity verification";
     }
     securityToggle.addEventListener("change", () => { const settings = getSettings(); settings.deviceSecurityEnabled = securityToggle.checked; saveSettings(settings); updateSecurityState(); });
