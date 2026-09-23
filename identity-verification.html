@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html class="light" lang="en">
 <head>
   <meta charset="utf-8" />
@@ -63,8 +63,8 @@
         <div class="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_right,#4cd7f6,transparent_40%)]"></div>
         <div class="relative">
           <p class="text-xs font-bold uppercase tracking-widest text-accent">Step 2 of 2</p>
-          <h1 class="mt-3 text-3xl md:text-5xl font-extrabold leading-tight">Liveness and biometric verification</h1>
-          <p class="mt-4 text-white/75">Complete liveness gestures and biometric capture before entering the student check-in interface.</p>
+          <h1 class="mt-3 text-3xl md:text-5xl font-extrabold leading-tight">Choose one verification method</h1>
+          <p class="mt-4 text-white/75">Choose Face ID, device biometric, or attendance PIN. Complete only one method before entering the student check-in interface.</p>
         </div>
         <div class="relative mt-8 grid gap-3 text-sm text-white/80">
           <p class="flex gap-2"><span class="material-symbols-outlined text-accent">face</span> Liveness checks reduce fake account risk.</p>
@@ -367,7 +367,7 @@
     }
 
     function verificationComplete() {
-      return faceIdComplete() && biometricComplete();
+      return faceIdComplete() || biometricComplete();
     }
 
     function updateState() {
@@ -402,7 +402,7 @@
       const stage = livenessStages[Math.min(livenessStageIndex, livenessStages.length - 1)];
       livenessPrompt.textContent = faceIdComplete() ? "Face ID Complete" : stage.label;
       livenessInstruction.textContent = faceIdComplete()
-        ? "Face ID is complete. You can finish now or choose device biometric instead."
+        ? "Face ID is complete. You can finish now or switch to device biometric/PIN instead."
         : stage.instruction;
       livenessProgress.textContent = `${Math.min(livenessStageIndex + 1, livenessStages.length)} of ${livenessStages.length}`;
       captureCurrentStageButton.textContent = faceIdComplete()
@@ -651,9 +651,8 @@
       updateState();
 
       if (faceIdComplete() && !biometricComplete()) {
-        showPanel("biometric-panel");
         checkinAuthMethod = "face";
-        showMessage("Face ID successful. You can finish now or choose device biometric instead.");
+        showMessage("Face ID successful. You can finish now or choose device biometric/PIN instead.");
       } else {
         queueAutoFaceCapture(1200);
       }
@@ -672,8 +671,7 @@
         showMessage("Face template captured from the front camera.");
         updateState();
         if (faceIdComplete() && !biometricComplete()) {
-          showPanel("biometric-panel");
-          showMessage("Face ID successful. Complete device biometric verification next.");
+          showMessage("Face ID successful. You can finish now.");
         }
       });
     });
@@ -752,8 +750,9 @@
         faceTemplateHash: captures.faceTemplate?.hash || null,
         platformCredentialId: platformCredential?.id || null,
         platformCredentialRawId: platformCredential?.rawId || null,
-        livenessVerified: true,
-        biometricVerified: true,
+        livenessVerified: faceIdComplete(),
+        biometricVerified: biometricComplete(),
+        identityVerified: true,
         storedAt: new Date().toISOString(),
         storageMode: "prototype-localStorage"
       };
@@ -763,8 +762,9 @@
       const accounts = JSON.parse(localStorage.getItem("geoAttendAccounts") || "[]");
       const updated = accounts.map((account) => account.email === currentUser ? {
         ...account,
-        livenessVerified: true,
-        biometricVerified: true,
+        livenessVerified: faceIdComplete(),
+        biometricVerified: biometricComplete(),
+        identityVerified: true,
         checkinAuthMethod: profile.checkinAuthMethod,
         attendancePinHash,
         biometricProfileStoredAt: profiles[currentUser].storedAt

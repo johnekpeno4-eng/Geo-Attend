@@ -94,6 +94,13 @@
   const currentAccount = getAccounts().find((account) => account.email === currentUserEmail && account.verified);
   const isAdminSession = role === "admin" && currentUserEmail && adminEmail && currentUserEmail === adminEmail;
 
+
+  function studentIdentityComplete(email, account) {
+    if (!email) return false;
+    const profiles = JSON.parse(localStorage.getItem("geoAttendBiometricProfiles") || "{}");
+    const profile = profiles[email];
+    return Boolean(profile?.identityVerified || account?.identityVerified || account?.biometricProfileStoredAt);
+  }
   function firstTwoNames(value) {
     const text = String(value || "").trim();
     if (!text) return "";
@@ -127,6 +134,11 @@
     return;
   }
 
+
+  if (role === "student" && isStudentPage && page !== "identity-verification.html" && !studentIdentityComplete(currentUserEmail, currentAccount)) {
+    go("identity-verification.html");
+    return;
+  }
   if (!role && !isPublicPage) {
     go("login.html");
     return;

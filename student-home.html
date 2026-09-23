@@ -1098,7 +1098,7 @@
       setCheckinMessage("Opening check-in now...");
 
       if (!deviceSecurityEnabled()) {
-        setCheckinMessage("Turn on Biometric / Face ID check-in in website settings before checking in.", true);
+        setCheckinMessage("Turn on this check-in method in website settings before checking in.", true);
         const button = document.getElementById("checkin-platform-button");
         if (button) {
           button.innerHTML = 'Open Settings <span class="material-symbols-outlined">settings</span>';
@@ -1108,13 +1108,30 @@
       }
 
       const profile = await loadSavedBiometricProfile();
-      if (!profile?.biometricVerified || !(profile.platformCredentialRawId || profile.platformCredential?.rawId || profile.platformCredentialId || profile.platformCredential?.id)) {
-        setCheckinMessage("Complete Face ID and biometric setup before checking in.", true);
+      if (!profile?.identityVerified && !profile?.biometricVerified && !profile?.livenessVerified) {
+        setCheckinMessage("Complete identity setup before checking in.", true);
         const button = document.getElementById("checkin-platform-button");
         if (button) {
           button.innerHTML = 'Set Up Identity <span class="material-symbols-outlined">badge</span>';
           button.dataset.redirectTo = setupUrl;
         }
+        return;
+      }
+
+      const method = profile.checkinAuthMethod || (profile.attendancePinHash ? "pin" : (profile.platformCredentialRawId || profile.platformCredential?.rawId || profile.platformCredentialId || profile.platformCredential?.id) ? "biometric" : "face");
+      if (method === "face") {
+        showCheckinPanel("face");
+        setCheckinMessage("Start the front camera to complete Face ID check-in.");
+        return;
+      }
+      if (method === "pin") {
+        showCheckinPanel("password");
+        setCheckinMessage("Enter your attendance PIN to check in.");
+        document.getElementById("checkin-password-input")?.focus();
+        return;
+      }
+      if (!(profile.platformCredentialRawId || profile.platformCredential?.rawId || profile.platformCredentialId || profile.platformCredential?.id)) {
+        setCheckinMessage("No saved device biometric was found. Complete identity setup again.", true);
         return;
       }
 
@@ -1365,7 +1382,7 @@
       const platformButton = document.getElementById("checkin-platform-button");
       flashButtonFeedback(platformButton, "Opening...");
       if (!deviceSecurityEnabled()) {
-        setCheckinMessage("Turn on Biometric / Face ID check-in in website settings before checking in.", true);
+        setCheckinMessage("Turn on this check-in method in website settings before checking in.", true);
         return;
       }
       if (checkinInProgress) {
