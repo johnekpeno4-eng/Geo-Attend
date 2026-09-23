@@ -206,7 +206,10 @@
           <td class="py-md pr-md text-on-surface-variant">${escapeHtml(student.departmentName || "Department of Electrical/Electronics Engineering")}</td>
           <td class="py-md pr-md font-mono-data text-on-surface-variant">${escapeHtml(student.levelName || "100 Level")}</td>
           <td class="py-md pr-md text-right">
-            <button class="rounded-lg bg-secondary text-on-primary px-md py-sm font-bold active:scale-95 transition-all" data-checkin-student="${escapeHtml(student.email)}" type="button">Check In</button>
+            <div class="flex justify-end gap-sm">
+              <button class="rounded-lg bg-secondary text-on-primary px-md py-sm font-bold active:scale-95 transition-all" data-checkin-student="${escapeHtml(student.email)}" type="button">Check In</button>
+              <button class="rounded-lg bg-red-600 text-white px-md py-sm font-bold active:scale-95 transition-all" data-delete-student="${escapeHtml(student.email)}" data-delete-reg="${escapeHtml(student.regNumber || "")}" type="button">Delete</button>
+            </div>
           </td>
         </tr>
       `).join("");
@@ -265,14 +268,51 @@
       }
     }
 
+
+    async function deleteStudent(email, regNumber) {
+      const student = students.find((item) => item.email === email || String(item.regNumber || "").toUpperCase() === String(regNumber || "").toUpperCase());
+      if (!student) return;
+      const label = `${student.fullName || student.email} (${student.regNumber || "no reg no"})`;
+      const confirmed = window.confirm(`Delete ${label}? This removes the student account and biometric login from the database.`);
+      if (!confirmed) return;
+      const adminPassword = window.prompt("Enter your admin password to confirm deletion:");
+      if (!adminPassword) {
+        showMessage("Student deletion cancelled.", true);
+        return;
+      }
+      try {
+        const response = await fetch("/api/students/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            actorEmail: localStorage.getItem("geoAttendCurrentUser") || "",
+            adminPassword,
+            email,
+            regNumber
+          })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Unable to delete student account.");
+        students = Array.isArray(data.students) ? data.students : students.filter((item) => item.email !== email && String(item.regNumber || "").toUpperCase() !== String(regNumber || "").toUpperCase());
+        const accounts = JSON.parse(localStorage.getItem("geoAttendAccounts") || "[]").filter((account) => account.email !== email && String(account.regNumber || "").toUpperCase() !== String(regNumber || "").toUpperCase());
+        localStorage.setItem("geoAttendAccounts", JSON.stringify(accounts));
+        localStorage.setItem("geoAttendRegisteredStudents", JSON.stringify(students));
+        renderStudents();
+        showMessage(`${label} deleted from the database.`);
+      } catch (error) {
+        showMessage(error.message, true);
+      }
+    }
     document.getElementById("student-search")?.addEventListener("input", renderStudents);
     document.getElementById("refresh-students")?.addEventListener("click", () => {
       loadSessions();
       loadStudents();
     });
     document.getElementById("students-body")?.addEventListener("click", (event) => {
-      const button = event.target.closest("[data-checkin-student]");
-      if (button) checkInStudent(button.dataset.checkinStudent);
+      const checkinButton = event.target.closest("[data-checkin-student]");
+      if (checkinButton) checkInStudent(checkinButton.dataset.checkinStudent);
+      const deleteButton = event.target.closest("[data-delete-student]");
+      if (deleteButton) deleteStudent(deleteButton.dataset.deleteStudent, deleteButton.dataset.deleteReg);
     });
 
     loadSessions();

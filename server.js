@@ -242,6 +242,11 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "POST" && req.url === "/api/students/delete") {
+      const body = await readJson(req);
+      await deleteStudentAccount(res, body);
+      return;
+    }
     if (req.method === "POST" && req.url === "/api/students") {
       const body = await readJson(req);
       await saveStudent(res, body);
@@ -2365,6 +2370,15 @@ async function studentLogin(res, body) {
   const student = sqliteStudentFromRow(row);
   json(res, 200, { ok: true, user: student });
 }
+function verifyAdminCredentials(identifier, password) {
+  const email = String(identifier || "").trim().toLowerCase();
+  const regNumber = normalizeRegNumber(identifier);
+  const rawPassword = String(password || "");
+  if ((!email && !regNumber) || !rawPassword) return null;
+  return getAdminRoster().find((item) => (
+    (item.email && item.email === email) || (regNumber && item.regNumber === regNumber)
+  ) && verifyStoredPassword(rawPassword, item)) || null;
+}
 function adminLogin(res, body) {
   const email = String(body.email || "").trim().toLowerCase();
   const regNumber = normalizeRegNumber(body.email || body.regNumber);
@@ -2375,9 +2389,7 @@ function adminLogin(res, body) {
     return;
   }
   const roster = getAdminRoster();
-  const admin = roster.find((item) => (
-    (item.email && item.email === email) || (regNumber && item.regNumber === regNumber)
-  ) && verifyStoredPassword(password, item));
+  const admin = verifyAdminCredentials(email || regNumber, password);
 
   if (!roster.length) {
     json(res, 500, { error: "Admin login is not configured. Add ADMIN_EMAIL and ADMIN_PASSWORD to .env." });
@@ -2684,6 +2696,65 @@ async function getStudents(res) {
   });
 }
 
+async function deleteStudentAccount(res, body) {
+  const actorIdentifier = String(body.actorEmail || body.actorRegNumber || "").trim();
+  const actorPassword = String(body.adminPassword || body.password || "");
+  const actor = verifyAdminCredentials(actorIdentifier, actorPassword);
+  if (!actor) {
+    json(res, 403, { error: "Enter a valid admin password to delete this student." });
+    return;
+  }
+
+  const email = String(body.email || "").trim().toLowerCase();
+  const regNumber = normalizeRegNumber(body.regNumber);
+  if (!email && !regNumber) {
+    json(res, 400, { error: "Student email or registration number is required." });
+    return;
+  }
+
+  const row = await dbGet("SELECT * FROM students WHERE email = ? COLLATE NOCASE OR reg_number = ? COLLATE NOCASE LIMIT 1", [email, regNumber]);
+  if (!row) {
+    json(res, 404, { error: "Student account was not found." });
+    return;
+  }
+
+  const student = sqliteStudentFromRow(row);
+  if (!entityMatchesScope(student, actor, actor.adminRole || actor.role)) {
+    json(res, 403, { error: "You cannot delete a student outside your admin scope." });
+    return;
+  }
+
+  const targetEmail = String(row.email || email || "").trim().toLowerCase();
+  const targetReg = normalizeRegNumber(row.reg_number || regNumber);
+  await dbRun("DELETE FROM biometric_profiles WHERE email = ? COLLATE NOCASE", [targetEmail]);
+  const result = await dbRun("DELETE FROM students WHERE id = ?", [row.id]);
+
+  const students = readJsonFile(STUDENTS_FILE, []).filter((item) => {
+    const itemEmail = String(item?.email || "").trim().toLowerCase();
+    const itemReg = normalizeRegNumber(item?.regNumber || item?.reg_number);
+    return itemEmail !== targetEmail && itemReg !== targetReg;
+  });
+  writeLocalJson(STUDENTS_FILE, sortStudents(students));
+
+  const profiles = readJsonFile(BIOMETRIC_PROFILES_FILE, {});
+  Object.keys(profiles && typeof profiles === "object" ? profiles : {}).forEach((profileId) => {
+    const profileEmail = String(profiles[profileId]?.email || "").trim().toLowerCase();
+    if (profileEmail === targetEmail) delete profiles[profileId];
+  });
+  writeLocalJson(BIOMETRIC_PROFILES_FILE, profiles);
+
+  const remainingStudents = sortStudents(await readStudentsStore());
+  json(res, 200, {
+    ok: true,
+    deleted: result.changes || 0,
+    student: {
+      email: targetEmail,
+      regNumber: targetReg,
+      fullName: row.full_name || ""
+    },
+    students: remainingStudents
+  });
+}
 async function saveStudent(res, body) {
   const email = String(body.email || "").trim().toLowerCase();
   const fullName = String(body.fullName || "").trim();
