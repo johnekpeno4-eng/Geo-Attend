@@ -228,6 +228,14 @@ const server = http.createServer(async (req, res) => {
     }
 
 
+    if (req.method === "GET" && req.url.startsWith("/api/assisted-approval/student-lookup")) {
+      await lookupApprovedAssistedStudent(req, res);
+      return;
+    }
+    if (req.method === "GET" && req.url.startsWith("/api/assisted-approval/status")) {
+      getAssistedApprovalStatus(req, res);
+      return;
+    }
     if (req.method === "POST" && req.url === "/api/assisted-approval/toggle") {
       const body = await readJson(req);
       toggleAssistedApproval(res, body);
@@ -1781,6 +1789,22 @@ async function sendAttendancePdf(res, body) {
   json(res, 200, { ok: true, message: `PDF report sent to ${adminEmail}.`, sentTo: adminEmail, records: attendance.length });
 }
 
+function getAssistedApprovalStatus(req, res) {
+  const url = new URL(req.url, "http://127.0.0.1");
+  const sessionId = String(url.searchParams.get("sessionId") || "").trim();
+  if (!sessionId) {
+    json(res, 400, { error: "Session id is required." });
+    return;
+  }
+  const approval = assistedApprovalStore.get(sessionId);
+  json(res, 200, {
+    ok: true,
+    sessionId,
+    enabled: Boolean(approval?.enabled),
+    approvedBy: approval?.adminName || "",
+    updatedAt: approval?.updatedAt || ""
+  });
+}
 function toggleAssistedApproval(res, body) {
   const sessionId = String(body.sessionId || "").trim();
   const identifier = String(body.actorEmail || body.actorRegNumber || "").trim();
@@ -2302,6 +2326,35 @@ async function findRegisteredStudentByRegNumber(regNumber) {
   return students.find((student) => String(student.regNumber || "").trim().toUpperCase() === normalizedReg) || null;
 }
 
+async function lookupApprovedAssistedStudent(req, res) {
+  const url = new URL(req.url, "http://127.0.0.1");
+  const sessionId = String(url.searchParams.get("sessionId") || "").trim();
+  const regNumber = normalizeRegNumber(url.searchParams.get("regNumber") || "");
+  if (!sessionId || !regNumber) {
+    json(res, 400, { error: "Session id and registration number are required." });
+    return;
+  }
+  const approval = assistedApprovalStore.get(sessionId);
+  if (!approval?.enabled) {
+    json(res, 403, { error: "Admin must unlock student-assisted check-in before lookup." });
+    return;
+  }
+  const student = await findRegisteredStudentByRegNumber(regNumber);
+  if (!student) {
+    json(res, 404, { error: "No registered student was found for that registration number." });
+    return;
+  }
+  json(res, 200, {
+    ok: true,
+    student: {
+      fullName: student.fullName || "",
+      regNumber: student.regNumber || regNumber,
+      departmentName: student.departmentName || "",
+      levelName: student.levelName || "",
+      facultyName: student.facultyName || ""
+    }
+  });
+}
 async function saveAdminUser(res, body) {
   const actorEmail = String(body.actorEmail || "").trim().toLowerCase();
   if (!isOwnerAdmin(actorEmail)) {

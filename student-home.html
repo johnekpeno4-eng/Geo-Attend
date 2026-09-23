@@ -330,6 +330,12 @@
               <label class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2" for="assist-reg-number-input">Student Reg No</label>
               <input class="w-full rounded-xl border border-outline-variant bg-white px-4 py-3 text-base uppercase outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="assist-reg-number-input" inputmode="numeric" placeholder="25/EG/EE/001" type="text" autocomplete="off" />
               <p class="text-xs text-on-surface-variant mt-2" id="assist-limit-copy">You can assist up to 2 students in this class session after admin unlocks it.</p>
+              <div class="hidden mt-4 rounded-xl border border-secondary/30 bg-white p-3" id="assist-student-confirmation">
+                <p class="text-xs font-bold uppercase tracking-widest text-secondary">Confirm Student</p>
+                <p class="mt-2 font-bold text-on-surface" id="assist-confirm-name">--</p>
+                <p class="text-sm text-on-surface-variant" id="assist-confirm-reg">--</p>
+                <p class="text-sm text-on-surface-variant" id="assist-confirm-department">--</p>
+              </div>
             </div>
             <button class="w-full rounded-2xl bg-primary text-white px-4 py-3 font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform" id="assist-checkin-submit" type="button">
               Check In Student
@@ -392,6 +398,9 @@
     let faceCaptureImage = null;
     let checkinInProgress = false;
     let checkinQrTimer = null;
+    let assistedApprovalEnabled = false;
+    let assistedLookupTimer = null;
+    let confirmedAssistStudent = null;
     let sessionCountdownInterval = null;
     let attendanceLogs = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]")
       .filter((item) => !email || item.email === email);
@@ -928,6 +937,70 @@
       return activeSession;
     }
 
+
+    function setAssistOptionVisible(isVisible) {
+      const option = document.getElementById("checkin-assist-option");
+      if (!option) return;
+      option.classList.toggle("hidden", !isVisible);
+      option.disabled = !isVisible;
+    }
+
+    function clearAssistConfirmation() {
+      confirmedAssistStudent = null;
+      const box = document.getElementById("assist-student-confirmation");
+      box?.classList.add("hidden");
+      ["assist-confirm-name", "assist-confirm-reg", "assist-confirm-department"].forEach((id) => {
+        const node = document.getElementById(id);
+        if (node) node.textContent = "--";
+      });
+    }
+
+    function showAssistConfirmation(student) {
+      confirmedAssistStudent = student || null;
+      const box = document.getElementById("assist-student-confirmation");
+      if (!box || !student) return;
+      document.getElementById("assist-confirm-name").textContent = student.fullName || "Unknown Student";
+      document.getElementById("assist-confirm-reg").textContent = student.regNumber || "--";
+      document.getElementById("assist-confirm-department").textContent = `${student.departmentName || "Department not set"}${student.levelName ? ` | ${student.levelName}` : ""}`;
+      box.classList.remove("hidden");
+    }
+
+    async function refreshAssistedApprovalStatus(session) {
+      assistedApprovalEnabled = false;
+      setAssistOptionVisible(false);
+      if (!session?.id) return false;
+      try {
+        const response = await fetch(`/api/assisted-approval/status?sessionId=${encodeURIComponent(session.id)}`, { cache: "no-store" });
+        const data = await response.json().catch(() => ({}));
+        assistedApprovalEnabled = response.ok && data.enabled === true;
+        setAssistOptionVisible(assistedApprovalEnabled);
+        return assistedApprovalEnabled;
+      } catch {
+        setAssistOptionVisible(false);
+        return false;
+      }
+    }
+
+    async function lookupAssistStudent() {
+      clearAssistConfirmation();
+      const session = selectedCheckinSession || activeSession;
+      const input = document.getElementById("assist-reg-number-input");
+      const regNumber = normalizeStudentRegNumber(input?.value);
+      if (!regNumber || !session?.id || !assistedApprovalEnabled) return;
+      try {
+        const response = await fetch(`/api/assisted-approval/student-lookup?sessionId=${encodeURIComponent(session.id)}&regNumber=${encodeURIComponent(regNumber)}`, { cache: "no-store" });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Student was not found.");
+        showAssistConfirmation(data.student);
+      } catch (error) {
+        setCheckinMessage(error.message, true);
+      }
+    }
+
+    function scheduleAssistStudentLookup() {
+      window.clearTimeout(assistedLookupTimer);
+      assistedLookupTimer = window.setTimeout(lookupAssistStudent, 350);
+    }
     function setCheckinMessage(text, isError = false) {
       const message = document.getElementById("checkin-modal-message");
       if (!message) return;
@@ -1005,6 +1078,7 @@
       if (passwordInput) passwordInput.value = "";
       const assistInput = document.getElementById("assist-reg-number-input");
       if (assistInput) assistInput.value = "";
+      clearAssistConfirmation();
       const platformButton = document.getElementById("checkin-platform-button");
       if (platformButton) {
         delete platformButton.dataset.redirectTo;
@@ -1099,6 +1173,7 @@
       modal?.classList.remove("hidden");
       modal?.classList.add("flex");
       modal?.setAttribute("aria-hidden", "false");
+      refreshAssistedApprovalStatus(session);
       if (!isWeakAdminGeofence(session.geofence || {})) {
         window.requestAnimationFrame(() => {
           window.setTimeout(startAutomaticDeviceSecurityCheckin, 0);
@@ -1349,7 +1424,7 @@
       const accounts = JSON.parse(localStorage.getItem("geoAttendAccounts") || "[]");
       const account = accounts.find((savedAccount) => savedAccount.email === email);
       const attendance = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]");
-      const checkedInAt = new Date().toISOString();
+            const checkedInAt = new Date().toISOString();
       const displayName = account?.fullName || (isAdminUser ? `Admin ${email}` : email || "Unknown Student");
       const displayRegNumber = account?.regNumber || (isAdminUser ? "ADMIN" : "--");
       const record = {
@@ -1448,6 +1523,15 @@
         setCheckinMessage("Use the normal Check In option for your own attendance.", true);
         return;
       }
+      if (!assistedApprovalEnabled) {
+        setCheckinMessage("Admin must unlock student-assisted check-in for this session first.", true);
+        return;
+      }
+      if (!confirmedAssistStudent || normalizeStudentRegNumber(confirmedAssistStudent.regNumber) !== targetRegNumber) {
+        setCheckinMessage("Confirm the student name and department before check-in.", true);
+        await lookupAssistStudent();
+        return;
+      }
 
       const sessionId = session.id || "default-session";
       const assistedCount = getAssistedCountForSession(sessionId, helperRegNumber);
@@ -1455,7 +1539,7 @@
         setCheckinMessage("You have reached the limit of 2 assisted check-ins for this class session.", true);
         return;
       }
-const checkedInAt = new Date().toISOString();
+      const checkedInAt = new Date().toISOString();
       const record = {
         checkinType: "assisted-student",
         assisted: true,
@@ -1494,7 +1578,7 @@ const checkedInAt = new Date().toISOString();
         attendanceLogs = nextAttendance.filter((item) => !email || item.email === email || item.assistedByEmail === email);
         setCheckinMessage(`${savedRecord.fullName || targetRegNumber} has been checked in.`);
         if (input) input.value = "";
-        if (approvalCodeInput) approvalCodeInput.value = "";
+        clearAssistConfirmation();
 
         setTimeout(() => {
           closeCheckinModal();
@@ -1529,6 +1613,10 @@ const checkedInAt = new Date().toISOString();
             document.getElementById("checkin-password-input")?.focus();
           }
           if (method === "assist") {
+            if (!assistedApprovalEnabled) {
+              setCheckinMessage("Admin must unlock student-assisted check-in for this session first.", true);
+              return;
+            }
             document.getElementById("assist-reg-number-input")?.focus();
           }
         });
@@ -1571,6 +1659,8 @@ const checkedInAt = new Date().toISOString();
         flashButtonFeedback(document.getElementById("assist-checkin-submit"), "Checking...");
         finalizeAssistedAttendance();
       });
+
+      document.getElementById("assist-reg-number-input")?.addEventListener("input", scheduleAssistStudentLookup);
 
       document.getElementById("assist-reg-number-input")?.addEventListener("keydown", (event) => {
         if (event.key === "Enter") {
