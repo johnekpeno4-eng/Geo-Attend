@@ -275,11 +275,24 @@
       if (isAndroid) return "Fingerprint / device biometric";
       return "Device biometric";
     }
+    function getWebAuthnOriginIssue() {
+      const host = window.location.hostname;
+      const isLocalhost = host === "localhost" || host === "127.0.0.1" || host === "::1";
+      if (window.isSecureContext || isLocalhost) return "";
+      return "Device biometric needs HTTPS or localhost. If you opened GeoAttend from a phone using your laptop IP address, use Face ID camera/PIN for now, or host the site on an HTTPS domain.";
+    }
 
     async function updateDeviceBiometricAvailability() {
       const label = detectDeviceSecurityLabel();
-      if (deviceBiometricCopy) deviceBiometricCopy.textContent = `Tap once to open ${label} if this device supports it.`;
+      const originIssue = getWebAuthnOriginIssue();
+      if (deviceBiometricCopy) deviceBiometricCopy.textContent = originIssue || `Tap once to open ${label} if this device supports it.`;
       if (biometricPadTitle) biometricPadTitle.textContent = label;
+      if (originIssue) {
+        deviceBiometricButton.disabled = true;
+        biometricPadButton.disabled = true;
+        if (biometricPadCopy) biometricPadCopy.textContent = "Use Face ID camera capture or set an attendance PIN on this connection.";
+        return;
+      }
       if (!window.PublicKeyCredential || !PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) return;
       const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().catch(() => false);
       if (!available) {
@@ -550,6 +563,11 @@
 
     async function enrollPlatformBiometric() {
       if (biometricComplete() || saveStarted) return;
+      const originIssue = getWebAuthnOriginIssue();
+      if (originIssue) {
+        showMessage(originIssue, true);
+        return;
+      }
       if (!window.PublicKeyCredential || !navigator.credentials?.create) {
         showMessage("Device biometric enrollment is not supported on this browser.", true);
         return;
@@ -595,7 +613,11 @@
         biometricPadButton.disabled = false;
         biometricPadTitle.textContent = detectDeviceSecurityLabel();
         biometricPadCopy.textContent = "Tap the pad and the device prompt opens immediately.";
-        showMessage(error.message || "Biometric verification was cancelled or failed. Try again.", true);
+        const browserMessage = String(error?.message || "");
+        const friendlyMessage = /relying party|rp id|registrable domain|current domain|well-known\/webauthn/i.test(browserMessage)
+          ? "Device biometric cannot run from this address. Open GeoAttend on HTTPS with a real domain, use localhost on this same device, or choose Face ID camera/PIN."
+          : browserMessage || "Biometric verification was cancelled or failed. Try again.";
+        showMessage(friendlyMessage, true);
       }
     }
 
