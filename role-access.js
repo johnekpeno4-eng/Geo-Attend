@@ -254,7 +254,9 @@
 
         await finishStudentLogin(account);
       });
-    }    const togglePassword = document.getElementById("toggle-password");
+    }
+
+    const togglePassword = document.getElementById("toggle-password");
     const passwordInput = document.getElementById("password");
 
     if (togglePassword && passwordInput) {
