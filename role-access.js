@@ -173,6 +173,11 @@
         }
 
 
+        async function loginStudentFromServer() {
+          const result = await postJson("/api/student-login", { email, password });
+          await finishStudentLogin(result.user || result, "Student login successful. Redirecting...");
+        }
+
         try {
           const adminResult = await postJson("/api/admin-login", { email, password });
           localStorage.setItem("geoAttendCurrentUser", adminResult.user.email);
