@@ -109,10 +109,12 @@
       </div>
       <div class="mt-5">
         <canvas id="signature-pad" width="720" height="260" aria-label="Signature pad"></canvas>
+        <p class="mt-2 text-sm muted" id="signature-status">Draw or edit your saved signature.</p>
       </div>
-      <div class="mt-4 grid grid-cols-2 gap-3">
+      <div class="mt-4 grid grid-cols-3 gap-3">
+        <button class="rounded-xl border py-3 font-bold surface" id="undo-signature" type="button">Undo</button>
         <button class="rounded-xl border py-3 font-bold surface" id="clear-signature" type="button">Clear</button>
-        <button class="rounded-xl bg-[#2170e4] py-3 font-bold text-white" id="save-signature" type="button">Save Signature</button>
+        <button class="rounded-xl bg-[#2170e4] py-3 font-bold text-white" id="save-signature" type="button">Save</button>
       </div>
       <p class="mt-3 hidden rounded-xl px-4 py-3 text-sm font-bold" id="signature-message"></p>
     </section>
@@ -172,6 +174,8 @@
     let currentAccount = null;
     let signatureStrokes = [];
     let activeStroke = null;
+    let signatureDirty = false;
+    let savedSignatureImage = null;
 
     function normalizeRegNumber(value) {
       const raw = String(value || "").trim().toUpperCase();
@@ -196,6 +200,9 @@
     }
     function redrawSignature() {
       ctx.clearRect(0, 0, 1, 1);
+      if (!signatureStrokes.length && savedSignatureImage) {
+        ctx.drawImage(savedSignatureImage, 0, 0, 1, 1);
+      }
       ctx.lineWidth = 0.008;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
@@ -206,6 +213,19 @@
         stroke.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y));
         ctx.stroke();
       });
+      const status = document.getElementById("signature-status");
+      if (status) status.textContent = signatureStrokes.length ? "Editing signature. Save when you are done." : savedSignatureImage ? "Saved signature loaded. Start drawing to replace it, or clear it." : "No signature saved yet.";
+    }
+    function loadSignaturePreview(dataUrl) {
+      savedSignatureImage = null;
+      if (!dataUrl || signatureStrokes.length) {
+        redrawSignature();
+        return;
+      }
+      const image = new Image();
+      image.onload = () => { savedSignatureImage = image; redrawSignature(); };
+      image.onerror = () => redrawSignature();
+      image.src = dataUrl;
     }
     function pointerPoint(event) {
       const rect = canvas.getBoundingClientRect();
@@ -215,6 +235,8 @@
       event.preventDefault();
       canvas.setPointerCapture(event.pointerId);
       activeStroke = [pointerPoint(event)];
+      if (savedSignatureImage && !signatureStrokes.length) savedSignatureImage = null;
+      signatureDirty = true;
       signatureStrokes.push(activeStroke);
       redrawSignature();
     });
@@ -241,18 +263,21 @@
       document.getElementById("profile-full-name").value = currentAccount.fullName || "";
       document.getElementById("profile-reg-number").value = currentAccount.regNumber || "";
       signatureStrokes = Array.isArray(currentAccount.signatureStrokes) ? currentAccount.signatureStrokes : [];
-      redrawSignature();
+      signatureDirty = false;
+      loadSignaturePreview(currentAccount.signatureDataUrl || "");
     }
     async function saveStudentProfile(extra = {}) {
       const fullName = document.getElementById("profile-full-name").value.trim();
       const regNumber = normalizeRegNumber(document.getElementById("profile-reg-number").value);
       if (!fullName || !regNumber) throw new Error("Full name and registration number are required.");
-      const signatureDataUrl = signatureStrokes.length ? canvas.toDataURL("image/png") : (currentAccount?.signatureDataUrl || "");
+      const signatureDataUrl = signatureStrokes.length ? canvas.toDataURL("image/png") : (signatureDirty ? "" : (currentAccount?.signatureDataUrl || ""));
       const payload = { ...currentAccount, ...extra, email, fullName, regNumber, signatureDataUrl, signatureStrokes };
       const response = await fetch("/api/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Unable to save profile.");
       currentAccount = data.student || payload;
+      signatureDirty = false;
+      loadSignaturePreview(currentAccount.signatureDataUrl || "");
       const accounts = getAccounts().filter((account) => account.email !== email);
       accounts.unshift(currentAccount);
       saveAccounts(accounts);
@@ -263,10 +288,24 @@
       try { await saveStudentProfile(); showMessage("profile-message", "Profile saved."); }
       catch (error) { showMessage("profile-message", error.message, true); }
     });
-    document.getElementById("clear-signature").addEventListener("click", () => { signatureStrokes = []; redrawSignature(); });
+    document.getElementById("undo-signature").addEventListener("click", () => {
+      if (!signatureStrokes.length) return;
+      signatureStrokes.pop();
+      signatureDirty = true;
+      redrawSignature();
+    });
+    document.getElementById("clear-signature").addEventListener("click", () => {
+      signatureStrokes = [];
+      savedSignatureImage = null;
+      signatureDirty = true;
+      redrawSignature();
+      showMessage("signature-message", "Signature cleared. Click Save to remove it from your profile.");
+    });
     document.getElementById("save-signature").addEventListener("click", async () => {
-      if (!signatureStrokes.length) { showMessage("signature-message", "Sign inside the box before saving.", true); return; }
-      try { await saveStudentProfile(); showMessage("signature-message", "Signature saved for attendance printing."); }
+      try {
+        await saveStudentProfile();
+        showMessage("signature-message", signatureStrokes.length ? "Signature updated for attendance printing." : "Signature removed from your profile.");
+      }
       catch (error) { showMessage("signature-message", error.message, true); }
     });
     function setTheme(theme) {
