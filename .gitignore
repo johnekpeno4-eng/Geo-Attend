@@ -36,6 +36,7 @@ Thumbs.db
 .tmp/
 tmp/
 .cache/
+.npm-cache/
 
 # Local tunnel / temporary run outputs
 devtunnel.exe

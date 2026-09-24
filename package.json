@@ -4,7 +4,7 @@
   "private": true,
   "description": "GeoAttend static prototype with email OTP API.",
   "scripts": {
-    "start": "node server.js || nodejs server.js"
+    "start": "node --no-warnings server.js || nodejs --no-warnings server.js"
   },
   "dependencies": {
     "@simplewebauthn/server": "^14.0.2",
