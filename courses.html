@@ -19,6 +19,7 @@
   <style>.material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24}</style>
   <script src="role-access.js?v=20260924-loginfix" defer></script>
   <link rel="stylesheet" href="mobile-admin.css?v=20260924-fixed1200" />
+  <link rel="stylesheet" href="form-controls.css?v=20260924-dropdowns" />
 </head>
 <body class="bg-surface font-sans text-on-surface" data-role-required="admin">
   <aside class="w-[280px] h-screen fixed left-0 top-0 bg-surface-container-lowest border-r border-outline-variant shadow-sm flex flex-col py-6 px-4 z-50">
@@ -55,13 +56,13 @@
             <p class="text-sm text-on-surface-variant">Add a course that can be selected when creating attendance sessions.</p>
           </div>
         </div>
-        <form class="grid gap-4 xl:grid-cols-[160px_minmax(260px,1fr)_180px_minmax(220px,260px)_140px] items-end" id="course-form">
+        <form class="course-form-grid grid gap-4 items-end" id="course-form">
           <label class="grid gap-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant">Course Code<input class="w-full rounded-xl border border-outline-variant bg-white px-4 py-3 uppercase text-base font-normal text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="course-code" placeholder="EEE301" required /></label>
           <label class="grid gap-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant">Course Title<input class="w-full rounded-xl border border-outline-variant bg-white px-4 py-3 text-base font-normal text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="course-title" placeholder="Electrical Machines I" required /></label>
           <label class="grid gap-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant">Faculty<select class="w-full rounded-xl border border-outline-variant bg-white px-4 py-3 text-base normal-case font-normal text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="course-faculty"></select></label>
           <label class="grid gap-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant">Department<select class="w-full rounded-xl border border-outline-variant bg-white px-4 py-3 text-base normal-case font-normal text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="course-department"></select></label>
           <label class="grid gap-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant">Level<select class="w-full rounded-xl border border-outline-variant bg-white px-4 py-3 text-base normal-case font-normal text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="course-level"></select></label>
-          <button class="xl:col-span-5 rounded-xl bg-secondary px-5 py-4 font-bold text-on-primary min-h-[48px]" type="submit">Save Course</button>
+          <button class="course-save-button xl:col-span-5 rounded-xl bg-secondary px-5 py-4 font-bold text-on-primary min-h-[48px]" type="submit">Save Course</button>
         </form>
         <p class="mt-4 hidden rounded-xl px-4 py-3 font-bold" id="course-message"></p>
       </section>
