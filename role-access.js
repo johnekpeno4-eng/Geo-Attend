@@ -562,7 +562,7 @@
       switchLink.href = "student-home.html#active-classes";
       switchLink.className = "admin-view-switch bg-secondary text-on-primary rounded-xl px-4 py-2 shadow-lg font-bold inline-flex items-center gap-2 shrink-0";
       switchLink.innerHTML = '<span class="material-symbols-outlined text-[20px]">visibility</span><span>Student View</span>';
-      const header = document.querySelector("main > header");
+      const header = document.querySelector("main > header, main > div > header");
       if (header) {
         header.insertBefore(switchLink, header.firstChild);
       } else {
@@ -587,7 +587,7 @@
     }
 
     function setupAdminProfileMenu() {
-      const header = document.querySelector("main > header");
+      const header = document.querySelector("main > header, main > div > header");
       if (!header || document.getElementById("admin-profile-menu-root")) return;
       const currentEmail = localStorage.getItem("geoAttendCurrentUser") || "Admin";
       const currentName = getDisplayName();
@@ -680,15 +680,3 @@
     }
   });
 })();
-
-
-
-
-
-
-
-
-
-
-
-
