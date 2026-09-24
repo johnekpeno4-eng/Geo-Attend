@@ -111,13 +111,13 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "POST" && req.url === "/api/send-registration-otp") {
       const body = await readJson(req);
-      await setupRegistrationTotp(res, body);
+      await sendOtp(res, String(body.email || "").trim().toLowerCase(), "registration", String(body.fullName || ""));
       return;
     }
 
     if (req.method === "POST" && req.url === "/api/verify-registration-otp") {
       const body = await readJson(req);
-      verifyRegistrationTotp(res, { email: body.email, code: body.otp });
+      verifyOtp(res, String(body.email || "").trim().toLowerCase(), body.otp, "registration");
       return;
     }
 
