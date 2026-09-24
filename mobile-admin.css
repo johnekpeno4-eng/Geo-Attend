@@ -1431,3 +1431,198 @@ body[data-role-required="admin"] aside.w-\[280px\] nav a {
     padding-right: 2px !important;
   }
 }
+
+/* Admin mobile layout requested: keep the desktop-style left sidebar on phones. */
+@media (max-width: 900px) {
+  :root {
+    --admin-mobile-sidebar-width: clamp(150px, 28vw, 205px);
+    --admin-mobile-content-gap: clamp(14px, 2.8vw, 24px);
+  }
+
+  body[data-role-required="admin"] {
+    padding-bottom: 0 !important;
+    background: #f8f9ff !important;
+  }
+
+  body[data-role-required="admin"] aside.w-\[280px\] {
+    top: 0 !important;
+    bottom: auto !important;
+    left: 0 !important;
+    width: var(--admin-mobile-sidebar-width) !important;
+    height: 100svh !important;
+    min-height: 100svh !important;
+    padding: 20px 12px 18px !important;
+    border-top: 0 !important;
+    border-right: 1px solid #c6c6cd !important;
+    box-shadow: none !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+
+  @supports (height: 100dvh) {
+    body[data-role-required="admin"] aside.w-\[280px\] {
+      height: 100dvh !important;
+      min-height: 100dvh !important;
+    }
+  }
+
+  body[data-role-required="admin"] aside.w-\[280px\] > div:first-child {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    margin-bottom: 34px !important;
+    padding: 0 4px !important;
+  }
+
+  body[data-role-required="admin"] aside.w-\[280px\] > div:first-child .w-10,
+  body[data-role-required="admin"] aside.w-\[280px\] > div:first-child .h-10 {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+  }
+
+  body[data-role-required="admin"] aside.w-\[280px\] > div:first-child h1 {
+    font-size: clamp(20px, 3.5vw, 28px) !important;
+    line-height: 1 !important;
+    letter-spacing: 0 !important;
+    white-space: nowrap !important;
+  }
+
+  body[data-role-required="admin"] aside.w-\[280px\] > div:first-child p {
+    font-size: 9px !important;
+    line-height: 12px !important;
+    white-space: nowrap !important;
+  }
+
+  body[data-role-required="admin"] aside.w-\[280px\] > div.mt-auto {
+    display: block !important;
+    margin-top: auto !important;
+  }
+
+  body[data-role-required="admin"] aside.w-\[280px\] nav {
+    display: flex !important;
+    flex-direction: column !important;
+    grid-template-columns: none !important;
+    gap: 10px !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  body[data-role-required="admin"] aside.w-\[280px\] nav a {
+    min-height: 48px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    flex-direction: row !important;
+    justify-content: flex-start !important;
+    align-items: center !important;
+    gap: 12px !important;
+    padding: 12px 10px !important;
+    border-radius: 10px !important;
+    border-left: 0 !important;
+    text-align: left !important;
+    font-size: 13px !important;
+    line-height: 18px !important;
+  }
+
+  body[data-role-required="admin"] aside.w-\[280px\] nav a .material-symbols-outlined,
+  body[data-role-required="admin"] aside.w-\[280px\] nav a > .material-symbols-outlined {
+    font-size: 20px !important;
+    flex: 0 0 auto !important;
+  }
+
+  body[data-role-required="admin"] aside.w-\[280px\] nav a span:not(.material-symbols-outlined) {
+    display: block !important;
+    font-size: 13px !important;
+    line-height: 18px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  body[data-role-required="admin"] main.ml-\[280px\],
+  body[data-role-required="admin"] main.w-\[calc\(100\%-280px\)\] {
+    margin-left: var(--admin-mobile-sidebar-width) !important;
+    width: calc(100% - var(--admin-mobile-sidebar-width)) !important;
+    min-height: 100svh !important;
+    padding-bottom: 24px !important;
+  }
+
+  body[data-role-required="admin"] main > header {
+    min-height: 58px !important;
+    padding: 10px var(--admin-mobile-content-gap) !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    gap: 12px !important;
+    background: rgba(248, 249, 255, 0.9) !important;
+  }
+
+  body[data-role-required="admin"] main > header > div:first-child {
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+  }
+
+  body[data-role-required="admin"] main > header h2 {
+    font-size: clamp(18px, 3vw, 24px) !important;
+    line-height: 1.1 !important;
+    white-space: normal !important;
+  }
+
+  body[data-role-required="admin"] main > header p {
+    font-size: 10px !important;
+    line-height: 12px !important;
+  }
+
+  body[data-role-required="admin"] main > header > div:last-child {
+    display: flex !important;
+    flex: 0 1 auto !important;
+    min-width: 0 !important;
+    gap: 8px !important;
+  }
+
+  body[data-role-required="admin"] main > div {
+    padding: 12px var(--admin-mobile-content-gap) 24px !important;
+  }
+
+  body[data-role-required="admin"] section,
+  body[data-role-required="admin"] article,
+  body[data-role-required="admin"] .bg-surface-container-lowest {
+    border-radius: 12px !important;
+  }
+
+  body[data-role-required="admin"] .admin-view-switch {
+    max-width: 130px !important;
+    min-height: 38px !important;
+    padding: 8px 12px !important;
+    font-size: 12px !important;
+  }
+}
+
+@media (max-width: 520px) {
+  :root {
+    --admin-mobile-sidebar-width: 134px;
+    --admin-mobile-content-gap: 10px;
+  }
+
+  body[data-role-required="admin"] aside.w-\[280px\] {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+
+  body[data-role-required="admin"] aside.w-\[280px\] > div:first-child {
+    gap: 8px !important;
+  }
+
+  body[data-role-required="admin"] aside.w-\[280px\] > div:first-child h1 {
+    font-size: 20px !important;
+  }
+
+  body[data-role-required="admin"] aside.w-\[280px\] nav a {
+    gap: 8px !important;
+    padding: 10px 8px !important;
+    font-size: 12px !important;
+  }
+
+  body[data-role-required="admin"] aside.w-\[280px\] nav a span:not(.material-symbols-outlined) {
+    font-size: 12px !important;
+  }
+}
