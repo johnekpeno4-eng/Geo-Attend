@@ -376,3 +376,128 @@
     width: 100%;
   }
 }
+
+/* Student/public mobile hardening pass. */
+@media (max-width: 640px) {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  body,
+  main,
+  section,
+  article,
+  form,
+  .grid,
+  .flex {
+    min-width: 0 !important;
+  }
+
+  body[data-role-required="public"] main,
+  body[data-role-required="student"] main,
+  [data-login-form],
+  #register-form,
+  #reset-password-section,
+  #checkin-modal > .relative,
+  #active-classes-list article,
+  #history-list article {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  p,
+  label,
+  span,
+  a,
+  button,
+  input,
+  select,
+  textarea {
+    overflow-wrap: anywhere;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    max-width: 100% !important;
+    min-width: 0 !important;
+    font-size: 16px !important;
+  }
+
+  button,
+  a.inline-flex,
+  #primary-action-link,
+  [data-open-checkin],
+  #checkin-submit-password,
+  #save-profile,
+  #save-signature,
+  #clear-signature {
+    min-height: 48px !important;
+    touch-action: manipulation;
+  }
+
+  body[data-role-required="public"] .grid,
+  body[data-role-required="student"] .grid,
+  #register-form .grid,
+  [data-login-form] .grid,
+  #reset-password-section .grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  [data-login-form] .lg\:grid-cols-\[1fr_1\.1fr\],
+  body[data-role-required="public"] section[class*="lg:grid-cols"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  nav.fixed.bottom-0 {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: center !important;
+  }
+
+  nav.fixed.bottom-0 a {
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 52px;
+    justify-content: center !important;
+  }
+
+  nav.fixed.bottom-0 a span:last-child {
+    display: block;
+    font-size: 11px !important;
+    line-height: 1.1 !important;
+  }
+
+  canvas,
+  img,
+  video,
+  svg {
+    max-width: 100% !important;
+  }
+
+  #signature-canvas,
+  canvas[id*="signature"] {
+    width: 100% !important;
+    touch-action: none;
+  }
+}
+
+@media (max-width: 380px) {
+  [data-login-form],
+  #register-form,
+  #reset-password-section {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  nav.fixed.bottom-0 a span:last-child {
+    font-size: 10px !important;
+  }
+}

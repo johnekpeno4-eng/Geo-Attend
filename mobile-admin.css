@@ -1298,3 +1298,136 @@ body[data-role-required="admin"] aside.w-\[280px\] nav a > span:not(.material-sy
 body[data-role-required="admin"] aside.w-\[280px\] nav a {
   line-height: 20px;
 }
+
+/* Mobile hardening pass: prevent overflow and keep controls usable on phones. */
+@media (max-width: 900px) {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  body[data-role-required="admin"] {
+    min-width: 0 !important;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body[data-role-required="admin"] main,
+  body[data-role-required="admin"] main > div,
+  body[data-role-required="admin"] section,
+  body[data-role-required="admin"] article,
+  body[data-role-required="admin"] form,
+  body[data-role-required="admin"] .grid,
+  body[data-role-required="admin"] .flex {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  body[data-role-required="admin"] h1,
+  body[data-role-required="admin"] h2,
+  body[data-role-required="admin"] h3,
+  body[data-role-required="admin"] h4,
+  body[data-role-required="admin"] p,
+  body[data-role-required="admin"] label,
+  body[data-role-required="admin"] span,
+  body[data-role-required="admin"] td,
+  body[data-role-required="admin"] th {
+    overflow-wrap: anywhere;
+  }
+
+  body[data-role-required="admin"] input,
+  body[data-role-required="admin"] select,
+  body[data-role-required="admin"] textarea,
+  body[data-role-required="admin"] button {
+    max-width: 100% !important;
+    min-width: 0 !important;
+    font-size: 16px !important;
+  }
+
+  body[data-role-required="admin"] button,
+  body[data-role-required="admin"] a[role="button"],
+  body[data-role-required="admin"] .pdf-report-action {
+    min-height: 48px !important;
+    touch-action: manipulation;
+  }
+
+  #admin-form,
+  #remove-admin-form,
+  #subscription-form,
+  #backup-form,
+  #session-form,
+  #create-session-form {
+    grid-template-columns: 1fr !important;
+    align-items: stretch !important;
+  }
+
+  #admin-form button,
+  #remove-admin-form button,
+  #subscription-form button,
+  #backup-now,
+  #subscription-refresh,
+  #subscription-cancel {
+    width: 100% !important;
+  }
+
+  #admin-table,
+  #students-table,
+  #records-table,
+  #report-table,
+  table {
+    width: 100% !important;
+  }
+
+  .overflow-x-auto,
+  .custom-scrollbar {
+    max-width: 100% !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  main > header .relative,
+  main > header form,
+  main > header label {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  main > header .relative input[type="text"],
+  main > header .relative input[type="search"] {
+    width: 100% !important;
+  }
+
+  aside.w-\[280px\] nav {
+    overflow-x: hidden !important;
+  }
+
+  aside.w-\[280px\] nav a {
+    min-height: 52px !important;
+  }
+
+  aside.w-\[280px\] nav a span:not(.material-symbols-outlined) {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 420px) {
+  body[data-role-required="admin"] main > header h2,
+  body[data-role-required="admin"] .text-2xl {
+    font-size: 20px !important;
+    line-height: 26px !important;
+  }
+
+  body[data-role-required="admin"] .text-xl {
+    font-size: 18px !important;
+    line-height: 24px !important;
+  }
+
+  aside.w-\[280px\] nav a {
+    padding-left: 2px !important;
+    padding-right: 2px !important;
+  }
+}
