@@ -1,9 +1,8 @@
-<!DOCTYPE html>
 <html class="light" lang="en">
 <head>
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-  <title>GeoAttend - Attendance PIN</title>
+  <title>GeoAttend - Fingerprint Setup</title>
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
@@ -25,48 +24,32 @@
       <div class="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_right,#4cd7f6,transparent_40%)]"></div>
       <div class="relative">
         <p class="text-xs font-bold uppercase tracking-widest text-accent">Step 2 of 2</p>
-        <h1 class="mt-3 text-3xl font-extrabold leading-tight md:text-5xl">Set your attendance PIN</h1>
-        <p class="mt-4 text-white/75">Create a private 4-digit PIN. This PIN is required every time you check in for attendance.</p>
+        <h1 class="mt-3 text-3xl font-extrabold leading-tight md:text-5xl">Set up fingerprint</h1>
+        <p class="mt-4 text-white/75">Register your device fingerprint security. Attendance check-in will use this instead of a PIN.</p>
       </div>
       <div class="relative mt-8 grid gap-3 text-sm text-white/80">
-        <p class="flex gap-2"><span class="material-symbols-outlined text-accent">pin</span> Your PIN confirms attendance check-in.</p>
-        <p class="flex gap-2"><span class="material-symbols-outlined text-accent">lock</span> Use exactly 4 digits and keep it private.</p>
+        <p class="flex gap-2"><span class="material-symbols-outlined text-accent">fingerprint</span> Your own device security confirms attendance.</p>
+        <p class="flex gap-2"><span class="material-symbols-outlined text-accent">lock</span> No student can check in for another student.</p>
       </div>
     </section>
 
     <section class="rounded-3xl border border-outline bg-surface p-6 shadow-xl md:p-8">
       <p class="text-xs font-bold uppercase tracking-widest text-secondary">Attendance Security</p>
-      <h2 class="mt-2 text-3xl font-extrabold">Create 4-digit PIN</h2>
-      <p class="mt-2 text-muted">Attendance check-in will request this PIN only.</p>
+      <h2 class="mt-2 text-3xl font-extrabold">Register fingerprint</h2>
+      <p class="mt-2 text-muted">Tap the button below and complete the fingerprint prompt on this device.</p>
       <p class="mt-3 rounded-2xl bg-panel px-4 py-3 text-sm font-mono text-muted" id="profile-owner">Loading...</p>
 
-      <form class="mt-6 grid gap-4" id="pin-form">
-        <label class="block">
-          <span class="text-xs font-bold uppercase tracking-widest text-muted">Attendance PIN</span>
-          <div class="relative mt-2">
-            <input class="w-full rounded-2xl border border-outline bg-white px-4 py-4 pr-14 text-lg tracking-widest outline-none focus:border-secondary focus:ring-4 focus:ring-blue-100" id="attendance-pin" inputmode="numeric" maxlength="4" minlength="4" placeholder="0000" type="password" autocomplete="off" />
-            <button class="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl text-muted hover:bg-blue-50 hover:text-secondary" type="button" data-toggle-password="#attendance-pin" aria-label="Show attendance PIN"><span class="material-symbols-outlined">visibility</span></button>
-          </div>
-        </label>
-        <label class="block">
-          <span class="text-xs font-bold uppercase tracking-widest text-muted">Confirm PIN</span>
-          <div class="relative mt-2">
-            <input class="w-full rounded-2xl border border-outline bg-white px-4 py-4 pr-14 text-lg tracking-widest outline-none focus:border-secondary focus:ring-4 focus:ring-blue-100" id="attendance-pin-confirm" inputmode="numeric" maxlength="4" minlength="4" placeholder="0000" type="password" autocomplete="off" />
-            <button class="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl text-muted hover:bg-blue-50 hover:text-secondary" type="button" data-toggle-password="#attendance-pin-confirm" aria-label="Show confirm PIN"><span class="material-symbols-outlined">visibility</span></button>
-          </div>
-        </label>
-        <button class="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-4 font-extrabold text-white active:scale-[0.98]" type="submit" id="save-pin-button">
-          Save PIN and Continue
-          <span class="material-symbols-outlined">arrow_forward</span>
-        </button>
-      </form>
-      <p class="mt-4 hidden rounded-2xl px-4 py-3 text-sm font-bold" id="pin-message"></p>
+      <button class="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-4 font-extrabold text-white active:scale-[0.98]" type="button" id="save-fingerprint-button">
+        Set Up Fingerprint
+        <span class="material-symbols-outlined">fingerprint</span>
+      </button>
+      <p class="mt-4 hidden rounded-2xl px-4 py-3 text-sm font-bold" id="fingerprint-message"></p>
     </section>
   </main>
 
   <script>
     const currentUser = localStorage.getItem("geoAttendCurrentUser");
-    const message = document.getElementById("pin-message");
+    const message = document.getElementById("fingerprint-message");
     const owner = document.getElementById("profile-owner");
     if (!currentUser) window.location.href = "register.html";
     if (owner) owner.textContent = currentUser || "No user";
@@ -75,66 +58,68 @@
       message.textContent = text;
       message.className = `mt-4 rounded-2xl px-4 py-3 text-sm font-bold ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-green-50 text-green-700 border border-green-200"}`;
     }
-    function bufferToBase64Url(buffer) {
-      const bytes = new Uint8Array(buffer);
-      let binary = "";
-      bytes.forEach((byte) => binary += String.fromCharCode(byte));
-      return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-    }
-    async function hashAttendancePin(pin) {
-      const bytes = new TextEncoder().encode(`${currentUser}:${pin}`);
-      const hash = await crypto.subtle.digest("SHA-256", bytes);
-      return bufferToBase64Url(hash);
-    }
     async function postJson(url, payload) {
       const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Unable to complete request.");
       return data;
     }
-    document.querySelectorAll("[data-toggle-password]").forEach((button) => {
-      button.addEventListener("click", () => {
-        const input = document.querySelector(button.dataset.togglePassword);
-        if (!input) return;
-        const show = input.type === "password";
-        input.type = show ? "text" : "password";
-        button.querySelector(".material-symbols-outlined").textContent = show ? "visibility_off" : "visibility";
-      });
-    });
-    document.getElementById("pin-form")?.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const pinInput = document.getElementById("attendance-pin");
-      const confirmInput = document.getElementById("attendance-pin-confirm");
-      const pin = (pinInput.value || "").trim();
-      const confirmPin = (confirmInput.value || "").trim();
-      if (!/^\d{4}$/.test(pin)) {
-        showMessage("PIN must be exactly 4 digits.", true);
-        pinInput.focus();
+    function base64UrlToBuffer(value) {
+      const padded = String(value).replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(String(value).length / 4) * 4, "=");
+      const binary = atob(padded);
+      return Uint8Array.from(binary, (char) => char.charCodeAt(0)).buffer;
+    }
+    function bufferToBase64Url(buffer) {
+      const bytes = new Uint8Array(buffer);
+      let binary = "";
+      bytes.forEach((byte) => binary += String.fromCharCode(byte));
+      return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+    }
+    function prepareCredentialCreation(options) {
+      return {
+        ...options,
+        challenge: base64UrlToBuffer(options.challenge),
+        user: { ...options.user, id: base64UrlToBuffer(options.user.id) },
+        excludeCredentials: (options.excludeCredentials || []).map((credential) => ({ ...credential, id: base64UrlToBuffer(credential.id) }))
+      };
+    }
+    function serializeRegistrationCredential(credential) {
+      return {
+        id: credential.id,
+        rawId: bufferToBase64Url(credential.rawId),
+        type: credential.type,
+        response: {
+          attestationObject: bufferToBase64Url(credential.response.attestationObject),
+          clientDataJSON: bufferToBase64Url(credential.response.clientDataJSON)
+        }
+      };
+    }
+
+    document.getElementById("save-fingerprint-button")?.addEventListener("click", async () => {
+      const button = document.getElementById("save-fingerprint-button");
+      if (!window.PublicKeyCredential || !navigator.credentials?.create) {
+        showMessage("Fingerprint registration is not supported on this browser/device.", true);
         return;
       }
-      if (pin !== confirmPin) {
-        showMessage("PIN confirmation does not match.", true);
-        confirmInput.focus();
-        return;
-      }
-      const button = document.getElementById("save-pin-button");
       button.disabled = true;
-      button.textContent = "Saving PIN...";
+      button.textContent = "Opening fingerprint prompt...";
       try {
-        const attendancePinHash = await hashAttendancePin(pin);
-        const profile = { email: currentUser, security: { pin: true }, biometric: { pin: true }, checkinAuthMethod: "pin", attendancePinHash, livenessVerified: false, pinVerified: true, biometricVerified: true, identityVerified: true, storedAt: new Date().toISOString(), storageMode: "pin-only" };
+        const optionsData = await postJson("/api/webauthn/register-options", { email: currentUser });
+        const credential = await navigator.credentials.create({ publicKey: prepareCredentialCreation(optionsData.options) });
+        const verified = await postJson("/api/webauthn/register-verify", { email: currentUser, response: serializeRegistrationCredential(credential) });
+        const profile = { email: currentUser, security: { fingerprint: true }, biometric: { platformAuthenticator: true }, checkinAuthMethod: "fingerprint", webauthnCredential: verified.credential, livenessVerified: true, biometricVerified: true, identityVerified: true, storedAt: new Date().toISOString(), storageMode: "fingerprint-only" };
         const profiles = JSON.parse(localStorage.getItem("geoAttendBiometricProfiles") || "{}");
         profiles[currentUser] = profile;
         localStorage.setItem("geoAttendBiometricProfiles", JSON.stringify(profiles));
         const accounts = JSON.parse(localStorage.getItem("geoAttendAccounts") || "[]");
-        localStorage.setItem("geoAttendAccounts", JSON.stringify(accounts.map((account) => account.email === currentUser ? { ...account, attendancePinHash, checkinAuthMethod: "pin", identityVerified: true, pinVerified: true, biometricVerified: true, biometricProfileStoredAt: profile.storedAt, pinProfileStoredAt: profile.storedAt } : account)));
-        try { await postJson("/api/save-biometric-profile", { ...profile, storageMode: "server-pin-only" }); } catch {}
-        showMessage("Attendance PIN saved. Opening student dashboard...");
+        localStorage.setItem("geoAttendAccounts", JSON.stringify(accounts.map((account) => account.email === currentUser ? { ...account, checkinAuthMethod: "fingerprint", identityVerified: true, biometricVerified: true, biometricProfileStoredAt: profile.storedAt } : account)));
+        await postJson("/api/save-biometric-profile", profile);
+        showMessage("Fingerprint saved. Opening student dashboard...");
         setTimeout(() => { window.location.href = "student-home.html#active-classes"; }, 700);
       } catch (error) {
-        showMessage(error.message || "Unable to save attendance PIN.", true);
+        showMessage(error.message || "Unable to save fingerprint.", true);
         button.disabled = false;
-        button.innerHTML = 'Save PIN and Continue <span class="material-symbols-outlined">arrow_forward</span>';
+        button.innerHTML = 'Set Up Fingerprint <span class="material-symbols-outlined">fingerprint</span>';
       }
     });
   </script>

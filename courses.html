@@ -1,0 +1,150 @@
+﻿<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=1200">
+  <title>Courses - GeoAttend</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: { surface: "#f8f9ff", "surface-container-lowest": "#ffffff", "surface-container-low": "#eff4ff", "outline-variant": "#c6c6cd", "on-surface": "#0b1c30", "on-surface-variant": "#45464d", secondary: "#0058be", "on-primary": "#ffffff" },
+          fontFamily: { sans: ["Inter", "sans-serif"] }
+        }
+      }
+    };
+  </script>
+  <style>.material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24}</style>
+  <script src="role-access.js?v=20260924-loginfix" defer></script>
+  <link rel="stylesheet" href="mobile-admin.css?v=20260924-fixed1200" />
+</head>
+<body class="bg-surface font-sans text-on-surface" data-role-required="admin">
+  <aside class="w-[280px] h-screen fixed left-0 top-0 bg-surface-container-lowest border-r border-outline-variant shadow-sm flex flex-col py-6 px-4 z-50">
+    <div class="flex items-center gap-4 mb-8">
+      <div class="w-10 h-10 rounded-lg bg-secondary text-on-primary flex items-center justify-center"><span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">verified_user</span></div>
+      <div><h1 class="text-3xl font-extrabold leading-none">GeoAttend</h1><p class="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Course Setup</p></div>
+    </div>
+    <nav class="flex-1 space-y-2">
+      <a class="flex items-center gap-4 p-4 rounded-lg text-on-surface-variant hover:bg-surface-container-low" href="dashboard.html"><span class="material-symbols-outlined">dashboard</span><span>Dashboard</span></a>
+      <a class="flex items-center gap-4 p-4 rounded-lg text-on-surface-variant hover:bg-surface-container-low" href="create-session.html"><span class="material-symbols-outlined">add_circle</span><span>Create Session</span></a>
+      <a class="flex items-center gap-4 p-4 rounded-lg text-secondary font-bold border-l-4 border-secondary bg-surface-container-low" href="courses.html"><span class="material-symbols-outlined">menu_book</span><span>Courses</span></a>
+      <a class="flex items-center gap-4 p-4 rounded-lg text-on-surface-variant hover:bg-surface-container-low" href="live-monitor.html"><span class="material-symbols-outlined">security</span><span>Live Monitor</span></a>
+      <a class="flex items-center gap-4 p-4 rounded-lg text-on-surface-variant hover:bg-surface-container-low" href="students.html"><span class="material-symbols-outlined">groups</span><span>Students</span></a>
+      <a class="flex items-center gap-4 p-4 rounded-lg text-on-surface-variant hover:bg-surface-container-low" href="records.html"><span class="material-symbols-outlined">description</span><span>Records</span></a>
+    </nav>
+  </aside>
+
+  <main class="ml-[280px] min-h-screen p-8">
+    <div class="max-w-6xl mx-auto">
+      <div class="flex items-start justify-between gap-6 mb-6">
+        <div>
+          <p class="text-xs font-bold uppercase tracking-widest text-secondary">Admin</p>
+          <h1 class="text-3xl font-extrabold">Course Management</h1>
+          <p class="mt-2 text-on-surface-variant">Add or remove courses used when creating attendance sessions.</p>
+        </div>
+        <a class="rounded-lg bg-secondary px-5 py-3 font-bold text-white" href="create-session.html">Create Session</a>
+      </div>
+
+      <section class="rounded-xl border border-outline-variant bg-surface-container-lowest p-6 shadow-sm mb-6">
+        <h2 class="text-xl font-bold">Add Course</h2>
+        <form class="mt-5 grid grid-cols-[160px_1fr_180px_260px_140px] gap-4 items-end" id="course-form">
+          <label class="block"><span class="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Course Code</span><input class="mt-2 w-full rounded-lg border border-outline-variant bg-white px-4 py-3 uppercase" id="course-code" placeholder="EEE301" required /></label>
+          <label class="block"><span class="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Course Title</span><input class="mt-2 w-full rounded-lg border border-outline-variant bg-white px-4 py-3" id="course-title" placeholder="Electrical Machines I" required /></label>
+          <label class="block"><span class="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Faculty</span><select class="mt-2 w-full rounded-lg border border-outline-variant bg-white px-4 py-3" id="course-faculty"></select></label>
+          <label class="block"><span class="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Department</span><select class="mt-2 w-full rounded-lg border border-outline-variant bg-white px-4 py-3" id="course-department"></select></label>
+          <label class="block"><span class="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Level</span><select class="mt-2 w-full rounded-lg border border-outline-variant bg-white px-4 py-3" id="course-level"></select></label>
+          <button class="col-span-5 rounded-lg bg-black px-5 py-4 font-bold text-white" type="submit">Save Course</button>
+        </form>
+        <p class="mt-4 hidden rounded-lg px-4 py-3 font-bold" id="course-message"></p>
+      </section>
+
+      <section class="rounded-xl border border-outline-variant bg-surface-container-lowest p-6 shadow-sm">
+        <div class="flex items-center justify-between gap-4 mb-4">
+          <h2 class="text-xl font-bold">Courses</h2>
+          <p class="font-mono text-sm text-secondary" id="course-count">0 courses</p>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[850px] text-left">
+            <thead class="border-b border-outline-variant text-xs uppercase tracking-widest text-on-surface-variant"><tr><th class="py-3 pr-4">Code</th><th class="py-3 pr-4">Title</th><th class="py-3 pr-4">Department</th><th class="py-3 pr-4">Level</th><th class="py-3 text-right">Action</th></tr></thead>
+            <tbody class="divide-y divide-outline-variant" id="course-table"><tr><td class="py-5 text-on-surface-variant" colspan="5">Loading courses...</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    let academicScope = null;
+    let courses = [];
+    function showMessage(text, isError = false) {
+      const node = document.getElementById("course-message");
+      node.textContent = text;
+      node.className = `mt-4 rounded-lg px-4 py-3 font-bold ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-green-50 text-green-700 border border-green-200"}`;
+    }
+    function fillSelect(id, items) {
+      const select = document.getElementById(id);
+      select.innerHTML = items.map((item) => `<option value="${item.id}">${item.name}</option>`).join("");
+    }
+    function refreshDepartments() {
+      const facultyId = document.getElementById("course-faculty").value;
+      const departments = academicScope.departments.filter((department) => department.facultyId === facultyId);
+      fillSelect("course-department", departments.length ? departments : academicScope.departments);
+    }
+    async function requestJson(url, options = {}) {
+      const response = await fetch(url, { cache: "no-store", ...options });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Unable to complete request.");
+      return data;
+    }
+    function renderCourses() {
+      document.getElementById("course-count").textContent = `${courses.length} courses`;
+      const departmentById = Object.fromEntries((academicScope?.departments || []).map((item) => [item.id, item.name]));
+      const levelById = Object.fromEntries((academicScope?.levels || []).map((item) => [item.id, item.name]));
+      const table = document.getElementById("course-table");
+      if (!courses.length) {
+        table.innerHTML = '<tr><td class="py-5 text-on-surface-variant" colspan="5">No courses added yet.</td></tr>';
+        return;
+      }
+      table.innerHTML = courses.map((course) => `<tr><td class="py-4 pr-4 font-bold">${course.code}</td><td class="py-4 pr-4">${course.title}</td><td class="py-4 pr-4 text-sm text-on-surface-variant">${departmentById[course.departmentId] || course.departmentId || "--"}</td><td class="py-4 pr-4 text-sm">${levelById[course.levelId] || course.levelId || "--"}</td><td class="py-4 text-right"><button class="rounded-lg border border-red-200 px-3 py-2 text-sm font-bold text-red-700" data-delete-course="${course.code}">Remove</button></td></tr>`).join("");
+      table.querySelectorAll("[data-delete-course]").forEach((button) => button.addEventListener("click", async () => {
+        if (!confirm(`Remove ${button.dataset.deleteCourse}?`)) return;
+        const data = await requestJson(`/api/courses?code=${encodeURIComponent(button.dataset.deleteCourse)}`, { method: "DELETE" });
+        courses = data.courses || [];
+        renderCourses();
+        showMessage("Course removed.");
+      }));
+    }
+    async function loadPage() {
+      const scopeData = await requestJson("/api/academic-scope");
+      academicScope = scopeData.scope || scopeData;
+      fillSelect("course-faculty", academicScope.faculties || []);
+      fillSelect("course-level", academicScope.levels || []);
+      document.getElementById("course-faculty").value = academicScope.defaults?.facultyId || "engineering";
+      document.getElementById("course-level").value = academicScope.defaults?.levelId || "100";
+      refreshDepartments();
+      courses = academicScope.courses || [];
+      renderCourses();
+    }
+    document.getElementById("course-faculty").addEventListener("change", refreshDepartments);
+    document.getElementById("course-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        const payload = { code: document.getElementById("course-code").value, title: document.getElementById("course-title").value, facultyId: document.getElementById("course-faculty").value, departmentId: document.getElementById("course-department").value, levelId: document.getElementById("course-level").value };
+        const data = await requestJson("/api/courses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        courses = data.courses || [];
+        event.target.reset();
+        document.getElementById("course-faculty").value = academicScope.defaults?.facultyId || "engineering";
+        document.getElementById("course-level").value = academicScope.defaults?.levelId || "100";
+        refreshDepartments();
+        renderCourses();
+        showMessage("Course saved.");
+      } catch (error) {
+        showMessage(error.message, true);
+      }
+    });
+    loadPage().catch((error) => showMessage(error.message, true));
+  </script>
+</body>
+</html>

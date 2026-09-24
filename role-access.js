@@ -3,7 +3,7 @@
   document.documentElement.classList.toggle("dark", savedTheme === "dark");
   document.documentElement.classList.toggle("light", savedTheme !== "dark");
 
-  const ADMIN_PAGES = new Set(["dashboard.html", "create-session.html", "live-monitor.html", "students.html", "records.html", "session-report.html", "admin-management.html"]);
+  const ADMIN_PAGES = new Set(["dashboard.html", "create-session.html", "live-monitor.html", "students.html", "records.html", "session-report.html", "admin-management.html", "courses.html"]);
   const STUDENT_PAGES = new Set(["student-home.html", "student-history.html", "student-profile.html", "identity-verification.html"]);
   const PUBLIC_PAGES = new Set(["login.html", "register.html", ""]);
 
@@ -60,7 +60,7 @@
     if (!email) return false;
     const profiles = JSON.parse(localStorage.getItem("geoAttendBiometricProfiles") || "{}");
     const profile = profiles[email];
-    return Boolean(profile?.identityVerified || profile?.attendancePinHash || account?.identityVerified || account?.pinProfileStoredAt || account?.biometricProfileStoredAt);
+    return Boolean(profile?.identityVerified || profile?.webauthnCredential || account?.identityVerified || account?.biometricProfileStoredAt);
   }
   function firstTwoNames(value) {
     const text = String(value || "").trim();
