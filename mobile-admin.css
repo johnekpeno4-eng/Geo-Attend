@@ -1796,3 +1796,190 @@ body[data-role-required="admin"] aside.w-\[280px\] nav a {
     text-overflow: ellipsis !important;
   }
 }
+
+/* Final admin phone fit pass: zoom content out and stop right-side clipping. */
+@media (max-width: 900px) {
+  body[data-role-required="admin"] {
+    font-size: clamp(9px, 1.8vw, 13px) !important;
+  }
+
+  body[data-role-required="admin"] main > div {
+    max-width: 100% !important;
+  }
+
+  body[data-role-required="admin"] section,
+  body[data-role-required="admin"] article,
+  body[data-role-required="admin"] .bg-surface-container-lowest,
+  body[data-role-required="admin"] .bg-surface-container-low {
+    padding: clamp(10px, 2.2vw, 18px) !important;
+    overflow: hidden !important;
+  }
+
+  body[data-role-required="admin"] h1,
+  body[data-role-required="admin"] h2,
+  body[data-role-required="admin"] h3,
+  body[data-role-required="admin"] h4 {
+    letter-spacing: 0 !important;
+  }
+
+  body[data-role-required="admin"] .text-3xl,
+  body[data-role-required="admin"] .text-2xl,
+  body[data-role-required="admin"] .font-headline-lg,
+  body[data-role-required="admin"] .text-headline-lg {
+    font-size: clamp(16px, 3.1vw, 23px) !important;
+    line-height: 1.12 !important;
+  }
+
+  body[data-role-required="admin"] .text-xl {
+    font-size: clamp(13px, 2.5vw, 18px) !important;
+    line-height: 1.2 !important;
+  }
+
+  body[data-role-required="admin"] .text-lg,
+  body[data-role-required="admin"] .text-base,
+  body[data-role-required="admin"] .font-body-md,
+  body[data-role-required="admin"] .text-body-md {
+    font-size: clamp(10px, 1.9vw, 14px) !important;
+    line-height: 1.25 !important;
+  }
+
+  body[data-role-required="admin"] .text-sm,
+  body[data-role-required="admin"] .font-label-md,
+  body[data-role-required="admin"] .text-label-md {
+    font-size: clamp(8px, 1.55vw, 11px) !important;
+    line-height: 1.2 !important;
+  }
+
+  body[data-role-required="admin"] .text-xs {
+    font-size: clamp(7px, 1.35vw, 10px) !important;
+    line-height: 1.15 !important;
+  }
+
+  body[data-role-required="admin"] .p-lg {
+    padding: clamp(10px, 2.2vw, 18px) !important;
+  }
+
+  body[data-role-required="admin"] .p-md,
+  body[data-role-required="admin"] .px-md,
+  body[data-role-required="admin"] .py-md {
+    padding: clamp(7px, 1.6vw, 12px) !important;
+  }
+
+  body[data-role-required="admin"] .gap-lg {
+    gap: clamp(8px, 2vw, 16px) !important;
+  }
+
+  body[data-role-required="admin"] .gap-md {
+    gap: clamp(7px, 1.6vw, 12px) !important;
+  }
+
+  body[data-role-required="admin"] input,
+  body[data-role-required="admin"] select,
+  body[data-role-required="admin"] textarea {
+    min-height: clamp(34px, 6.5vw, 46px) !important;
+    padding: clamp(7px, 1.6vw, 12px) clamp(9px, 2vw, 14px) !important;
+  }
+
+  body[data-role-required="admin"] button,
+  body[data-role-required="admin"] .pdf-report-action {
+    min-height: clamp(34px, 6.5vw, 48px) !important;
+    padding: clamp(7px, 1.6vw, 12px) clamp(9px, 2vw, 14px) !important;
+  }
+
+  body[data-role-required="admin"] table {
+    min-width: 0 !important;
+    width: 100% !important;
+    table-layout: fixed !important;
+    font-size: clamp(7px, 1.45vw, 11px) !important;
+  }
+
+  body[data-role-required="admin"] th,
+  body[data-role-required="admin"] td {
+    padding: clamp(6px, 1.4vw, 12px) clamp(4px, 1vw, 8px) !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+    word-break: normal !important;
+    vertical-align: top !important;
+  }
+
+  body[data-role-required="admin"] th {
+    font-size: clamp(6px, 1.25vw, 9px) !important;
+    letter-spacing: 0.08em !important;
+  }
+
+  body[data-role-required="admin"] .overflow-x-auto,
+  body[data-role-required="admin"] .custom-scrollbar {
+    overflow-x: hidden !important;
+  }
+
+  body[data-role-required="admin"] #students-table,
+  body[data-role-required="admin"] #records-table,
+  body[data-role-required="admin"] #admin-table,
+  body[data-role-required="admin"] #report-table {
+    min-width: 0 !important;
+  }
+
+  body[data-role-required="admin"] #students-table th:nth-child(1),
+  body[data-role-required="admin"] #records-table th:nth-child(1),
+  body[data-role-required="admin"] #students-table td:nth-child(1),
+  body[data-role-required="admin"] #records-table td:nth-child(1) {
+    width: 34px !important;
+  }
+
+  body[data-role-required="admin"] #students-table th,
+  body[data-role-required="admin"] #records-table th {
+    white-space: normal !important;
+  }
+
+  body[data-role-required="admin"] #students-table td,
+  body[data-role-required="admin"] #records-table td {
+    white-space: normal !important;
+  }
+
+  body[data-role-required="admin"] .font-mono-data {
+    font-size: clamp(7px, 1.45vw, 10px) !important;
+    white-space: normal !important;
+  }
+
+  body[data-role-required="admin"] main > header .relative {
+    max-width: min(100%, 300px) !important;
+  }
+
+  body[data-role-required="admin"] main > header input {
+    min-height: 30px !important;
+  }
+
+  body[data-role-required="admin"] .admin-profile-menu-root,
+  body[data-role-required="admin"] main > header button[aria-label="Help"],
+  body[data-role-required="admin"] main > header button:not(.admin-profile-trigger) {
+    transform: scale(0.86);
+    transform-origin: center;
+  }
+
+  body[data-role-required="admin"] .h-\[400px\] {
+    height: clamp(250px, 56vw, 400px) !important;
+    min-height: clamp(250px, 56vw, 400px) !important;
+  }
+}
+
+@media (max-width: 420px) {
+  body[data-role-required="admin"] section,
+  body[data-role-required="admin"] article,
+  body[data-role-required="admin"] .bg-surface-container-lowest,
+  body[data-role-required="admin"] .bg-surface-container-low {
+    padding: 10px !important;
+  }
+
+  body[data-role-required="admin"] #students-table,
+  body[data-role-required="admin"] #records-table,
+  body[data-role-required="admin"] #admin-table,
+  body[data-role-required="admin"] #report-table {
+    font-size: 7px !important;
+  }
+
+  body[data-role-required="admin"] th,
+  body[data-role-required="admin"] td {
+    padding-left: 3px !important;
+    padding-right: 3px !important;
+  }
+}
