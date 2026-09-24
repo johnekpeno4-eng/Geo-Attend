@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html class="light" lang="en">
 <head>
   <meta charset="utf-8" />
@@ -48,16 +48,22 @@
       </div>
 
       <section class="rounded-xl border border-outline-variant bg-surface-container-lowest p-6 shadow-sm mb-6">
-        <h2 class="text-xl font-bold">Add Course</h2>
-        <form class="mt-5 grid grid-cols-[160px_1fr_180px_260px_140px] gap-4 items-end" id="course-form">
-          <label class="block"><span class="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Course Code</span><input class="mt-2 w-full rounded-lg border border-outline-variant bg-white px-4 py-3 uppercase" id="course-code" placeholder="EEE301" required /></label>
-          <label class="block"><span class="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Course Title</span><input class="mt-2 w-full rounded-lg border border-outline-variant bg-white px-4 py-3" id="course-title" placeholder="Electrical Machines I" required /></label>
-          <label class="block"><span class="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Faculty</span><select class="mt-2 w-full rounded-lg border border-outline-variant bg-white px-4 py-3" id="course-faculty"></select></label>
-          <label class="block"><span class="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Department</span><select class="mt-2 w-full rounded-lg border border-outline-variant bg-white px-4 py-3" id="course-department"></select></label>
-          <label class="block"><span class="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Level</span><select class="mt-2 w-full rounded-lg border border-outline-variant bg-white px-4 py-3" id="course-level"></select></label>
-          <button class="col-span-5 rounded-lg bg-black px-5 py-4 font-bold text-white" type="submit">Save Course</button>
+        <div class="flex items-center gap-3 mb-5">
+          <span class="material-symbols-outlined text-secondary">menu_book</span>
+          <div>
+            <h2 class="text-xl font-bold">Add Course</h2>
+            <p class="text-sm text-on-surface-variant">Add a course that can be selected when creating attendance sessions.</p>
+          </div>
+        </div>
+        <form class="grid gap-4 xl:grid-cols-[160px_minmax(260px,1fr)_180px_minmax(220px,260px)_140px] items-end" id="course-form">
+          <label class="grid gap-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant">Course Code<input class="w-full rounded-xl border border-outline-variant bg-white px-4 py-3 uppercase text-base font-normal text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="course-code" placeholder="EEE301" required /></label>
+          <label class="grid gap-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant">Course Title<input class="w-full rounded-xl border border-outline-variant bg-white px-4 py-3 text-base font-normal text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="course-title" placeholder="Electrical Machines I" required /></label>
+          <label class="grid gap-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant">Faculty<select class="w-full rounded-xl border border-outline-variant bg-white px-4 py-3 text-base normal-case font-normal text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="course-faculty"></select></label>
+          <label class="grid gap-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant">Department<select class="w-full rounded-xl border border-outline-variant bg-white px-4 py-3 text-base normal-case font-normal text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="course-department"></select></label>
+          <label class="grid gap-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant">Level<select class="w-full rounded-xl border border-outline-variant bg-white px-4 py-3 text-base normal-case font-normal text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="course-level"></select></label>
+          <button class="xl:col-span-5 rounded-xl bg-secondary px-5 py-4 font-bold text-on-primary min-h-[48px]" type="submit">Save Course</button>
         </form>
-        <p class="mt-4 hidden rounded-lg px-4 py-3 font-bold" id="course-message"></p>
+        <p class="mt-4 hidden rounded-xl px-4 py-3 font-bold" id="course-message"></p>
       </section>
 
       <section class="rounded-xl border border-outline-variant bg-surface-container-lowest p-6 shadow-sm">
