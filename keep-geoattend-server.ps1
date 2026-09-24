@@ -13,7 +13,8 @@ while ($true) {
     if (-not $changes) {
       git fetch origin --prune 2>$null
       if ($LASTEXITCODE -eq 0) {
-        git pull --ff-only 2>$null
+        # Rebase keeps local commits while applying new partner commits from GitHub.
+        git pull --rebase 2>$null
       }
     }
   }
