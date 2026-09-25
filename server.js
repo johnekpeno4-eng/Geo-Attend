@@ -143,8 +143,21 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (req.method === "GET" && req.url === "/api/academic-scope") {
-      await getAcademicScope(res);
+    if (req.method === "GET" && req.url.startsWith("/api/academic-scope")) {
+      await getAcademicScope(req, res);
+      return;
+    }
+    if (req.method === "GET" && req.url.startsWith("/api/lecturer-assignments")) {
+      await getLecturerAssignments(req, res);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/lecturer-assignments") {
+      const body = await readJson(req);
+      await saveLecturerCourseAssignment(res, body);
+      return;
+    }
+    if (req.method === "DELETE" && req.url.startsWith("/api/lecturer-assignments")) {
+      await deleteLecturerCourseAssignment(req, res);
       return;
     }
 
@@ -470,10 +483,64 @@ async function readAcademicCourses() {
   }
 }
 
-async function getAcademicScope(res) {
-  const courses = await readAcademicCourses();
+async function getAcademicScope(req, res) {
+  let courses = await readAcademicCourses();
+  const principal = getRequestPrincipal(req);
+  if (principal.admin && isLecturerAdmin(principal.admin)) {
+    const assignedCodes = new Set(await getLecturerAssignedCourseCodes(principal.admin.email));
+    courses = courses.filter((course) => assignedCodes.has(course.code));
+  }
   const scope = { ...ACADEMIC_SCOPE, courses };
   json(res, 200, { ok: true, scope, ...scope, defaults: getAcademicDefaults() });
+}
+
+function getCourseCode(value) {
+  return String(value || "").split(":")[0].trim().toUpperCase();
+}
+
+function isLecturerAdmin(admin) {
+  return normalizeAdminRole(admin?.adminRole || admin?.role) === "lecturer_admin";
+}
+
+async function getLecturerAssignedCourseCodes(email) {
+  const lecturerEmail = String(email || "").trim().toLowerCase();
+  if (!lecturerEmail) return [];
+  const rows = await dbAll("SELECT course_code FROM lecturer_course_assignments WHERE lecturer_email = ? COLLATE NOCASE", [lecturerEmail]);
+  return rows.map((row) => String(row.course_code || "").trim().toUpperCase()).filter(Boolean);
+}
+
+async function getLecturerAssignments(req, res) {
+  const principal = getRequestPrincipal(req);
+  if (!principal.admin) return json(res, 403, { error: "Admin access is required." });
+  const requestedEmail = String(new URL(req.url, "http://127.0.0.1").searchParams.get("lecturerEmail") || "").trim().toLowerCase();
+  if (!isOwnerAdmin(principal.admin.email) && requestedEmail && requestedEmail !== principal.admin.email) return json(res, 403, { error: "You can only view your own course assignments." });
+  const lecturerEmail = isOwnerAdmin(principal.admin.email) ? requestedEmail : principal.admin.email;
+  const rows = await dbAll("SELECT lecturer_email, course_code, assigned_by, created_at FROM lecturer_course_assignments WHERE (? = '' OR lecturer_email = ? COLLATE NOCASE) ORDER BY lecturer_email COLLATE NOCASE, course_code COLLATE NOCASE", [lecturerEmail, lecturerEmail]);
+  const courseMap = new Map((await readAcademicCourses()).map((course) => [course.code, course]));
+  const adminMap = new Map(getAdminRoster().map((admin) => [admin.email, admin]));
+  json(res, 200, { ok: true, assignments: rows.map((row) => ({ lecturerEmail: row.lecturer_email, lecturerName: adminMap.get(String(row.lecturer_email).toLowerCase())?.fullName || row.lecturer_email, courseCode: row.course_code, courseTitle: courseMap.get(row.course_code)?.title || "", assignedBy: row.assigned_by, createdAt: row.created_at })) });
+}
+
+async function saveLecturerCourseAssignment(res, body = {}) {
+  const actorEmail = String(body.actorEmail || "").trim().toLowerCase();
+  if (!isOwnerAdmin(actorEmail)) return json(res, 403, { error: "Only the overall admin can assign lecturer courses." });
+  const lecturer = findAdminByIdentifier(body.lecturerEmail || body.lecturerRegNumber);
+  const courseCode = getCourseCode(body.courseCode);
+  if (!lecturer || !isLecturerAdmin(lecturer)) return json(res, 400, { error: "Select an admin with the Lecturer Admin role." });
+  const course = (await readAcademicCourses()).find((item) => item.code === courseCode);
+  if (!course) return json(res, 404, { error: "Course not found." });
+  await dbRun("INSERT OR IGNORE INTO lecturer_course_assignments (lecturer_email, course_code, assigned_by, created_at) VALUES (?, ?, ?, ?)", [lecturer.email, courseCode, actorEmail, new Date().toISOString()]);
+  json(res, 200, { ok: true, message: `${courseCode} assigned to ${lecturer.fullName || lecturer.email}.` });
+}
+
+async function deleteLecturerCourseAssignment(req, res) {
+  const url = new URL(req.url, "http://127.0.0.1");
+  const actorEmail = String(url.searchParams.get("actorEmail") || "").trim().toLowerCase();
+  if (!isOwnerAdmin(actorEmail)) return json(res, 403, { error: "Only the overall admin can remove lecturer course assignments." });
+  const lecturerEmail = String(url.searchParams.get("lecturerEmail") || "").trim().toLowerCase();
+  const courseCode = getCourseCode(url.searchParams.get("courseCode"));
+  await dbRun("DELETE FROM lecturer_course_assignments WHERE lecturer_email = ? COLLATE NOCASE AND course_code = ? COLLATE NOCASE", [lecturerEmail, courseCode]);
+  json(res, 200, { ok: true });
 }
 
 async function getCourses(res) {
@@ -620,6 +687,15 @@ async function initDatabase() {
   )`);
   await dbRun("CREATE INDEX IF NOT EXISTS idx_department_subscriptions_status ON department_subscriptions(status)");
   await dbRun("CREATE INDEX IF NOT EXISTS idx_department_subscriptions_expires ON department_subscriptions(expires_at)");
+  await dbRun(`CREATE TABLE IF NOT EXISTS lecturer_course_assignments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lecturer_email TEXT NOT NULL COLLATE NOCASE,
+    course_code TEXT NOT NULL COLLATE NOCASE,
+    assigned_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE(lecturer_email, course_code)
+  )`);
+  await dbRun("CREATE INDEX IF NOT EXISTS idx_lecturer_course_assignments_lecturer ON lecturer_course_assignments(lecturer_email)");
   await migrateJsonDataToSqlite();
 }
 
@@ -1563,6 +1639,13 @@ async function saveLiveSession(res, session) {
   const { items: sessions } = await readLiveSessionsStore();
   const actorAdmin = findAdminByIdentifier(session.actorEmail || session.createdBy || "");
   const scopedSession = applyAdminScopeToSession(session, actorAdmin);
+  if (actorAdmin && isLecturerAdmin(actorAdmin)) {
+    const assignedCodes = await getLecturerAssignedCourseCodes(actorAdmin.email);
+    if (!assignedCodes.includes(getCourseCode(scopedSession.course))) {
+      json(res, 403, { error: "You can only create sessions for courses assigned to your Lecturer Admin account." });
+      return;
+    }
+  }
   const subscriptionCheck = await enforceSubscriptionForSession(scopedSession);
   if (!subscriptionCheck.ok) {
     json(res, 402, { error: subscriptionCheck.error });
@@ -1659,12 +1742,12 @@ function serveAttendancePdf(req, res) {
   res.end(pdf);
 }
 
-function getAttendanceReports(req, res) {
+async function getAttendanceReports(req, res) {
   autoFinalizeExpiredSessions();
   const reports = readJsonFile(ATTENDANCE_REPORTS_INDEX_FILE, [])
     .filter((report) => report && report.id && report.filename)
     .sort((a, b) => new Date(b.createdAt || b.updatedAt || 0) - new Date(a.createdAt || a.updatedAt || 0));
-  const visibleReports = filterReportsForRequest(req, reports);
+  const visibleReports = await filterReportsForRequest(req, reports);
   json(res, 200, { ok: true, reports: visibleReports.map(publicAttendanceReport) });
 }
 
@@ -2163,6 +2246,7 @@ function normalizeAdminRole(value) {
   if (["owner", "overall", "overall_admin", "super_admin"].includes(raw)) return "overall_admin";
   if (["faculty", "faculty_admin"].includes(raw)) return "faculty_admin";
   if (["level", "level_admin"].includes(raw)) return "level_admin";
+  if (["lecturer", "lecturer_admin", "lectureradmin"].includes(raw)) return "lecturer_admin";
   return "department_admin";
 }
 
@@ -2171,7 +2255,8 @@ function getRoleLabel(role) {
     overall_admin: "Overall Admin",
     faculty_admin: "Faculty Admin",
     department_admin: "Department Admin",
-    level_admin: "Level Admin"
+    level_admin: "Level Admin",
+    lecturer_admin: "Lecturer Admin"
   }[normalizeAdminRole(role)] || "Department Admin";
 }
 
@@ -2232,7 +2317,7 @@ async function getStudentByEmail(email) {
 
 function entityMatchesScope(entity = {}, scope = {}, role = "overall_admin") {
   const normalizedRole = normalizeAdminRole(role);
-  if (normalizedRole === "overall_admin") return true;
+  if (normalizedRole === "overall_admin" || normalizedRole === "lecturer_admin") return true;
   if (normalizedRole === "faculty_admin") return !scope.facultyId || entity.facultyId === scope.facultyId;
   if (normalizedRole === "department_admin") return !scope.departmentId || entity.departmentId === scope.departmentId;
   if (normalizedRole === "level_admin") {
@@ -2247,7 +2332,7 @@ function applyAdminScopeToSession(session = {}, admin = null) {
   const adminRole = normalizeAdminRole(admin.adminRole || admin.role);
   const adminScope = normalizeAcademicScope(admin);
   const next = { ...session, ...selected, createdBy: admin.email || admin.regNumber || session.createdBy || "", createdByAdminRole: adminRole };
-  if (adminRole === "overall_admin") return next;
+  if (adminRole === "overall_admin" || adminRole === "lecturer_admin") return next;
   if (adminRole === "faculty_admin") {
     return { ...next, facultyId: adminScope.facultyId, facultyName: adminScope.facultyName };
   }
@@ -2260,6 +2345,10 @@ function applyAdminScopeToSession(session = {}, admin = null) {
 async function filterSessionsForRequest(req, sessions) {
   const { admin, studentEmail } = getRequestPrincipal(req);
   if (admin) {
+    if (isLecturerAdmin(admin)) {
+      const assignedCodes = new Set(await getLecturerAssignedCourseCodes(admin.email));
+      return sessions.filter((session) => assignedCodes.has(getCourseCode(session.course)));
+    }
     return sessions.filter((session) => entityMatchesScope(session, admin, admin.adminRole || admin.role));
   }
   if (studentEmail) {
@@ -2270,9 +2359,13 @@ async function filterSessionsForRequest(req, sessions) {
   return sessions;
 }
 
-function filterReportsForRequest(req, reports) {
+async function filterReportsForRequest(req, reports) {
   const { admin } = getRequestPrincipal(req);
   if (!admin) return reports;
+  if (isLecturerAdmin(admin)) {
+    const assignedCodes = new Set(await getLecturerAssignedCourseCodes(admin.email));
+    return reports.filter((report) => assignedCodes.has(getCourseCode(report.course || report.title)));
+  }
   return reports.filter((report) => entityMatchesScope(report, admin, admin.adminRole || admin.role));
 }
 
