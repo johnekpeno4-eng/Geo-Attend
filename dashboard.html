@@ -513,7 +513,7 @@
 
     async function refreshStudentsFromServer() {
       try {
-        const response = await fetch("/api/students", { cache: "no-store" });
+        const response = await fetch(`/api/students?actorEmail=${encodeURIComponent(localStorage.getItem("geoAttendCurrentUser") || "")}`, { cache: "no-store" });
         if (!response.ok) throw new Error("Students unavailable");
         const data = await response.json();
         registeredStudents = Array.isArray(data.students) ? data.students : [];

@@ -270,7 +270,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "GET" && req.url.startsWith("/api/students")) {
-      await getStudents(res);
+      await getStudents(req, res);
       return;
     }
 
@@ -2954,8 +2954,9 @@ async function writeStudentStore(student) {
   return normalized;
 }
 
-async function getStudents(res) {
-  const students = sortStudents(await readStudentsStore());
+async function getStudents(req, res) {
+  const principal = getRequestPrincipal(req);
+  const students = isLecturerAdmin(principal.admin) ? [] : sortStudents(await readStudentsStore());
   json(res, 200, {
     ok: true,
     source: "sqlite",

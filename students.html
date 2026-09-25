@@ -150,7 +150,7 @@
 
     async function loadStudents() {
       try {
-        const response = await fetch("/api/students", { cache: "no-store" });
+        const response = await fetch(`/api/students?actorEmail=${encodeURIComponent(localStorage.getItem("geoAttendCurrentUser") || "")}`, { cache: "no-store" });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error || "Unable to load students.");
         students = Array.isArray(data.students) ? data.students : [];

@@ -110,6 +110,12 @@
     return;
   }
 
+  const adminRole = localStorage.getItem("geoAttendAdminRole") || "";
+  const lecturerRestrictedPages = new Set(["admin-management.html", "courses.html", "students.html", "records.html"]);
+  if (role === "admin" && adminRole === "lecturer_admin" && lecturerRestrictedPages.has(page)) {
+    go("dashboard.html");
+    return;
+  }
   if (role === "admin" && isStudentPage) {
     localStorage.setItem("geoAttendView", "student");
   }
@@ -572,7 +578,13 @@
       setupAdminProfileMenu();
     }
 
-    if (role === "admin" && isStudentPage) {
+    const adminRole = localStorage.getItem("geoAttendAdminRole") || "";
+  const lecturerRestrictedPages = new Set(["admin-management.html", "courses.html", "students.html", "records.html"]);
+  if (role === "admin" && adminRole === "lecturer_admin" && lecturerRestrictedPages.has(page)) {
+    go("dashboard.html");
+    return;
+  }
+  if (role === "admin" && isStudentPage) {
       const adminSwitch = document.createElement("a");
       adminSwitch.href = "dashboard.html";
       adminSwitch.className = "admin-view-switch bg-secondary text-on-primary rounded-xl px-4 py-2 shadow-lg font-bold inline-flex items-center gap-2 shrink-0";
