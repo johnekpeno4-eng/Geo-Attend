@@ -647,13 +647,14 @@
       ));
       const courseSelect = document.getElementById("course");
       if (!courseSelect) return;
-      const list = courses.length ? courses : academicScope.courses;
-      courseSelect.innerHTML = list.map((course) => `<option>${course.code}: ${course.title}</option>`).join("");
+      const isLecturer = localStorage.getItem("geoAttendAdminRole") === "lecturer_admin";
+      const list = courses.length ? courses : (isLecturer ? [] : academicScope.courses);
+      courseSelect.innerHTML = list.length ? list.map((course) => `<option>${course.code}: ${course.title}</option>`).join("") : "<option value=\"\">No course assigned to this lecturer</option>";
     }
 
     async function loadAcademicScope() {
       try {
-        const response = await fetch("/api/academic-scope", { cache: "no-store" });
+        const response = await fetch(`/api/academic-scope?actorEmail=${encodeURIComponent(localStorage.getItem("geoAttendCurrentUser") || "")}`, { cache: "no-store" });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error || "Unable to load academic scope.");
         academicScope = data;

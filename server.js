@@ -1696,9 +1696,13 @@ async function getAttendance(req, res) {
   const sessionId = String(url.searchParams.get("sessionId") || "").trim();
   const { items, source } = await readAttendanceStore();
   const principal = getRequestPrincipal(req);
+  const lecturerCourseCodes = principal.admin && isLecturerAdmin(principal.admin)
+    ? new Set(await getLecturerAssignedCourseCodes(principal.admin.email))
+    : null;
   const attendance = items
     .filter((entry) => entry && (!sessionId || entry.sessionId === sessionId))
     .filter((entry) => {
+      if (lecturerCourseCodes) return lecturerCourseCodes.has(getCourseCode(entry.course));
       if (principal.admin) return entityMatchesScope(entry, principal.admin, principal.admin.adminRole || principal.admin.role);
       if (principal.studentEmail) return String(entry.email || "").trim().toLowerCase() === principal.studentEmail;
       return true;

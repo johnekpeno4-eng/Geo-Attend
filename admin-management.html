@@ -92,6 +92,7 @@
             <select class="rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base normal-case font-normal text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="admin-role-select">
               <option value="department_admin">Department Admin</option>
               <option value="level_admin">Level Admin</option>
+              <option value="lecturer_admin">Lecturer Admin</option>
               <option value="faculty_admin">Faculty Admin</option>
               <option value="overall_admin">Overall Admin</option>
             </select>
@@ -112,6 +113,25 @@
         </form>
         <div class="mt-md rounded-xl border border-outline-variant/30 bg-surface-container-low px-md py-sm text-sm text-on-surface-variant" id="admin-student-preview">Enter a registration number to fetch the linked student.</div>
         <p class="hidden mt-md rounded-xl bg-surface-container-low px-md py-sm font-bold text-secondary" id="admin-message"></p>
+      </section>
+
+      <section class="bg-surface-container-lowest p-lg rounded-xl border border-outline-variant/30 shadow-sm">
+        <div class="flex items-center gap-sm mb-lg">
+          <span class="material-symbols-outlined text-secondary">school</span>
+          <div>
+            <h3 class="text-xl font-bold text-on-surface">Lecturer Course Assignments</h3>
+            <p class="text-on-surface-variant">Assign courses to Lecturer Admin accounts. They can create and view sessions only for assigned courses.</p>
+          </div>
+        </div>
+        <form class="grid gap-md md:grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)_auto] items-end" id="lecturer-assignment-form">
+          <label class="grid gap-xs text-xs font-bold uppercase tracking-widest text-on-surface-variant">Lecturer Admin<select class="rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base normal-case font-normal text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="lecturer-assignment-email"></select></label>
+          <label class="grid gap-xs text-xs font-bold uppercase tracking-widest text-on-surface-variant">Course<select class="rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base normal-case font-normal text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="lecturer-assignment-course"></select></label>
+          <button class="rounded-xl bg-secondary px-lg py-sm font-bold text-on-primary min-h-[48px]" type="submit">Assign Course</button>
+        </form>
+        <p class="hidden mt-md rounded-xl px-md py-sm font-bold" id="lecturer-assignment-message"></p>
+        <div class="mt-lg overflow-x-auto rounded-xl border border-outline-variant/30">
+          <table class="w-full min-w-[620px] text-left"><thead class="bg-surface-container-low text-xs uppercase tracking-widest text-on-surface-variant"><tr><th class="p-md">Lecturer</th><th class="p-md">Course</th><th class="p-md">Assigned</th><th class="p-md text-right">Action</th></tr></thead><tbody id="lecturer-assignment-body"></tbody></table>
+        </div>
       </section>
 
       <section class="bg-surface-container-lowest p-lg rounded-xl border border-outline-variant/30 shadow-sm">
@@ -375,6 +395,7 @@
         `).join("");
         renderPreview("admin-reg-number", "admin-student-preview", admins);
         renderPreview("remove-admin-reg-number", "remove-admin-preview", admins);
+        refreshLecturerAssignmentOptions();
       } catch (error) {
         if (body) body.innerHTML = `<tr><td class="py-lg text-center text-on-surface-variant" colspan="6">${escapeHtml(error.message)}</td></tr>`;
         showMessage(error.message, true);
@@ -382,7 +403,38 @@
     }
 
 
-    function todayInputValue(offsetDays = 0) {
+
+    function showLecturerAssignmentMessage(text, isError = false) {
+      const node = document.getElementById("lecturer-assignment-message");
+      if (!node) return;
+      node.textContent = text;
+      node.className = `mt-md rounded-xl px-md py-sm font-bold ${isError ? "bg-[#ffdad6] text-[#93000a]" : "bg-surface-container-low text-secondary"}`;
+    }
+
+    function refreshLecturerAssignmentOptions() {
+      const lecturerSelect = document.getElementById("lecturer-assignment-email");
+      const courseSelect = document.getElementById("lecturer-assignment-course");
+      if (lecturerSelect) {
+        const lecturers = currentAdmins.filter((admin) => admin.adminRole === "lecturer_admin");
+        lecturerSelect.innerHTML = lecturers.length ? lecturers.map((admin) => `<option value="${escapeHtml(admin.email)}">${escapeHtml(admin.fullName || admin.email)} (${escapeHtml(admin.regNumber || "--")})</option>`).join("") : '<option value="">Add a Lecturer Admin first</option>';
+      }
+      if (courseSelect) {
+        const courses = academicScope.courses || [];
+        courseSelect.innerHTML = courses.length ? courses.map((course) => `<option value="${escapeHtml(course.code)}">${escapeHtml(course.code)}: ${escapeHtml(course.title)}</option>`).join("") : '<option value="">No courses available</option>';
+      }
+    }
+
+    async function loadLecturerAssignments() {
+      const body = document.getElementById("lecturer-assignment-body");
+      if (!body) return;
+      try {
+        const response = await fetch(`/api/lecturer-assignments?actorEmail=${encodeURIComponent(actorEmail)}`, { cache: "no-store" });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Unable to load lecturer assignments.");
+        const assignments = data.assignments || [];
+        body.innerHTML = assignments.length ? assignments.map((item) => `<tr class="border-t border-outline-variant/30"><td class="p-md font-bold">${escapeHtml(item.lecturerName)}</td><td class="p-md">${escapeHtml(item.courseCode)}: ${escapeHtml(item.courseTitle)}</td><td class="p-md text-on-surface-variant">${escapeHtml(item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "--")}</td><td class="p-md text-right"><button class="rounded-lg border border-red-200 px-md py-sm font-bold text-red-700" data-remove-lecturer-course="${escapeHtml(item.lecturerEmail)}|${escapeHtml(item.courseCode)}" type="button">Remove</button></td></tr>`).join("") : '<tr><td class="p-lg text-on-surface-variant" colspan="4">No lecturer course assignments yet.</td></tr>';
+      } catch (error) { body.innerHTML = `<tr><td class="p-lg text-[#93000a]" colspan="4">${escapeHtml(error.message)}</td></tr>`; }
+    }    function todayInputValue(offsetDays = 0) {
       const date = new Date();
       date.setDate(date.getDate() + offsetDays);
       return date.toISOString().slice(0, 10);
@@ -489,7 +541,33 @@
         showMessage(error.message, true);
       }
     }
-    document.getElementById("admin-form")?.addEventListener("submit", async (event) => {
+
+    document.getElementById("lecturer-assignment-form")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        const lecturerEmail = document.getElementById("lecturer-assignment-email")?.value || "";
+        const courseCode = document.getElementById("lecturer-assignment-course")?.value || "";
+        const response = await fetch("/api/lecturer-assignments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ actorEmail, lecturerEmail, courseCode }) });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Unable to assign course.");
+        showLecturerAssignmentMessage(data.message || "Course assigned.");
+        await loadLecturerAssignments();
+      } catch (error) { showLecturerAssignmentMessage(error.message, true); }
+    });
+
+    document.getElementById("lecturer-assignment-body")?.addEventListener("click", async (event) => {
+      const button = event.target.closest("[data-remove-lecturer-course]");
+      if (!button) return;
+      const [lecturerEmail, courseCode] = String(button.dataset.removeLecturerCourse || "").split("|");
+      if (!lecturerEmail || !courseCode || !window.confirm(`Remove ${courseCode} from this lecturer?`)) return;
+      try {
+        const response = await fetch(`/api/lecturer-assignments?actorEmail=${encodeURIComponent(actorEmail)}&lecturerEmail=${encodeURIComponent(lecturerEmail)}&courseCode=${encodeURIComponent(courseCode)}`, { method: "DELETE" });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Unable to remove assignment.");
+        showLecturerAssignmentMessage("Course assignment removed.");
+        await loadLecturerAssignments();
+      } catch (error) { showLecturerAssignmentMessage(error.message, true); }
+    });    document.getElementById("admin-form")?.addEventListener("submit", async (event) => {
       event.preventDefault();
       const regNumber = normalizeRegNumber(document.getElementById("admin-reg-number").value);
       const student = findStudentByRegNumber(regNumber);
@@ -583,6 +661,7 @@
       await loadAcademicScope();
       await loadStudents();
       await loadAdmins();
+      await loadLecturerAssignments();
       await loadSubscription();
     })();
   </script>
