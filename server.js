@@ -36,6 +36,11 @@ const loginAttemptStore = new Map();
 const totpSetupStore = new Map();
 const webAuthnChallengeStore = new Map();
 const attendanceAuthorizationStore = new Map();
+const ADMIN_GEOFENCE_MAX_ACCURACY_METERS = 20;
+const STUDENT_GPS_MAX_ACCURACY_METERS = 30;
+const STUDENT_GPS_MAX_AGE_MS = 15 * 1000;
+const MIN_GEOFENCE_RADIUS_METERS = 20;
+const MAX_GEOFENCE_RADIUS_METERS = 5000;
 let mailTransporter = null;
 let sqliteDb = null;
 
@@ -1488,6 +1493,51 @@ async function getLiveSessions(req, res) {
   });
 }
 
+function distanceBetweenCoordinatesMeters(first, second) {
+  const lat1 = Number(first?.lat);
+  const lng1 = Number(first?.lng);
+  const lat2 = Number(second?.lat);
+  const lng2 = Number(second?.lng);
+  if (![lat1, lng1, lat2, lng2].every(Number.isFinite)) return Number.NaN;
+  const radians = (value) => value * Math.PI / 180;
+  const earthRadiusMeters = 6371000;
+  const deltaLat = radians(lat2 - lat1);
+  const deltaLng = radians(lng2 - lng1);
+  const haversine = Math.sin(deltaLat / 2) ** 2
+    + Math.cos(radians(lat1)) * Math.cos(radians(lat2)) * Math.sin(deltaLng / 2) ** 2;
+  return 2 * earthRadiusMeters * Math.asin(Math.sqrt(haversine));
+}
+
+function readFreshStudentLocation(position) {
+  const lat = Number(position?.lat);
+  const lng = Number(position?.lng);
+  const accuracy = Number(position?.accuracy);
+  const timestamp = new Date(position?.timestamp || 0).getTime();
+  if (![lat, lng, accuracy, timestamp].every(Number.isFinite) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+    return { ok: false, error: "A current GPS location is required before checking in." };
+  }
+  if (accuracy <= 0 || accuracy > STUDENT_GPS_MAX_ACCURACY_METERS) {
+    return { ok: false, error: `Phone GPS accuracy must be ${STUDENT_GPS_MAX_ACCURACY_METERS}m or better. Current accuracy: ${Math.round(accuracy)}m.` };
+  }
+  const ageMs = Math.abs(Date.now() - timestamp);
+  if (ageMs > STUDENT_GPS_MAX_AGE_MS) {
+    return { ok: false, error: "Your GPS reading is older than 15 seconds. Wait for a fresh location and try again." };
+  }
+  return { ok: true, location: { lat, lng, accuracy, timestamp }, ageMs };
+}
+
+function validateSessionGeofence(geofence) {
+  const lat = Number(geofence?.lat);
+  const lng = Number(geofence?.lng);
+  const radius = Number(geofence?.radius);
+  if (![lat, lng, radius].every(Number.isFinite) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+    return { ok: false, error: "This session does not have a valid GPS geofence." };
+  }
+  if (radius < MIN_GEOFENCE_RADIUS_METERS || radius > MAX_GEOFENCE_RADIUS_METERS) {
+    return { ok: false, error: `Session radius must be between ${MIN_GEOFENCE_RADIUS_METERS}m and ${MAX_GEOFENCE_RADIUS_METERS}m.` };
+  }
+  return { ok: true, geofence: { lat, lng, radius, accuracy: Number(geofence.accuracy || 0), source: geofence.source || "manual" } };
+}
 async function saveLiveSession(res, session) {
   if (!session || typeof session !== "object") {
     json(res, 400, { error: "A valid session payload is required." });
@@ -1497,6 +1547,16 @@ async function saveLiveSession(res, session) {
   const id = String(session.id || "").trim();
   if (!id) {
     json(res, 400, { error: "A session id is required." });
+    return;
+  }
+
+  const geofenceCheck = validateSessionGeofence(session.geofence);
+  if (!geofenceCheck.ok) {
+    json(res, 400, { error: geofenceCheck.error });
+    return;
+  }
+  if (String(session.geofence?.source || "").includes("geolocation") && geofenceCheck.geofence.accuracy > ADMIN_GEOFENCE_MAX_ACCURACY_METERS) {
+    json(res, 400, { error: `Admin GPS accuracy must be ${ADMIN_GEOFENCE_MAX_ACCURACY_METERS}m or better before creating a live geofence.` });
     return;
   }
 
@@ -1512,6 +1572,11 @@ async function saveLiveSession(res, session) {
     ...scopedSession,
     id,
     status: "active",
+    geofence: {
+      ...scopedSession.geofence,
+      ...geofenceCheck.geofence,
+      capturedAt: scopedSession.geofence?.capturedAt || scopedSession.geofence?.timestamp || new Date().toISOString()
+    },
     updatedAt: new Date().toISOString()
   };
   const nextSessions = [
@@ -1866,6 +1931,26 @@ async function saveAttendance(res, record) {
 
   const { items: liveSessionsForCheckin } = await readLiveSessionsStore();
   const session = liveSessionsForCheckin.find((item) => item && item.id === sessionId);
+  if (!session || session.status !== "active") {
+    json(res, 403, { error: "This attendance session is not active." });
+    return;
+  }
+  const geofenceCheck = validateSessionGeofence(session.geofence);
+  if (!geofenceCheck.ok) {
+    json(res, 403, { error: geofenceCheck.error });
+    return;
+  }
+  const locationCheck = readFreshStudentLocation(record.position);
+  if (!locationCheck.ok) {
+    json(res, 403, { error: locationCheck.error });
+    return;
+  }
+  const distanceMeters = distanceBetweenCoordinatesMeters(locationCheck.location, geofenceCheck.geofence);
+  if (!Number.isFinite(distanceMeters) || distanceMeters > geofenceCheck.geofence.radius) {
+    const distanceLabel = Number.isFinite(distanceMeters) ? `${Math.round(distanceMeters)}m` : "an unknown distance";
+    json(res, 403, { error: `You are ${distanceLabel} from the class location. You must be within the ${Math.round(geofenceCheck.geofence.radius)}m session radius.` });
+    return;
+  }
   const start = getSessionStartDate(session);
   if (start && Date.now() < start.getTime()) {
     json(res, 403, { error: `Check-in has not started yet. It opens at ${start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.` });
@@ -1900,6 +1985,15 @@ async function saveAttendance(res, record) {
     return;
   }
 
+  const alreadyCheckedIn = attendance.some((entry) => entry && entry.sessionId === sessionId && (
+    (regNumber !== "--" && normalizeRegNumber(entry.regNumber) === regNumber)
+    || String(entry.email || "").trim().toLowerCase() === email
+  ));
+  if (alreadyCheckedIn) {
+    json(res, 409, { error: "You have already checked in for this session." });
+    return;
+  }
+
   if (!email || (!isEmail(email) && !email.endsWith("@reg.geoattend.local"))) {
     json(res, 400, { error: "Attendance requires a valid student registration number." });
     return;
@@ -1926,9 +2020,17 @@ async function saveAttendance(res, record) {
     signatureDataUrl: normalizeSignatureDataUrl(record.signatureDataUrl || studentForSignature?.signatureDataUrl || ""),
     signatureStrokes: normalizeSignatureStrokes(record.signatureStrokes || studentForSignature?.signatureStrokes || []),
     status: record.status || "present",
+    gpsVerification: {
+      distanceMeters: Math.round(distanceMeters),
+      radiusMeters: Math.round(geofenceCheck.geofence.radius),
+      accuracyMeters: Math.round(locationCheck.location.accuracy),
+      locationAgeMs: locationCheck.ageMs,
+      verifiedAt: new Date().toISOString()
+    },
     checkedInAt,
     savedAt: new Date().toISOString()
   };
+  delete normalizedRecord.checkinToken;
   const nextAttendance = [
     normalizedRecord,
     ...attendance.filter((entry) => {
