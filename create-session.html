@@ -594,7 +594,7 @@
     let weakAdminLocationSamples = 0;
     const ADMIN_LOCATION_PUBLISH_INTERVAL = 5000;
     const PC_LOCATION_WEAK_ACCURACY_METERS = 100;
-    const TRUSTED_ADMIN_LOCATION_ACCURACY_METERS = 100;
+    const TRUSTED_ADMIN_LOCATION_ACCURACY_METERS = 20;
     const LOCATION_SAMPLE_WINDOW_MS = 25000;
     const LOCATION_TARGET_ACCURACY_METERS = 20;
     let academicScope = null;
@@ -744,7 +744,7 @@
 
     function isTrustedPcLocationAccuracy(accuracy) {
       const meters = Number(accuracy || 0);
-      return meters > 0 && meters <= LOCATION_DEVICE_PROFILE.trustedAccuracy;
+      return meters > 0 && meters <= TRUSTED_ADMIN_LOCATION_ACCURACY_METERS;
     }
 
     function isWeakPcGeofence(geofence = selectedGeofence) {
@@ -869,7 +869,8 @@
           radius: getRadiusValue(),
           name: selectedPlaceName,
           accuracy: selectedGeofence.accuracy || null,
-          source: selectedGeofence.source || "manual"
+          source: selectedGeofence.source || "manual",
+          capturedAt: selectedGeofence.timestamp || new Date().toISOString()
         },
         adminLocationTracking: {
           enabled: adminLiveTrackingEnabled,
@@ -1147,8 +1148,8 @@
       const session = persistDraftGeofence();
       if (isWeakPcGeofence(session.geofence)) {
         const accuracy = Number(session.geofence.accuracy || 0);
-        setActionFeedback(`Cannot generate session because PC accuracy is ${accuracy || "unknown"}m and the radius is smaller than that accuracy. Increase the radius or select the exact class location on the map/search.`, "error");
-        updateMapStatus(`Weak PC location rejected. Accuracy: ${accuracy || "unknown"}m. Increase radius or use map search/click for fixed class geofence.`, true);
+        setActionFeedback(`Cannot generate session because device GPS accuracy is ${accuracy || "unknown"}m. A live device geofence requires 20m accuracy or better. Improve precise location, Wi-Fi, and mobile data, or select the exact class point on the map.`, "error");
+        updateMapStatus(`Weak device GPS rejected. Accuracy: ${accuracy || "unknown"}m. A live device geofence requires 20m accuracy or better; use map search/click for a fixed class geofence.`, true);
         return null;
       }
       session.id = `session-${Date.now()}`;
