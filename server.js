@@ -318,24 +318,6 @@ const server = http.createServer(async (req, res) => {
       removeAdminUser(res, body);
       return;
     }
-
-
-    if (req.method === "GET" && req.url.startsWith("/api/subscription")) {
-      await getDepartmentSubscription(req, res);
-      return;
-    }
-
-    if (req.method === "POST" && req.url === "/api/subscription") {
-      const body = await readJson(req);
-      await saveDepartmentSubscription(res, body);
-      return;
-    }
-
-    if (req.method === "POST" && req.url === "/api/subscription/cancel") {
-      const body = await readJson(req);
-      await cancelDepartmentSubscription(res, body);
-      return;
-    }
     if (req.method === "POST" && req.url === "/api/backup") {
       const body = await readJson(req);
       createBackup(res, body);
@@ -672,21 +654,7 @@ async function initDatabase() {
   await dbRun("CREATE INDEX IF NOT EXISTS idx_attendance_session ON attendance(session_id)");
   await dbRun("CREATE INDEX IF NOT EXISTS idx_attendance_session_reg ON attendance(session_id, reg_number)");
   await dbRun("CREATE INDEX IF NOT EXISTS idx_attendance_checked_in ON attendance(checked_in_at)");
-  await dbRun(`CREATE TABLE IF NOT EXISTS department_subscriptions (
-    id TEXT PRIMARY KEY,
-    department_name TEXT NOT NULL UNIQUE COLLATE NOCASE,
-    plan_name TEXT NOT NULL DEFAULT 'Department Plan',
-    status TEXT NOT NULL DEFAULT 'inactive',
-    student_limit INTEGER NOT NULL DEFAULT 10000,
-    amount INTEGER NOT NULL DEFAULT 0,
-    currency TEXT NOT NULL DEFAULT 'NGN',
-    starts_at TEXT,
-    expires_at TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  )`);
-  await dbRun("CREATE INDEX IF NOT EXISTS idx_department_subscriptions_status ON department_subscriptions(status)");
-  await dbRun("CREATE INDEX IF NOT EXISTS idx_department_subscriptions_expires ON department_subscriptions(expires_at)");
+  await dbRun("DROP TABLE IF EXISTS department_subscriptions" );
   await dbRun(`CREATE TABLE IF NOT EXISTS lecturer_course_assignments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     lecturer_email TEXT NOT NULL COLLATE NOCASE,
@@ -1646,11 +1614,6 @@ async function saveLiveSession(res, session) {
       return;
     }
   }
-  const subscriptionCheck = await enforceSubscriptionForSession(scopedSession);
-  if (!subscriptionCheck.ok) {
-    json(res, 402, { error: subscriptionCheck.error });
-    return;
-  }
   const normalizedSession = {
     ...scopedSession,
     id,
@@ -2134,117 +2097,6 @@ async function saveAttendance(res, record) {
   json(res, 200, { ok: true, source, record: normalizedRecord, attendance: nextAttendance });
 }
 
-function publicDepartmentSubscription(row) {
-  if (!row) {
-    return {
-      id: "default-department",
-      departmentName: "Department of Electrical/Electronics Engineering",
-      planName: "Department Plan",
-      status: "inactive",
-      studentLimit: 10000,
-      amount: 0,
-      currency: "NGN",
-      startsAt: null,
-      expiresAt: null,
-      active: false,
-      daysRemaining: 0,
-      createdAt: null,
-      updatedAt: null
-    };
-  }
-  const expiresAt = row.expires_at || null;
-  const now = Date.now();
-  const expiryTime = expiresAt ? new Date(expiresAt).getTime() : 0;
-  const active = row.status === "active" && (!expiryTime || expiryTime >= now);
-  return {
-    id: row.id,
-    departmentName: row.department_name,
-    planName: row.plan_name,
-    status: active ? "active" : (row.status === "active" ? "expired" : row.status),
-    studentLimit: Number(row.student_limit || 0),
-    amount: Number(row.amount || 0),
-    currency: row.currency || "NGN",
-    startsAt: row.starts_at || null,
-    expiresAt,
-    active,
-    daysRemaining: active && expiryTime ? Math.max(0, Math.ceil((expiryTime - now) / 86400000)) : 0,
-    createdAt: row.created_at || null,
-    updatedAt: row.updated_at
-  };
-}
-
-async function getDepartmentSubscription(req, res) {
-  const url = new URL(req.url, "http://127.0.0.1");
-  const departmentName = String(url.searchParams.get("department") || "Department of Electrical/Electronics Engineering").trim();
-  const row = await dbGet("SELECT * FROM department_subscriptions WHERE department_name = ? COLLATE NOCASE ORDER BY datetime(updated_at) DESC LIMIT 1", [departmentName]);
-  json(res, 200, { ok: true, source: "sqlite", subscription: publicDepartmentSubscription(row) });
-}
-
-async function saveDepartmentSubscription(res, body) {
-  const actorEmail = String(body.actorEmail || "").trim().toLowerCase();
-  if (!isOwnerAdmin(actorEmail)) {
-    json(res, 403, { error: "Only the overall admin can update department subscription." });
-    return;
-  }
-  const departmentName = String(body.departmentName || "Department of Electrical/Electronics Engineering").trim();
-  const planName = String(body.planName || "Department Plan").trim();
-  const status = String(body.status || "active").trim().toLowerCase();
-  const studentLimit = Math.max(1, Math.min(1000000, Number(body.studentLimit || 10000)));
-  const amount = Math.max(0, Math.round(Number(body.amount || 0)));
-  const currency = String(body.currency || "NGN").trim().toUpperCase().slice(0, 8) || "NGN";
-  const startsAt = String(body.startsAt || new Date().toISOString().slice(0, 10)).trim();
-  const expiresAt = String(body.expiresAt || "").trim();
-  if (!departmentName || !planName || !expiresAt) {
-    json(res, 400, { error: "Department, plan, and expiry date are required." });
-    return;
-  }
-  if (!Number.isFinite(new Date(expiresAt).getTime())) {
-    json(res, 400, { error: "Enter a valid subscription expiry date." });
-    return;
-  }
-  const now = new Date().toISOString();
-  const existing = await dbGet("SELECT id, created_at FROM department_subscriptions WHERE department_name = ? COLLATE NOCASE", [departmentName]);
-  const id = existing?.id || crypto.createHash("sha256").update(departmentName.toLowerCase()).digest("hex");
-  await dbRun(`INSERT INTO department_subscriptions (id, department_name, plan_name, status, student_limit, amount, currency, starts_at, expires_at, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET
-      department_name = excluded.department_name,
-      plan_name = excluded.plan_name,
-      status = excluded.status,
-      student_limit = excluded.student_limit,
-      amount = excluded.amount,
-      currency = excluded.currency,
-      starts_at = excluded.starts_at,
-      expires_at = excluded.expires_at,
-      updated_at = excluded.updated_at`, [
-    id,
-    departmentName,
-    planName,
-    ["active", "inactive", "suspended"].includes(status) ? status : "active",
-    studentLimit,
-    amount,
-    currency,
-    startsAt,
-    expiresAt,
-    existing?.created_at || now,
-    now
-  ]);
-  const row = await dbGet("SELECT * FROM department_subscriptions WHERE id = ?", [id]);
-  json(res, 200, { ok: true, source: "sqlite", subscription: publicDepartmentSubscription(row) });
-}
-
-async function cancelDepartmentSubscription(res, body) {
-  const actorEmail = String(body.actorEmail || "").trim().toLowerCase();
-  if (!isOwnerAdmin(actorEmail)) {
-    json(res, 403, { error: "Only the overall admin can cancel department subscription." });
-    return;
-  }
-  const departmentName = String(body.departmentName || "Department of Electrical/Electronics Engineering").trim();
-  const now = new Date().toISOString();
-  await dbRun("UPDATE department_subscriptions SET status = 'inactive', updated_at = ? WHERE department_name = ? COLLATE NOCASE", [now, departmentName]);
-  const row = await dbGet("SELECT * FROM department_subscriptions WHERE department_name = ? COLLATE NOCASE", [departmentName]);
-  json(res, 200, { ok: true, source: "sqlite", subscription: publicDepartmentSubscription(row) });
-}
 function normalizeAdminRole(value) {
   const raw = String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
   if (["owner", "overall", "overall_admin", "super_admin"].includes(raw)) return "overall_admin";
@@ -2371,17 +2223,6 @@ async function filterReportsForRequest(req, reports) {
     return reports.filter((report) => assignedCodes.has(getCourseCode(report.course || report.title)));
   }
   return reports.filter((report) => entityMatchesScope(report, admin, admin.adminRole || admin.role));
-}
-
-async function enforceSubscriptionForSession(session) {
-  const departmentName = String(session.departmentName || "").trim();
-  if (!departmentName) return { ok: true };
-  const row = await dbGet("SELECT * FROM department_subscriptions WHERE department_name = ? COLLATE NOCASE ORDER BY datetime(updated_at) DESC LIMIT 1", [departmentName]);
-  const subscription = publicDepartmentSubscription(row);
-  if (!subscription.active) {
-    return { ok: false, error: `${departmentName} subscription is inactive or expired. Renew subscription before creating sessions.` };
-  }
-  return { ok: true, subscription };
 }
 
 function copyDirectorySync(source, target) {

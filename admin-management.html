@@ -148,56 +148,6 @@
         </form>
         <div class="mt-md rounded-xl border border-outline-variant/30 bg-surface-container-low px-md py-sm text-sm text-on-surface-variant" id="remove-admin-preview">Enter a registration number to fetch the linked admin.</div>
       </section>
-
-
-      <section class="bg-surface-container-lowest p-lg rounded-xl border border-outline-variant/30 shadow-sm">
-        <div class="flex items-center justify-between gap-md mb-lg">
-          <div class="flex items-center gap-sm">
-            <span class="material-symbols-outlined text-secondary">workspace_premium</span>
-            <div>
-              <h3 class="text-xl font-bold text-on-surface">Department Subscription</h3>
-              <p class="text-on-surface-variant">Store and manage the department plan in your SQLite database.</p>
-            </div>
-          </div>
-          <span class="rounded-full bg-surface-container-low px-md py-xs text-sm font-bold text-secondary" id="subscription-status">Loading</span>
-        </div>
-        <form class="grid gap-md md:grid-cols-2" id="subscription-form">
-          <label class="grid gap-xs text-sm font-bold text-on-surface-variant">
-            Department
-            <input class="rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="subscription-department" type="text" value="Department of Electrical/Electronics Engineering" required />
-          </label>
-          <label class="grid gap-xs text-sm font-bold text-on-surface-variant">
-            Plan
-            <select class="rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="subscription-plan">
-              <option>Department Plan</option>
-              <option>Faculty Plan</option>
-              <option>Institution Plan</option>
-            </select>
-          </label>
-          <label class="grid gap-xs text-sm font-bold text-on-surface-variant">
-            Student Limit
-            <input class="rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="subscription-limit" min="1" type="number" value="10000" required />
-          </label>
-          <label class="grid gap-xs text-sm font-bold text-on-surface-variant">
-            Amount (NGN)
-            <input class="rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="subscription-amount" min="0" step="100" type="number" value="0" required />
-          </label>
-          <label class="grid gap-xs text-sm font-bold text-on-surface-variant">
-            Start Date
-            <input class="rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="subscription-start" type="date" required />
-          </label>
-          <label class="grid gap-xs text-sm font-bold text-on-surface-variant">
-            Expiry Date
-            <input class="rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="subscription-expiry" type="date" required />
-          </label>
-          <div class="md:col-span-2 flex flex-wrap gap-sm">
-            <button class="rounded-xl bg-secondary px-lg py-sm font-bold text-on-primary disabled:opacity-60" type="submit">Save Subscription</button>
-            <button class="rounded-xl border border-outline-variant px-lg py-sm font-bold text-on-surface" id="subscription-refresh" type="button">Refresh</button>
-            <button class="rounded-xl border border-red-200 px-lg py-sm font-bold text-red-700" id="subscription-cancel" type="button">Cancel Subscription</button>
-          </div>
-        </form>
-        <div class="mt-md rounded-xl border border-outline-variant/30 bg-surface-container-low px-md py-sm text-sm text-on-surface-variant" id="subscription-summary">No subscription loaded yet.</div>
-      </section>
             <section class="bg-surface-container-lowest p-lg rounded-xl border border-outline-variant/30 shadow-sm">
         <div class="flex flex-wrap items-center justify-between gap-md">
           <div class="flex items-center gap-sm">
@@ -434,113 +384,6 @@
         const assignments = data.assignments || [];
         body.innerHTML = assignments.length ? assignments.map((item) => `<tr class="border-t border-outline-variant/30"><td class="p-md font-bold">${escapeHtml(item.lecturerName)}</td><td class="p-md">${escapeHtml(item.courseCode)}: ${escapeHtml(item.courseTitle)}</td><td class="p-md text-on-surface-variant">${escapeHtml(item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "--")}</td><td class="p-md text-right"><button class="rounded-lg border border-red-200 px-md py-sm font-bold text-red-700" data-remove-lecturer-course="${escapeHtml(item.lecturerEmail)}|${escapeHtml(item.courseCode)}" type="button">Remove</button></td></tr>`).join("") : '<tr><td class="p-lg text-on-surface-variant" colspan="4">No lecturer course assignments yet.</td></tr>';
       } catch (error) { body.innerHTML = `<tr><td class="p-lg text-[#93000a]" colspan="4">${escapeHtml(error.message)}</td></tr>`; }
-    }    function todayInputValue(offsetDays = 0) {
-      const date = new Date();
-      date.setDate(date.getDate() + offsetDays);
-      return date.toISOString().slice(0, 10);
-    }
-
-    function formatCurrency(amount, currency = "NGN") {
-      try {
-        return new Intl.NumberFormat("en-NG", { style: "currency", currency, maximumFractionDigits: 0 }).format(Number(amount || 0));
-      } catch {
-        return `${currency} ${Number(amount || 0).toLocaleString()}`;
-      }
-    }
-
-    function renderSubscription(subscription) {
-      const status = document.getElementById("subscription-status");
-      const summary = document.getElementById("subscription-summary");
-      const department = document.getElementById("subscription-department");
-      const plan = document.getElementById("subscription-plan");
-      const limit = document.getElementById("subscription-limit");
-      const amount = document.getElementById("subscription-amount");
-      const starts = document.getElementById("subscription-start");
-      const expiry = document.getElementById("subscription-expiry");
-      if (!subscription) return;
-
-      if (department) department.value = subscription.departmentName || department.value;
-      if (plan) plan.value = subscription.planName || "Department Plan";
-      if (limit) limit.value = subscription.studentLimit || 10000;
-      if (amount) amount.value = subscription.amount || 0;
-      if (starts) starts.value = String(subscription.startsAt || todayInputValue()).slice(0, 10);
-      if (expiry) expiry.value = String(subscription.expiresAt || todayInputValue(180)).slice(0, 10);
-
-      const active = subscription.active === true;
-      if (status) {
-        status.textContent = active ? `Active | ${subscription.daysRemaining} days left` : String(subscription.status || "inactive").toUpperCase();
-        status.classList.toggle("text-[#0f7b2f]", active);
-        status.classList.toggle("text-[#93000a]", !active);
-      }
-      if (summary) {
-        summary.innerHTML = `
-          <div class="grid gap-xs">
-            <p><span class="font-bold text-on-surface">Department:</span> ${escapeHtml(subscription.departmentName || "--")}</p>
-            <p><span class="font-bold text-on-surface">Plan:</span> ${escapeHtml(subscription.planName || "--")} | <span class="font-bold text-on-surface">Limit:</span> ${Number(subscription.studentLimit || 0).toLocaleString()} students</p>
-            <p><span class="font-bold text-on-surface">Amount:</span> ${escapeHtml(formatCurrency(subscription.amount, subscription.currency))}</p>
-            <p><span class="font-bold text-on-surface">Valid:</span> ${escapeHtml(String(subscription.startsAt || "--").slice(0, 10))} to ${escapeHtml(String(subscription.expiresAt || "--").slice(0, 10))}</p>
-          </div>
-        `;
-      }
-    }
-
-    async function loadSubscription() {
-      const department = document.getElementById("subscription-department")?.value || "Department of Electrical/Electronics Engineering";
-      try {
-        const response = await fetch(`/api/subscription?department=${encodeURIComponent(department)}`, { cache: "no-store" });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || "Unable to load subscription.");
-        renderSubscription(data.subscription);
-      } catch (error) {
-        showMessage(error.message, true);
-      }
-    }
-
-    async function saveSubscription(event) {
-      event.preventDefault();
-      const payload = {
-        actorEmail,
-        departmentName: document.getElementById("subscription-department")?.value,
-        planName: document.getElementById("subscription-plan")?.value,
-        studentLimit: Number(document.getElementById("subscription-limit")?.value || 10000),
-        amount: Number(document.getElementById("subscription-amount")?.value || 0),
-        currency: "NGN",
-        startsAt: document.getElementById("subscription-start")?.value,
-        expiresAt: document.getElementById("subscription-expiry")?.value,
-        status: "active"
-      };
-      try {
-        const response = await fetch("/api/subscription", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || "Unable to save subscription.");
-        renderSubscription(data.subscription);
-        showMessage("Department subscription saved successfully.");
-      } catch (error) {
-        showMessage(error.message, true);
-      }
-    }
-
-    async function cancelSubscription() {
-      const departmentName = document.getElementById("subscription-department")?.value || "Department of Electrical/Electronics Engineering";
-      if (!window.confirm(`Cancel subscription for ${departmentName}?`)) return;
-      try {
-        const response = await fetch("/api/subscription/cancel", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ actorEmail, departmentName })
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || "Unable to cancel subscription.");
-        renderSubscription(data.subscription);
-        showMessage("Department subscription cancelled.");
-      } catch (error) {
-        showMessage(error.message, true);
-      }
-    }
 
     document.getElementById("lecturer-assignment-form")?.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -634,9 +477,6 @@
 
     document.getElementById("admin-reg-number")?.addEventListener("input", () => renderPreview("admin-reg-number", "admin-student-preview", currentAdmins));
     document.getElementById("remove-admin-reg-number")?.addEventListener("input", () => renderPreview("remove-admin-reg-number", "remove-admin-preview", currentAdmins));
-    document.getElementById("subscription-form")?.addEventListener("submit", saveSubscription);
-    document.getElementById("subscription-refresh")?.addEventListener("click", loadSubscription);
-    document.getElementById("subscription-cancel")?.addEventListener("click", cancelSubscription);
     document.getElementById("admin-faculty-select")?.addEventListener("change", fillDepartmentOptions);
     document.getElementById("backup-now")?.addEventListener("click", async () => {
       const summary = document.getElementById("backup-summary");
@@ -652,17 +492,11 @@
       }
     });
 
-    const startInput = document.getElementById("subscription-start");
-    const expiryInput = document.getElementById("subscription-expiry");
-    if (startInput && !startInput.value) startInput.value = todayInputValue();
-    if (expiryInput && !expiryInput.value) expiryInput.value = todayInputValue(180);
-
     (async () => {
       await loadAcademicScope();
       await loadStudents();
       await loadAdmins();
       await loadLecturerAssignments();
-      await loadSubscription();
     })();
   </script>
 </body>
