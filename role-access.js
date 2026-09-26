@@ -267,6 +267,72 @@
       });
     }
 
+    const biometricLoginButton = document.getElementById("biometric-login");
+    if (biometricLoginButton) {
+      const decodeBase64Url = (value) => {
+        const text = String(value || "");
+        const padded = text.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(text.length / 4) * 4, "=");
+        const binary = atob(padded);
+        return Uint8Array.from(binary, (character) => character.charCodeAt(0)).buffer;
+      };
+      const encodeBase64Url = (value) => {
+        const bytes = new Uint8Array(value);
+        let binary = "";
+        bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+        return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+      };
+      const prepareAuthenticationOptions = (options) => ({
+        ...options,
+        challenge: decodeBase64Url(options.challenge),
+        allowCredentials: (options.allowCredentials || []).map((credential) => ({
+          ...credential,
+          id: decodeBase64Url(credential.id)
+        }))
+      });
+      const serializeAuthenticationResponse = (credential) => ({
+        id: credential.id,
+        rawId: encodeBase64Url(credential.rawId),
+        type: credential.type,
+        response: {
+          authenticatorData: encodeBase64Url(credential.response.authenticatorData),
+          clientDataJSON: encodeBase64Url(credential.response.clientDataJSON),
+          signature: encodeBase64Url(credential.response.signature),
+          userHandle: credential.response.userHandle ? encodeBase64Url(credential.response.userHandle) : null
+        }
+      });
+      biometricLoginButton.addEventListener("click", async () => {
+        const identifier = String(document.getElementById("email")?.value || "").trim();
+        const message = document.getElementById("login-message");
+        const showError = (text) => {
+          if (!message) return;
+          message.textContent = text;
+          message.classList.remove("hidden", "text-[#0058be]", "bg-[#eff4ff]");
+          message.classList.add("text-[#93000a]", "bg-[#ffdad6]");
+        };
+        if (!identifier) {
+          showError("Enter your email or registration number first.");
+          document.getElementById("email")?.focus();
+          return;
+        }
+        if (!window.isSecureContext || !navigator.credentials?.get) {
+          showError("Fingerprint login requires the HTTPS GeoAttend address. Open the secure tunnel link.");
+          return;
+        }
+        biometricLoginButton.disabled = true;
+        biometricLoginButton.innerHTML = '<span class="material-symbols-outlined">fingerprint</span>Waiting for fingerprint...';
+        try {
+          const optionsData = await postJson("/api/webauthn/login-options", { email: identifier, purpose: "login" });
+          const credential = await navigator.credentials.get({ publicKey: prepareAuthenticationOptions(optionsData.options) });
+          if (!credential) throw new Error("Fingerprint login was cancelled.");
+          const result = await postJson("/api/webauthn/login-verify", { email: identifier, response: serializeAuthenticationResponse(credential) });
+          await finishStudentLogin(result.user, "Fingerprint login successful. Redirecting...");
+        } catch (error) {
+          showError(error?.name === "NotAllowedError" ? "Fingerprint login was cancelled or timed out." : (error.message || "Fingerprint login failed."));
+          biometricLoginButton.disabled = false;
+          biometricLoginButton.innerHTML = '<span class="material-symbols-outlined">fingerprint</span>Login with fingerprint';
+        }
+      });
+    }
     const togglePassword = document.getElementById("toggle-password");
     const passwordInput = document.getElementById("password");
 
