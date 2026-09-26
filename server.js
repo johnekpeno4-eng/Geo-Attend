@@ -178,6 +178,11 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "GET" && req.url === "/api/webauthn/context") {
+      json(res, 200, getWebAuthnContextDiagnostic(req));
+      return;
+    }
+
     if (req.method === "POST" && req.url === "/api/webauthn/register-options") {
       const body = await readJson(req);
       await getWebAuthnRegistrationOptions(req, res, body);
@@ -1278,20 +1283,28 @@ function setCorsHeaders(res) {
 }
 
 function getWebAuthnContext(req) {
-  const forwardedHost = String(req.headers["x-forwarded-host"] || "").split(",")[0].trim();
-  const host = forwardedHost || String(req.headers.host || ("127.0.0.1:" + PORT)).trim();
-  const forwardedProtocol = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim().toLowerCase();
-  const fallbackProtocol = forwardedProtocol === "https" || req.socket?.encrypted ? "https" : "http";
-  const fallbackOrigin = fallbackProtocol + "://" + host;
-  const candidates = [req.headers.origin, req.headers.referer, fallbackOrigin].filter(Boolean);
-  for (const value of candidates) {
-    try {
-      const candidate = new URL(value);
-      const allowed = candidate.protocol === "https:" || candidate.hostname === "localhost" || candidate.hostname === "127.0.0.1";
-      if (allowed) return { rpName: "GeoAttend", rpID: candidate.hostname, origin: candidate.origin };
-    } catch {}
+  // WebAuthn must use the exact origin visible in the browser address bar.
+  // Never derive an RP ID from a tunnel forwarded host.
+  const originHeader = String(req.headers.origin || "").trim();
+  if (originHeader) {
+    const origin = new URL(originHeader);
+    const local = origin.hostname === "localhost" || origin.hostname === "127.0.0.1";
+    if (origin.protocol !== "https:" && !local) throw new Error("WebAuthn requires the exact HTTPS page address.");
+    return { rpName: "GeoAttend", rpID: origin.hostname, origin: origin.origin };
   }
-  return { rpName: "GeoAttend", rpID: host.split(":")[0], origin: fallbackOrigin };
+  const host = String(req.headers.host || ("127.0.0.1:" + PORT)).split(",")[0].trim();
+  const forwardedProtocol = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim().toLowerCase();
+  const protocol = forwardedProtocol === "https" || req.socket?.encrypted ? "https" : "http";
+  const hostname = host.replace(/^\[|\]$/g, "").split(":")[0];
+  if (protocol !== "https" && hostname !== "localhost") throw new Error("WebAuthn requires an HTTPS origin. Open the exact HTTPS tunnel address.");
+  return { rpName: "GeoAttend", rpID: hostname, origin: protocol + "://" + host };
+}
+
+function getWebAuthnContextDiagnostic(req) {
+  let context = null;
+  let error = null;
+  try { context = getWebAuthnContext(req); } catch (value) { error = value.message; }
+  return { host: String(req.headers.host || ""), originHeader: String(req.headers.origin || ""), forwardedHost: String(req.headers["x-forwarded-host"] || ""), forwardedProtocol: String(req.headers["x-forwarded-proto"] || ""), rpID: context?.rpID || null, origin: context?.origin || null, error };
 }
 
 function webAuthnKey(purpose, email) {
