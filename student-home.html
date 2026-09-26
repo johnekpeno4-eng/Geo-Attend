@@ -244,7 +244,7 @@
           <div class="min-w-0">
             <p class="text-xs uppercase tracking-wider text-on-surface-variant font-semibold">Check In</p>
             <h3 class="text-xl font-bold text-on-surface mt-1" id="checkin-modal-session-name">Select a class</h3>
-            <p class="text-sm text-on-surface-variant mt-1" id="checkin-modal-session-meta">Choose a verification method to continue.</p>
+            <p class="text-sm text-on-surface-variant mt-1" id="checkin-modal-session-meta">Confirm your fingerprint to continue.</p>
           </div>
           <button class="p-2 rounded-full hover:bg-surface-container-low" type="button" data-dismiss-checkin aria-label="Close check-in dialog">
             <span class="material-symbols-outlined">close</span>
@@ -253,9 +253,9 @@
 
         <div class="p-4 space-y-4">
                     <div id="checkin-method-choice">
-            <p class="text-sm text-on-surface-variant" id="checkin-security-copy">Confirm your location and check in personally. Assisted check-in is disabled.</p>
+            <p class="text-sm text-on-surface-variant" id="checkin-security-copy">Use your enrolled fingerprint and remain inside the GPS session area.</p>
             <div class="grid gap-3 mt-3">
-              <button class="w-full rounded-xl bg-secondary text-on-primary p-4 font-bold" type="button" id="checkin-option">Check in now</button>
+              <button class="w-full rounded-xl bg-secondary text-on-primary p-4 font-bold" type="button" id="checkin-option"><span class="material-symbols-outlined align-middle">fingerprint</span> Check in with fingerprint</button>
             </div>
           </div>
 
@@ -441,14 +441,62 @@
       clearCheckinMessage();
       checkinInProgress = false;
     }
+    function decodeBase64Url(value) {
+      const text = String(value || "");
+      const padded = text.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(text.length / 4) * 4, "=");
+      const binary = atob(padded);
+      return Uint8Array.from(binary, (character) => character.charCodeAt(0)).buffer;
+    }
+    function encodeBase64Url(value) {
+      const bytes = new Uint8Array(value);
+      let binary = "";
+      bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+      return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+    }
+    function prepareAuthenticationOptions(options) {
+      return {
+        ...options,
+        challenge: decodeBase64Url(options.challenge),
+        allowCredentials: (options.allowCredentials || []).map((item) => ({ ...item, id: decodeBase64Url(item.id) }))
+      };
+    }
+    function serializeAuthenticationResponse(credential) {
+      return {
+        id: credential.id,
+        rawId: encodeBase64Url(credential.rawId),
+        type: credential.type,
+        response: {
+          authenticatorData: encodeBase64Url(credential.response.authenticatorData),
+          clientDataJSON: encodeBase64Url(credential.response.clientDataJSON),
+          signature: encodeBase64Url(credential.response.signature),
+          userHandle: credential.response.userHandle ? encodeBase64Url(credential.response.userHandle) : null
+        }
+      };
+    }
+    async function verifyFingerprintAndCheckIn() {
+      if (checkinInProgress || !selectedCheckinSession) return;
+      if (!window.isSecureContext || !navigator.credentials?.get) {
+        setCheckinMessage("Fingerprint check-in requires the HTTPS GeoAttend address.", true);
+        return;
+      }
+      checkinInProgress = true;
+      setCheckinMessage("Waiting for your fingerprint...");
+      try {
+        const optionsData = await postJson("/api/webauthn/login-options", { email, purpose: "attendance", sessionId: selectedCheckinSession.id });
+        const credential = await navigator.credentials.get({ publicKey: prepareAuthenticationOptions(optionsData.options) });
+        if (!credential) throw new Error("Fingerprint verification was cancelled.");
+        const verified = await postJson("/api/webauthn/login-verify", { email, response: serializeAuthenticationResponse(credential) });
+        await showSuccess(verified.checkinToken);
+        closeCheckinModal();
+      } catch (error) {
+        setCheckinMessage(error?.name === "NotAllowedError" ? "Fingerprint verification was cancelled or timed out." : (error.message || "Fingerprint check-in failed."), true);
+      } finally {
+        checkinInProgress = false;
+      }
+    }
     function setupCheckinModal() {
       document.querySelectorAll("[data-dismiss-checkin]").forEach((button) => button.addEventListener("click", closeCheckinModal));
-      document.getElementById("checkin-option")?.addEventListener("click", async () => {
-        if (checkinInProgress || !selectedCheckinSession) return;
-        checkinInProgress = true;
-        setCheckinMessage("Checking your location...");
-        try { await showSuccess(); closeCheckinModal(); } catch (error) { setCheckinMessage(error.message || "Unable to check in.", true); } finally { checkinInProgress = false; }
-      });
+      document.getElementById("checkin-option")?.addEventListener("click", verifyFingerprintAndCheckIn);
     }
 
     function openCheckinModal(sessionId) {
@@ -783,7 +831,7 @@
       transition(currentStep, nextStep);
     }
 
-    async function showSuccess() {
+    async function showSuccess(checkinToken) {
       if (!isWithinGeofence) {
         alert("You are outside the geofence. Move within the session area and try again.");
         return;
@@ -830,6 +878,7 @@
         position: latestPosition,
         geofence,
         checkedInAt: checkedInAt.toISOString(),
+        checkinToken,
         status: "present",
       };
 
