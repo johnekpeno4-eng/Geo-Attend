@@ -550,9 +550,12 @@
         return;
       }
       const savedAccountIndex = accounts.findIndex((account) => account.email === pendingAccount.email || String(account.regNumber || "").toLowerCase() === pendingAccount.regNumber.toLowerCase());
-      if (savedAccountIndex >= 0) accounts[savedAccountIndex] = { ...accounts[savedAccountIndex], ...pendingAccount };
+      if (savedAccountIndex >= 0) accounts[savedAccountIndex] = pendingAccount;
       else accounts.push(pendingAccount);
       saveAccounts(accounts);
+      const biometricProfiles = JSON.parse(localStorage.getItem("geoAttendBiometricProfiles") || "{}");
+      delete biometricProfiles[pendingAccount.email];
+      localStorage.setItem("geoAttendBiometricProfiles", JSON.stringify(biometricProfiles));
       localStorage.setItem("geoAttendCurrentUser", pendingAccount.email);
       localStorage.setItem("geoAttendRole", pendingAccount.role);
       localStorage.setItem("geoAttendView", "student");

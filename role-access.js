@@ -60,7 +60,7 @@
     if (!email) return false;
     const profiles = JSON.parse(localStorage.getItem("geoAttendBiometricProfiles") || "{}");
     const profile = profiles[email];
-    return Boolean(profile?.identityVerified || profile?.webauthnCredential || account?.identityVerified || account?.biometricProfileStoredAt);
+    return Boolean(profile?.webauthnCredential?.id && profile?.identityVerified === true);
   }
   function firstTwoNames(value) {
     const text = String(value || "").trim();
