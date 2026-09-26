@@ -96,7 +96,7 @@
     }
     function fingerprintErrorMessage(error) {
       if (error?.name === "NotAllowedError") return "Fingerprint setup was cancelled or timed out. Unlock this phone, then try again.";
-      if (error?.name === "SecurityError") return "Fingerprint setup requires the HTTPS Dev Tunnel address, not an IP address or plain HTTP.";
+      if (error?.name === "SecurityError") return `WebAuthn rejected this site. Current address: ${window.location.origin}. Open this exact HTTPS address in the browser.`;
       if (error?.name === "InvalidStateError") return "This device already has a fingerprint credential for this account. Try logging in instead.";
       if (error?.name === "NotSupportedError") return "This phone/browser cannot use its fingerprint security here. Use Chrome or Edge with a screen lock and fingerprint enrolled.";
       return error?.message || "Unable to save fingerprint.";
