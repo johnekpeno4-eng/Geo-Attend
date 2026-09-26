@@ -654,7 +654,6 @@ async function initDatabase() {
   await dbRun("CREATE INDEX IF NOT EXISTS idx_attendance_session ON attendance(session_id)");
   await dbRun("CREATE INDEX IF NOT EXISTS idx_attendance_session_reg ON attendance(session_id, reg_number)");
   await dbRun("CREATE INDEX IF NOT EXISTS idx_attendance_checked_in ON attendance(checked_in_at)");
-  await dbRun("DROP TABLE IF EXISTS department_subscriptions" );
   await dbRun(`CREATE TABLE IF NOT EXISTS lecturer_course_assignments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     lecturer_email TEXT NOT NULL COLLATE NOCASE,
