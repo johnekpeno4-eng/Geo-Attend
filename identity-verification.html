@@ -1,155 +1,178 @@
-<html class="light" lang="en">
+<!DOCTYPE html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-  <title>GeoAttend - Fingerprint Setup</title>
-  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: { surface: "#ffffff", panel: "#eff4ff", ink: "#0b1c30", muted: "#45464d", outline: "#c6c6cd", primary: "#000000", secondary: "#0058be", accent: "#4cd7f6" },
-          fontFamily: { sans: ["Inter", "sans-serif"] }
-        }
-      }
-    };
-  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GeoAttend | Fingerprint Enrollment</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Material+Symbols+Outlined" rel="stylesheet" />
+  <style>
+    :root { color: #0b1c30; background: #f8f9ff; font-family: Inter, Arial, sans-serif; }
+    * { box-sizing: border-box; }
+    body { min-height: 100vh; margin: 0; background: #f8f9ff; }
+    main { width: min(1120px, calc(100% - 32px)); min-height: 100vh; margin: 0 auto; display: grid; align-items: center; gap: 24px; padding: 32px 0; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); }
+    section { border-radius: 24px; border: 1px solid #c6c6cd; background: #fff; padding: 32px; box-shadow: 0 16px 36px #0b1c3020; }
+    .hero { min-height: 520px; display: flex; flex-direction: column; justify-content: space-between; color: #fff; border: 0; background: linear-gradient(145deg, #131b2e, #1e4056); }
+    .eyebrow { margin: 0 0 12px; color: #0058be; font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    .hero .eyebrow { color: #4cd7f6; }
+    h1, h2 { margin: 0; line-height: 1.08; }
+    h1 { font-size: clamp(32px, 5vw, 56px); }
+    h2 { font-size: 32px; }
+    p { line-height: 1.5; }
+    .hero p { color: #ffffffbf; }
+    .facts { display: grid; gap: 12px; color: #ffffffd0; font-size: 14px; }
+    .facts span { display: inline-flex; align-items: center; gap: 10px; }
+    .material-symbols-outlined { font-size: 22px; vertical-align: middle; }
+    .owner { margin: 20px 0; padding: 14px 16px; border-radius: 14px; background: #eff4ff; color: #45464d; overflow-wrap: anywhere; }
+    button, .secure-link { width: 100%; min-height: 54px; border-radius: 14px; border: 0; padding: 14px 18px; font: inherit; font-weight: 800; cursor: pointer; }
+    button { color: #fff; background: #000; }
+    button:disabled { cursor: wait; opacity: .6; }
+    .secure-link { display: block; color: #0058be; background: #eff4ff; text-align: center; text-decoration: none; }
+    .message { margin: 16px 0 0; padding: 14px 16px; border-radius: 14px; font-size: 14px; font-weight: 700; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .message.error { color: #93000a; background: #ffdad6; border: 1px solid #ffb4ab; }
+    .message.success { color: #0f6b31; background: #dcfce7; border: 1px solid #86efac; }
+    .hidden { display: none; }
+    @media (max-width: 760px) {
+      main { width: min(100% - 20px, 560px); display: flex; flex-direction: column; justify-content: center; padding: 20px 0; }
+      section { width: 100%; padding: 24px; }
+      .hero { min-height: 280px; }
+      h1 { font-size: 38px; }
+      h2 { font-size: 28px; }
+    }
+  </style>
 </head>
-<body class="min-h-screen bg-[#f8f9ff] text-ink font-sans" data-role-required="student">
-  <script src="role-access.js?v=20260924-loginfix"></script>
-  <main class="mx-auto grid min-h-screen w-full max-w-6xl items-center gap-6 p-6 lg:grid-cols-[0.9fr_1.1fr]">
-    <section class="relative overflow-hidden rounded-3xl bg-[#131b2e] p-8 text-white shadow-2xl lg:min-h-[620px] lg:p-12">
-      <div class="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_right,#4cd7f6,transparent_40%)]"></div>
-      <div class="relative">
-        <p class="text-xs font-bold uppercase tracking-widest text-accent">Step 2 of 2</p>
-        <h1 class="mt-3 text-3xl font-extrabold leading-tight md:text-5xl">Set up fingerprint</h1>
-        <p class="mt-4 text-white/75">Register your device fingerprint security. Attendance check-in will use your enrolled fingerprint.</p>
+<body data-role-required="student">
+  <script src="role-access.js?v=fingerprint-rewrite-1"></script>
+  <main>
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Step 2 of 2</p>
+        <h1>Set up fingerprint</h1>
+        <p>Enroll this device for secure attendance. The fingerprint never leaves the device; it unlocks a cryptographic key that GeoAttend verifies.</p>
       </div>
-      <div class="relative mt-8 grid gap-3 text-sm text-white/80">
-        <p class="flex gap-2"><span class="material-symbols-outlined text-accent">fingerprint</span> Your own device security confirms attendance.</p>
-        <p class="flex gap-2"><span class="material-symbols-outlined text-accent">lock</span> No student can check in for another student.</p>
+      <div class="facts">
+        <span><span class="material-symbols-outlined">fingerprint</span> Only this enrolled device can approve your check-in.</span>
+        <span><span class="material-symbols-outlined">lock</span> No fingerprint image is uploaded or stored.</span>
       </div>
     </section>
-
-    <section class="rounded-3xl border border-outline bg-surface p-6 shadow-xl md:p-8">
-      <p class="text-xs font-bold uppercase tracking-widest text-secondary">Attendance Security</p>
-      <h2 class="mt-2 text-3xl font-extrabold">Register fingerprint</h2>
-      <p class="mt-2 text-muted">Tap the button below and complete the fingerprint prompt on this device.</p>
-      <p class="mt-3 rounded-2xl bg-panel px-4 py-3 text-sm font-mono text-muted" id="profile-owner">Loading...</p>
-
-      <button class="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-4 font-extrabold text-white active:scale-[0.98]" type="button" id="save-fingerprint-button">
-        Set Up Fingerprint
-        <span class="material-symbols-outlined">fingerprint</span>
-      </button>
-      <p class="mt-4 hidden rounded-2xl px-4 py-3 text-sm font-bold" id="fingerprint-message"></p>
+    <section>
+      <p class="eyebrow">Attendance Security</p>
+      <h2>Register fingerprint</h2>
+      <p>Use the fingerprint or device security already enrolled on this phone.</p>
+      <div class="owner" id="profile-owner">Loading student account...</div>
+      <a class="secure-link hidden" id="secure-link" href="https://m3gvg004-4600.uks1.devtunnels.ms/identity-verification.html">Open secure HTTPS enrollment</a>
+      <button id="enroll-button" type="button">Set Up Fingerprint <span class="material-symbols-outlined">fingerprint</span></button>
+      <div class="message hidden" id="fingerprint-message" role="alert"></div>
     </section>
   </main>
-
   <script>
-    const currentUser = localStorage.getItem("geoAttendCurrentUser");
-    const message = document.getElementById("fingerprint-message");
-    const owner = document.getElementById("profile-owner");
-    if (!currentUser) window.location.href = "register.html";
-    if (owner) owner.textContent = currentUser || "No user";
+    (() => {
+      const email = String(localStorage.getItem("geoAttendCurrentUser") || "").trim().toLowerCase();
+      const owner = document.getElementById("profile-owner");
+      const button = document.getElementById("enroll-button");
+      const secureLink = document.getElementById("secure-link");
+      const message = document.getElementById("fingerprint-message");
+      const SECURE_ENROLLMENT_URL = "https://m3gvg004-4600.uks1.devtunnels.ms/identity-verification.html";
 
-    function showMessage(text, isError = false) {
-      message.textContent = text;
-      message.className = `mt-4 rounded-2xl px-4 py-3 text-sm font-bold ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-green-50 text-green-700 border border-green-200"}`;
-    }
-    async function postJson(url, payload) {
-      const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "Unable to complete request.");
-      return data;
-    }
-    function base64UrlToBuffer(value) {
-      const padded = String(value).replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(String(value).length / 4) * 4, "=");
-      const binary = atob(padded);
-      return Uint8Array.from(binary, (char) => char.charCodeAt(0)).buffer;
-    }
-    function bufferToBase64Url(buffer) {
-      const bytes = new Uint8Array(buffer);
-      let binary = "";
-      bytes.forEach((byte) => binary += String.fromCharCode(byte));
-      return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-    }
-    function prepareCredentialCreation(options) {
-      return {
-        ...options,
-        challenge: base64UrlToBuffer(options.challenge),
-        user: { ...options.user, id: base64UrlToBuffer(options.user.id) },
-        excludeCredentials: (options.excludeCredentials || []).map((credential) => ({ ...credential, id: base64UrlToBuffer(credential.id) }))
-      };
-    }
-    function serializeRegistrationCredential(credential) {
-      return {
-        id: credential.id,
-        rawId: bufferToBase64Url(credential.rawId),
-        type: credential.type,
-        response: {
-          attestationObject: bufferToBase64Url(credential.response.attestationObject),
-          clientDataJSON: bufferToBase64Url(credential.response.clientDataJSON)
-        }
-      };
-    }
-    function fingerprintErrorMessage(error) {
-      if (error?.name === "NotAllowedError") return "Fingerprint setup was cancelled or timed out. Unlock this phone, then try again.";
-      if (error?.name === "SecurityError") return `WebAuthn rejected this site. Current address: ${window.location.origin}. Open this exact HTTPS address in the browser.`;
-      if (error?.name === "InvalidStateError") return "This device already has a fingerprint credential for this account. Try logging in instead.";
-      if (error?.name === "NotSupportedError") return "This phone/browser cannot use its fingerprint security here. Use Chrome or Edge with a screen lock and fingerprint enrolled.";
-      return error?.message || "Unable to save fingerprint.";
-    }
-
-    document.getElementById("save-fingerprint-button")?.addEventListener("click", async () => {
-      const button = document.getElementById("save-fingerprint-button");
-      const isSecureOrigin = window.location.protocol === "https:" || ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
-      if (!isSecureOrigin) {
-        showMessage(`Fingerprint setup requires HTTPS. Current address: ${window.location.origin}. Open https://m3gvg004-4500.uks1.devtunnels.ms/ on this phone.`, true);
+      if (!email) {
+        window.location.replace("register.html");
         return;
       }
-      if (!window.PublicKeyCredential || !navigator.credentials?.create) {
-        showMessage("Fingerprint registration is not supported on this browser/device.", true);
-        return;
+      owner.textContent = email;
+
+      function showMessage(text, type = "error") {
+        message.textContent = text;
+        message.className = `message ${type}`;
       }
-      try {
-        const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-        if (!available) {
-          showMessage("No device fingerprint security is available. Add a fingerprint and screen lock in your phone settings, then reopen this page in Chrome or Edge.", true);
+      function showSecureLink() {
+        secureLink.href = SECURE_ENROLLMENT_URL;
+        secureLink.classList.remove("hidden");
+      }
+      function toBuffer(value) {
+        const text = String(value || "");
+        const padded = text.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(text.length / 4) * 4, "=");
+        const binary = atob(padded);
+        return Uint8Array.from(binary, (char) => char.charCodeAt(0)).buffer;
+      }
+      function toBase64Url(value) {
+        const bytes = new Uint8Array(value);
+        let binary = "";
+        bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+        return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+      }
+      function prepareOptions(options) {
+        return {
+          ...options,
+          challenge: toBuffer(options.challenge),
+          user: { ...options.user, id: toBuffer(options.user.id) },
+          excludeCredentials: (options.excludeCredentials || []).map((item) => ({ ...item, id: toBuffer(item.id) }))
+        };
+      }
+      function serializeCredential(credential) {
+        return {
+          id: credential.id,
+          rawId: toBase64Url(credential.rawId),
+          type: credential.type,
+          response: {
+            attestationObject: toBase64Url(credential.response.attestationObject),
+            clientDataJSON: toBase64Url(credential.response.clientDataJSON)
+          }
+        };
+      }
+      async function postJson(url, payload) {
+        const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), cache: "no-store" });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || `Request failed (${response.status}).`);
+        return data;
+      }
+      function describeError(error) {
+        if (error?.name === "NotAllowedError") return "Fingerprint setup was cancelled or timed out. Unlock the phone and try again.";
+        if (error?.name === "InvalidStateError") return "This device already has a fingerprint credential for this account. Use the enrolled device or start a re-enrollment.";
+        if (error?.name === "NotSupportedError") return "This browser or phone has no usable platform fingerprint security. Add a screen lock and fingerprint, then use Chrome or Edge.";
+        if (error?.name === "SecurityError") return `WebAuthn rejected this site. Open the secure link below. Current address: ${window.location.origin}`;
+        return error?.message || "Fingerprint enrollment failed.";
+      }
+
+      button.addEventListener("click", async () => {
+        if (window.location.protocol !== "https:") {
+          showSecureLink();
+          showMessage(`Fingerprint enrollment requires HTTPS. Current address: ${window.location.origin}\nOpen the secure enrollment link below.`);
           return;
         }
-      } catch {
-        showMessage("This browser could not check device fingerprint support. Update Chrome or Edge and try again.", true);
-        return;
-      }
-
-      button.disabled = true;
-      button.textContent = "Opening fingerprint prompt...";
-      try {
-        const optionsData = await postJson("/api/webauthn/register-options", { email: currentUser });
-        const requestedRpId = String(optionsData.options?.rp?.id || "").toLowerCase();
-        if (requestedRpId && requestedRpId !== window.location.hostname.toLowerCase()) {
-          throw new Error(`WebAuthn site mismatch. This page is ${window.location.hostname}, but the server requested ${requestedRpId}. Reopen the current HTTPS tunnel address.`);
+        if (!window.PublicKeyCredential || !navigator.credentials?.create) {
+          showMessage("This browser does not support fingerprint enrollment. Use Chrome or Edge on a phone with a screen lock.");
+          return;
         }
-        const credential = await navigator.credentials.create({ publicKey: prepareCredentialCreation(optionsData.options) });
-        if (!credential) throw new DOMException("Fingerprint setup was cancelled.", "NotAllowedError");
-        const verified = await postJson("/api/webauthn/register-verify", { email: currentUser, response: serializeRegistrationCredential(credential) });
-        const profile = { email: currentUser, security: { fingerprint: true }, biometric: { platformAuthenticator: true }, checkinAuthMethod: "fingerprint", webauthnCredential: verified.credential, livenessVerified: true, biometricVerified: true, identityVerified: true, storedAt: new Date().toISOString(), storageMode: "fingerprint-only" };
-        await postJson("/api/save-biometric-profile", profile);
-        const profiles = JSON.parse(localStorage.getItem("geoAttendBiometricProfiles") || "{}");
-        profiles[currentUser] = profile;
-        localStorage.setItem("geoAttendBiometricProfiles", JSON.stringify(profiles));
-        const accounts = JSON.parse(localStorage.getItem("geoAttendAccounts") || "[]");
-        localStorage.setItem("geoAttendAccounts", JSON.stringify(accounts.map((account) => account.email === currentUser ? { ...account, checkinAuthMethod: "fingerprint", identityVerified: true, biometricVerified: true, biometricProfileStoredAt: profile.storedAt } : account)));
-        showMessage("Fingerprint saved. Opening student dashboard...");
-        setTimeout(() => { window.location.href = "student-home.html#active-classes"; }, 700);
-      } catch (error) {
-        showMessage(fingerprintErrorMessage(error), true);
-        button.disabled = false;
-        button.innerHTML = 'Set Up Fingerprint <span class="material-symbols-outlined">fingerprint</span>';
-      }
-    });
+        button.disabled = true;
+        button.textContent = "Checking device security...";
+        try {
+          const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+          if (!available) throw new Error("No platform fingerprint security is available. Enroll a fingerprint and screen lock in phone settings first.");
+          button.textContent = "Opening fingerprint prompt...";
+          const optionsData = await postJson("/api/webauthn/register-options", { email });
+          const requestedRpId = String(optionsData.options?.rp?.id || "").toLowerCase();
+          if (requestedRpId && requestedRpId !== window.location.hostname.toLowerCase()) {
+            throw new Error(`WebAuthn site mismatch. Page: ${window.location.hostname}\nServer: ${requestedRpId}\nOpen the current HTTPS enrollment link again.`);
+          }
+          const credential = await navigator.credentials.create({ publicKey: prepareOptions(optionsData.options) });
+          if (!credential) throw new DOMException("Fingerprint setup was cancelled.", "NotAllowedError");
+          const verified = await postJson("/api/webauthn/register-verify", { email, response: serializeCredential(credential) });
+          const profile = { email, security: { fingerprint: true }, biometric: { platformAuthenticator: true }, checkinAuthMethod: "fingerprint", webauthnCredential: verified.credential, identityVerified: true, biometricVerified: true, storedAt: new Date().toISOString(), storageMode: "webauthn-platform" };
+          await postJson("/api/save-biometric-profile", profile);
+          const profiles = JSON.parse(localStorage.getItem("geoAttendBiometricProfiles") || "{}");
+          profiles[email] = profile;
+          localStorage.setItem("geoAttendBiometricProfiles", JSON.stringify(profiles));
+          const accounts = JSON.parse(localStorage.getItem("geoAttendAccounts") || "[]");
+          localStorage.setItem("geoAttendAccounts", JSON.stringify(accounts.map((account) => account.email === email ? { ...account, identityVerified: true, biometricVerified: true, checkinAuthMethod: "fingerprint", biometricProfileStoredAt: profile.storedAt } : account)));
+          showMessage("Fingerprint enrolled successfully. Opening the student portal...", "success");
+          setTimeout(() => window.location.replace("student-home.html#active-classes"), 700);
+        } catch (error) {
+          showMessage(describeError(error));
+          button.disabled = false;
+          button.innerHTML = 'Set Up Fingerprint <span class="material-symbols-outlined">fingerprint</span>';
+        }
+      });
+    })();
   </script>
 </body>
 </html>
