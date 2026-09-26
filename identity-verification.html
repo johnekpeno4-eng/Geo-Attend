@@ -104,8 +104,9 @@
 
     document.getElementById("save-fingerprint-button")?.addEventListener("click", async () => {
       const button = document.getElementById("save-fingerprint-button");
-      if (!window.isSecureContext) {
-        showMessage("Fingerprint setup requires the HTTPS Dev Tunnel address. Do not use an IP address or plain HTTP.", true);
+      const isSecureOrigin = window.location.protocol === "https:" || ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
+      if (!isSecureOrigin) {
+        showMessage(`Fingerprint setup requires HTTPS. Current address: ${window.location.origin}. Open https://m3gvg004-4500.uks1.devtunnels.ms/ on this phone.`, true);
         return;
       }
       if (!window.PublicKeyCredential || !navigator.credentials?.create) {
