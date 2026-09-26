@@ -175,46 +175,6 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (req.method === "POST" && req.url === "/api/webauthn/register-options") {
-      const body = await readJson(req);
-      await getWebAuthnRegistrationOptions(req, res, body);
-      return;
-    }
-
-    if (req.method === "POST" && req.url === "/api/webauthn/register-verify") {
-      const body = await readJson(req);
-      await verifyWebAuthnRegistration(req, res, body);
-      return;
-    }
-
-    if (req.method === "POST" && req.url === "/api/webauthn/login-options") {
-      const body = await readJson(req);
-      await getWebAuthnLoginOptions(req, res, body);
-      return;
-    }
-
-    if (req.method === "POST" && req.url === "/api/webauthn/login-verify") {
-      const body = await readJson(req);
-      await verifyWebAuthnLogin(req, res, body);
-      return;
-    }
-
-    if (req.method === "POST" && req.url === "/api/save-biometric-profile") {
-      const body = await readJson(req);
-      await saveBiometricProfile(res, body);
-      return;
-    }
-
-    if (req.method === "GET" && req.url.startsWith("/api/biometric-profile")) {
-      await getBiometricProfile(req, res);
-      return;
-    }
-
-    if (req.method === "GET" && req.url === "/api/live-sessions") {
-      await getLiveSessions(req, res);
-      return;
-    }
-
     if (req.method === "POST" && req.url === "/api/live-sessions") {
       const body = await readJson(req);
       await saveLiveSession(res, body);
@@ -622,24 +582,6 @@ async function initDatabase() {
   )`);
   await seedAcademicScope();
 
-  await dbRun(`CREATE TABLE IF NOT EXISTS biometric_profiles (
-    profile_id TEXT PRIMARY KEY,
-    email TEXT NOT NULL UNIQUE COLLATE NOCASE,
-    profile_json TEXT NOT NULL,
-    saved_at TEXT NOT NULL
-  )`);
-  await dbRun("CREATE INDEX IF NOT EXISTS idx_biometric_profiles_email ON biometric_profiles(email)");
-  await dbRun(`CREATE TABLE IF NOT EXISTS credentials (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    student_id TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
-    credential_id BLOB NOT NULL UNIQUE,
-    public_key BLOB NOT NULL,
-    sign_count INTEGER NOT NULL DEFAULT 0,
-    device_label TEXT,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-  )`);
-  await dbRun("CREATE INDEX IF NOT EXISTS idx_credentials_student_id ON credentials(student_id)");
-
   await dbRun(`CREATE TABLE IF NOT EXISTS live_sessions (
     id TEXT PRIMARY KEY,
     status TEXT NOT NULL DEFAULT 'active',
@@ -690,16 +632,6 @@ async function migrateJsonDataToSqlite() {
   });
   }
 
-  const profiles = readJsonFile(BIOMETRIC_PROFILES_FILE, {});
-  for (const profile of Object.values(profiles && typeof profiles === "object" ? profiles : {})) {
-    if (!profile?.email) continue;
-    const email = String(profile.email || "").trim().toLowerCase();
-    const profileId = profile.profileId || crypto.createHash("sha256").update(email).digest("hex");
-    const savedAt = profile.savedAt || new Date().toISOString();
-    await dbRun(`INSERT OR IGNORE INTO biometric_profiles (profile_id, email, profile_json, saved_at)
-      VALUES (?, ?, ?, ?)`, [profileId, email, JSON.stringify({ ...profile, email, profileId, savedAt }), savedAt]);
-  }
-
   const sessions = readJsonFile(LIVE_SESSIONS_FILE, []);
   for (const session of Array.isArray(sessions) ? sessions : []) {
     if (!session?.id) continue;
@@ -710,19 +642,6 @@ async function migrateJsonDataToSqlite() {
   for (const record of Array.isArray(attendance) ? attendance : []) {
     if (!record?.id || !record?.sessionId) continue;
     await upsertSqliteAttendance(record);
-  }
-}
-
-async function migrateWebAuthnCredentials() {
-  const rows = await dbAll(`SELECT s.id AS student_id, b.profile_json
-    FROM biometric_profiles b
-    JOIN students s ON s.email = b.email COLLATE NOCASE`);
-  for (const row of rows) {
-    const profile = parseJsonColumn(row.profile_json, null);
-    const credential = profile?.webauthnCredential;
-    if (!row.student_id || !credential?.id || !credential?.publicKey) continue;
-    await dbRun(`INSERT OR IGNORE INTO credentials (student_id, credential_id, public_key, sign_count, device_label)
-      VALUES (?, ?, ?, ?, ?)`, [row.student_id, Buffer.from(credential.id, "base64url"), Buffer.from(credential.publicKey, "base64url"), Number(credential.counter || 0), credential.credentialDeviceType || "platform"]);
   }
 }
 
@@ -1295,288 +1214,6 @@ function getCorsHeaders() {
 
 function setCorsHeaders(res) {
   Object.entries(getCorsHeaders()).forEach(([key, value]) => res.setHeader(key, value));
-}
-
-function getWebAuthnContext(req) {
-  const forwardedHost = String(req.headers["x-forwarded-host"] || "").split(",")[0].trim();
-  const host = forwardedHost || String(req.headers.host || `127.0.0.1:${PORT}`).trim();
-  const forwardedProtocol = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim().toLowerCase();
-  const fallbackProtocol = forwardedProtocol === "https" || (req.socket && req.socket.encrypted) ? "https" : "http";
-  const originHeader = String(req.headers.origin || "").trim();
-  const refererHeader = String(req.headers.referer || "").trim();
-  const fallbackOrigin = `${fallbackProtocol}://${host}`;
-  let origin = fallbackOrigin;
-  let rpID = host.split(":")[0];
-
-  for (const candidateValue of [originHeader, refererHeader, fallbackOrigin]) {
-    try {
-      const candidate = new URL(candidateValue);
-      const isAllowedProtocol = candidate.protocol === "https:" || candidate.hostname === "localhost" || candidate.hostname === "127.0.0.1";
-      if (!isAllowedProtocol) continue;
-      origin = candidate.origin;
-      rpID = candidate.hostname;
-      break;
-    } catch {}
-  }
-
-  return { rpName: "GeoAttend", rpID, origin };
-}
-
-function challengeKey(purpose, email) {
-  return `${purpose}:${String(email || "").trim().toLowerCase()}`;
-}
-
-function serializeWebAuthnCredential(credential, extras = {}) {
-  if (!credential) return null;
-  return {
-    id: credential.id,
-    publicKey: Buffer.from(credential.publicKey).toString("base64url"),
-    counter: Number(credential.counter || 0),
-    transports: credential.transports || [],
-    ...extras
-  };
-}
-
-function deserializeWebAuthnCredential(credential) {
-  if (!credential?.id || !credential?.publicKey) return null;
-  return {
-    id: credential.id,
-    publicKey: Buffer.from(credential.publicKey, "base64url"),
-    counter: Number(credential.counter || 0),
-    transports: credential.transports || []
-  };
-}
-
-async function findStudentRowByIdentifier(identifier) {
-  const raw = String(identifier || "").trim();
-  const email = raw.toLowerCase();
-  const regNumber = normalizeRegNumber(raw);
-  return dbGet("SELECT * FROM students WHERE email = ? COLLATE NOCASE OR reg_number = ? COLLATE NOCASE LIMIT 1", [email, regNumber]);
-}
-
-async function loadBiometricProfileByEmail(email) {
-  const normalized = String(email || "").trim().toLowerCase();
-  const profileId = crypto.createHash("sha256").update(normalized).digest("hex");
-  const row = await dbGet("SELECT profile_json FROM biometric_profiles WHERE profile_id = ? OR email = ?", [profileId, normalized]);
-  return parseJsonColumn(row?.profile_json, null);
-}
-
-async function saveBiometricProfileObject(profile) {
-  const email = String(profile.email || "").trim().toLowerCase();
-  const profileId = crypto.createHash("sha256").update(email).digest("hex");
-  const savedAt = new Date().toISOString();
-  const savedProfile = { ...profile, email, profileId, savedAt };
-  await dbRun(`INSERT INTO biometric_profiles (profile_id, email, profile_json, saved_at)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT(profile_id) DO UPDATE SET
-      email = excluded.email,
-      profile_json = excluded.profile_json,
-      saved_at = excluded.saved_at`, [profileId, email, JSON.stringify(savedProfile), savedAt]);
-  const profiles = readJsonFile(BIOMETRIC_PROFILES_FILE, {});
-  profiles[profileId] = savedProfile;
-  writeLocalJson(BIOMETRIC_PROFILES_FILE, profiles);
-  return { profileId, savedAt, savedProfile };
-}
-
-async function getWebAuthnRegistrationOptions(req, res, body) {
-  const row = await findStudentRowByIdentifier(body.email || body.regNumber);
-  if (!row) {
-    json(res, 404, { error: "No student account was found. Please register first." });
-    return;
-  }
-  const { rpName, rpID, origin } = getWebAuthnContext(req);
-  const email = String(row.email || "").trim().toLowerCase();
-  const existingCredentials = await dbAll("SELECT credential_id FROM credentials WHERE student_id = ?", [row.id]);
-  const options = await generateRegistrationOptions({
-    rpName,
-    rpID,
-    userName: email,
-    userDisplayName: row.full_name || email,
-    userID: Buffer.from(String(row.id || email)),
-    attestationType: "none",
-    authenticatorSelection: {
-      authenticatorAttachment: "platform",
-      residentKey: "preferred",
-      userVerification: "required"
-    },
-    excludeCredentials: existingCredentials.map((credential) => ({ id: Buffer.from(credential.credential_id).toString("base64url") }))
-  });
-  webAuthnChallengeStore.set(challengeKey("register", email), {
-    challenge: options.challenge,
-    rpID,
-    origin,
-    expiresAt: Date.now() + 5 * 60 * 1000
-  });
-  json(res, 200, { ok: true, options, email });
-}
-
-async function verifyWebAuthnRegistration(req, res, body) {
-  const row = await findStudentRowByIdentifier(body.email || body.regNumber);
-  if (!row) {
-    json(res, 404, { error: "No student account was found. Please register first." });
-    return;
-  }
-  const email = String(row.email || "").trim().toLowerCase();
-  const saved = webAuthnChallengeStore.get(challengeKey("register", email));
-  if (!saved || saved.expiresAt < Date.now()) {
-    webAuthnChallengeStore.delete(challengeKey("register", email));
-    json(res, 400, { error: "Device security request expired. Try again." });
-    return;
-  }
-  const verification = await verifyRegistrationResponse({
-    response: body.response,
-    expectedChallenge: saved.challenge,
-    expectedOrigin: saved.origin,
-    expectedRPID: saved.rpID,
-    requireUserVerification: true
-  });
-  if (!verification.verified || !verification.registrationInfo?.credential) {
-    json(res, 401, { error: "Device security verification failed." });
-    return;
-  }
-  webAuthnChallengeStore.delete(challengeKey("register", email));
-  const credential = serializeWebAuthnCredential(verification.registrationInfo.credential, {
-    credentialDeviceType: verification.registrationInfo.credentialDeviceType,
-    credentialBackedUp: verification.registrationInfo.credentialBackedUp
-  });
-  await dbRun(`INSERT INTO credentials (student_id, credential_id, public_key, sign_count, device_label)
-    VALUES (?, ?, ?, ?, ?)
-    ON CONFLICT(credential_id) DO UPDATE SET student_id = excluded.student_id, public_key = excluded.public_key, sign_count = excluded.sign_count, device_label = excluded.device_label`, [
-    row.id,
-    Buffer.from(credential.id, "base64url"),
-    Buffer.from(credential.publicKey, "base64url"),
-    Number(credential.counter || 0),
-    credential.credentialDeviceType || "platform"
-  ]);
-  json(res, 200, { ok: true, email, credential, method: "biometric" });
-}
-
-async function getWebAuthnLoginOptions(req, res, body) {
-  const row = await findStudentRowByIdentifier(body.email || body.regNumber);
-  if (!row) {
-    json(res, 404, { error: "No student account was found. Please register first." });
-    return;
-  }
-  const email = String(row.email || "").trim().toLowerCase();
-  const credentials = await dbAll("SELECT credential_id FROM credentials WHERE student_id = ?", [row.id]);
-  if (!credentials.length) {
-    json(res, 409, { error: "No registered fingerprint security is enrolled for this student. Complete identity verification first." });
-    return;
-  }
-  const { rpID, origin } = getWebAuthnContext(req);
-  const options = await generateAuthenticationOptions({
-    rpID,
-    allowCredentials: credentials.map((credential) => ({ id: Buffer.from(credential.credential_id).toString("base64url"), type: "public-key" })),
-    userVerification: "required"
-  });
-  webAuthnChallengeStore.set(challengeKey("login", email), {
-    challenge: options.challenge,
-    rpID,
-    origin,
-    expiresAt: Date.now() + 5 * 60 * 1000,
-    purpose: body.purpose === "attendance" ? "attendance" : "login",
-    sessionId: String(body.sessionId || "").trim()
-  });
-  json(res, 200, { ok: true, options, email });
-}
-
-async function verifyWebAuthnLogin(req, res, body) {
-  const row = await findStudentRowByIdentifier(body.email || body.regNumber);
-  if (!row) {
-    json(res, 404, { error: "No student account was found. Please register first." });
-    return;
-  }
-  const email = String(row.email || "").trim().toLowerCase();
-  const saved = webAuthnChallengeStore.get(challengeKey("login", email));
-  if (!saved || saved.expiresAt < Date.now()) {
-    webAuthnChallengeStore.delete(challengeKey("login", email));
-    json(res, 400, { error: "Login security request expired. Try again." });
-    return;
-  }
-  const rawCredentialId = String(body.response?.rawId || "");
-  const storedRow = rawCredentialId ? await dbGet("SELECT * FROM credentials WHERE student_id = ? AND credential_id = ?", [row.id, Buffer.from(rawCredentialId, "base64url")]) : null;
-  if (!storedRow) {
-    json(res, 409, { error: "This fingerprint is not enrolled for this student." });
-    return;
-  }
-  const storedCredential = {
-    id: Buffer.from(storedRow.credential_id).toString("base64url"),
-    publicKey: Buffer.from(storedRow.public_key),
-    counter: Number(storedRow.sign_count || 0)
-  };
-  const verification = await verifyAuthenticationResponse({
-    response: body.response,
-    expectedChallenge: saved.challenge,
-    expectedOrigin: saved.origin,
-    expectedRPID: saved.rpID,
-    credential: storedCredential,
-    requireUserVerification: true
-  });
-  if (!verification.verified) {
-    json(res, 401, { error: "Device security login failed." });
-    return;
-  }
-  const newCounter = Number(verification.authenticationInfo?.newCounter || 0);
-  const oldCounter = Number(storedRow.sign_count || 0);
-  if (oldCounter > 0 && newCounter <= oldCounter) {
-    json(res, 401, { error: "Fingerprint security counter check failed. Re-enroll this device." });
-    return;
-  }
-  webAuthnChallengeStore.delete(challengeKey("login", email));
-  await dbRun("UPDATE credentials SET sign_count = ? WHERE id = ?", [newCounter, storedRow.id]);
-  const profile = await loadBiometricProfileByEmail(email);
-  if (profile?.webauthnCredential) {
-    profile.webauthnCredential.counter = newCounter;
-    await saveBiometricProfileObject(profile);
-  }
-  let checkinToken = null;
-  if (saved.purpose === "attendance" && saved.sessionId) {
-    checkinToken = crypto.randomBytes(32).toString("base64url");
-    attendanceAuthorizationStore.set(checkinToken, { email, sessionId: saved.sessionId, expiresAt: Date.now() + 2 * 60 * 1000 });
-  }
-  json(res, 200, { ok: true, user: sqliteStudentFromRow(row), method: "fingerprint", checkinToken });
-}
-async function saveBiometricProfile(res, profile) {
-  if (!profile || !isEmail(profile.email)) {
-    json(res, 400, { error: "A valid profile email is required." });
-    return;
-  }
-
-  const hasSecurity = Boolean(profile?.biometric?.platformAuthenticator || profile?.webauthnCredential || profile?.platformCredential?.webauthnCredential);
-  if (!hasSecurity) {
-    json(res, 400, { error: "Complete one login security method before saving." });
-    return;
-  }
-
-  const email = profile.email.trim().toLowerCase();
-  const normalizedProfile = {
-    ...profile,
-    email,
-    webauthnCredential: profile.webauthnCredential || profile.platformCredential?.webauthnCredential || null
-  };
-  const { profileId, savedAt } = await saveBiometricProfileObject(normalizedProfile);
-  json(res, 200, { ok: true, source: "sqlite", profileId, savedAt });
-}
-
-async function getBiometricProfile(req, res) {
-  const url = new URL(req.url, "http://127.0.0.1");
-  const email = String(url.searchParams.get("email") || "").trim().toLowerCase();
-
-  if (!isEmail(email)) {
-    json(res, 400, { error: "A valid email is required." });
-    return;
-  }
-
-  const profileId = crypto.createHash("sha256").update(email).digest("hex");
-  const row = await dbGet("SELECT profile_json FROM biometric_profiles WHERE profile_id = ? OR email = ?", [profileId, email]);
-  const profile = parseJsonColumn(row?.profile_json, null);
-
-  if (!profile) {
-    json(res, 404, { error: "No biometric profile found for that email." });
-    return;
-  }
-
-  json(res, 200, { ok: true, source: "sqlite", profile });
 }
 
 async function getLiveSessions(req, res) {
@@ -2893,8 +2530,7 @@ async function deleteStudentAccount(res, body) {
 
   const targetEmail = String(row.email || email || "").trim().toLowerCase();
   const targetReg = normalizeRegNumber(row.reg_number || regNumber);
-  await dbRun("DELETE FROM biometric_profiles WHERE email = ? COLLATE NOCASE", [targetEmail]);
-  await dbRun("DELETE FROM credentials WHERE student_id = ?", [row.id]);
+`r`n  await dbRun("DELETE FROM credentials WHERE student_id = ?", [row.id]);
   const result = await dbRun("DELETE FROM students WHERE id = ?", [row.id]);
 
   const students = readJsonFile(STUDENTS_FILE, []).filter((item) => {
@@ -2903,14 +2539,7 @@ async function deleteStudentAccount(res, body) {
     return itemEmail !== targetEmail && itemReg !== targetReg;
   });
   writeLocalJson(STUDENTS_FILE, sortStudents(students));
-
-  const profiles = readJsonFile(BIOMETRIC_PROFILES_FILE, {});
-  Object.keys(profiles && typeof profiles === "object" ? profiles : {}).forEach((profileId) => {
-    const profileEmail = String(profiles[profileId]?.email || "").trim().toLowerCase();
-    if (profileEmail === targetEmail) delete profiles[profileId];
-  });
-  writeLocalJson(BIOMETRIC_PROFILES_FILE, profiles);
-
+`r`n
   const remainingStudents = sortStudents(await readStudentsStore());
   json(res, 200, {
     ok: true,
@@ -2946,10 +2575,8 @@ async function saveStudent(res, body) {
   const passwordHash = password ? hashPassword(password) : "";
 
   if (body.registrationFlow === true) {
-    await dbRun("DELETE FROM biometric_profiles WHERE email = ? COLLATE NOCASE", [email]);
-    const studentRow = await dbGet("SELECT id FROM students WHERE email = ? COLLATE NOCASE", [email]);
-    if (studentRow) await dbRun("DELETE FROM credentials WHERE student_id = ?", [studentRow.id]);
-    const profiles = readJsonFile(BIOMETRIC_PROFILES_FILE, {});
+`r`n    const studentRow = await dbGet("SELECT id FROM students WHERE email = ? COLLATE NOCASE", [email]);
+`r`n    const profiles = readJsonFile(BIOMETRIC_PROFILES_FILE, {});
     Object.keys(profiles && typeof profiles === "object" ? profiles : {}).forEach((profileId) => {
       if (String(profiles[profileId]?.email || "").trim().toLowerCase() === email) delete profiles[profileId];
     });
