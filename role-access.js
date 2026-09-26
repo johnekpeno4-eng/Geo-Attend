@@ -293,9 +293,10 @@
     });
     function getApiTargets(url) {
       const targets = [url];
-      const shouldUseLocalBackend = window.location.protocol === "file:" || window.location.port !== "5502";
+      const configuredPort = "4600";
+      const shouldUseLocalBackend = window.location.protocol === "file:";
       if (shouldUseLocalBackend && url.startsWith("/")) {
-        targets.push(`http://127.0.0.1:4100${url}`);
+        targets.push(`http://127.0.0.1:${configuredPort}${url}`);
       }
       return [...new Set(targets)];
     }
@@ -322,7 +323,7 @@
         }
       }
 
-      const error = new Error("Could not reach the GeoAttend backend. Open http://127.0.0.1:4100/login.html and make sure the server is running.");
+      const error = new Error(`Could not reach the GeoAttend backend. Open ${window.location.origin}/login.html and make sure the server is running.`);
       error.cause = networkError;
       throw error;
     }
