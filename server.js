@@ -6,6 +6,7 @@ const path = require("path");
 const nodemailer = require("nodemailer");
 const sqlite3 = require("sqlite3").verbose();
 const QRCode = require("qrcode");
+const { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } = require("@simplewebauthn/server");
 
 
 const ROOT = __dirname;
@@ -34,6 +35,8 @@ const otpStore = new Map();
 const otpAttemptStore = new Map();
 const loginAttemptStore = new Map();
 const totpSetupStore = new Map();
+const webAuthnChallengeStore = new Map();
+const attendanceAuthorizationStore = new Map();
 
 
 const ADMIN_GEOFENCE_MAX_ACCURACY_METERS = 20;
@@ -175,6 +178,29 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "POST" && req.url === "/api/webauthn/register-options") {
+      const body = await readJson(req);
+      await getWebAuthnRegistrationOptions(req, res, body);
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/api/webauthn/register-verify") {
+      const body = await readJson(req);
+      await verifyWebAuthnRegistration(req, res, body);
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/api/webauthn/login-options") {
+      const body = await readJson(req);
+      await getWebAuthnLoginOptions(req, res, body);
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/api/webauthn/login-verify") {
+      const body = await readJson(req);
+      await verifyWebAuthnLogin(req, res, body);
+      return;
+    }
     if (req.method === "POST" && req.url === "/api/save-biometric-profile") {
       const body = await readJson(req);
       await saveBiometricProfile(res, body);
@@ -605,6 +631,8 @@ async function initDatabase() {
     saved_at TEXT NOT NULL
   )`);
   await dbRun("CREATE INDEX IF NOT EXISTS idx_biometric_profiles_email ON biometric_profiles(email)");
+  await dbRun("CREATE TABLE IF NOT EXISTS webauthn_credentials (id INTEGER PRIMARY KEY AUTOINCREMENT, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE, credential_id BLOB NOT NULL UNIQUE, public_key BLOB NOT NULL, sign_count INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+  await dbRun("CREATE INDEX IF NOT EXISTS idx_webauthn_credentials_student ON webauthn_credentials(student_id)");
   await dbRun(`CREATE TABLE IF NOT EXISTS live_sessions (
     id TEXT PRIMARY KEY,
     status TEXT NOT NULL DEFAULT 'active',
@@ -1249,6 +1277,119 @@ function setCorsHeaders(res) {
   Object.entries(getCorsHeaders()).forEach(([key, value]) => res.setHeader(key, value));
 }
 
+function getWebAuthnContext(req) {
+  const forwardedHost = String(req.headers["x-forwarded-host"] || "").split(",")[0].trim();
+  const host = forwardedHost || String(req.headers.host || ("127.0.0.1:" + PORT)).trim();
+  const forwardedProtocol = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim().toLowerCase();
+  const fallbackProtocol = forwardedProtocol === "https" || req.socket?.encrypted ? "https" : "http";
+  const fallbackOrigin = fallbackProtocol + "://" + host;
+  const candidates = [req.headers.origin, req.headers.referer, fallbackOrigin].filter(Boolean);
+  for (const value of candidates) {
+    try {
+      const candidate = new URL(value);
+      const allowed = candidate.protocol === "https:" || candidate.hostname === "localhost" || candidate.hostname === "127.0.0.1";
+      if (allowed) return { rpName: "GeoAttend", rpID: candidate.hostname, origin: candidate.origin };
+    } catch {}
+  }
+  return { rpName: "GeoAttend", rpID: host.split(":")[0], origin: fallbackOrigin };
+}
+
+function webAuthnKey(purpose, email) {
+  return purpose + ":" + String(email || "").trim().toLowerCase();
+}
+
+async function findWebAuthnStudent(identifier) {
+  const value = String(identifier || "").trim();
+  return dbGet("SELECT * FROM students WHERE email = ? COLLATE NOCASE OR reg_number = ? COLLATE NOCASE LIMIT 1", [value.toLowerCase(), normalizeRegNumber(value)]);
+}
+
+function encodeCredential(credential) {
+  return { id: credential.id, publicKey: Buffer.from(credential.publicKey).toString("base64url"), counter: Number(credential.counter || 0) };
+}
+
+async function getWebAuthnRegistrationOptions(req, res, body) {
+  const row = await findWebAuthnStudent(body.email || body.regNumber);
+  if (!row) return json(res, 404, { error: "Complete student registration first." });
+  const email = String(row.email).trim().toLowerCase();
+  const context = getWebAuthnContext(req);
+  const existing = await dbAll("SELECT credential_id FROM webauthn_credentials WHERE student_id = ?", [row.id]);
+  const options = await generateRegistrationOptions({
+    rpName: context.rpName,
+    rpID: context.rpID,
+    userName: email,
+    userDisplayName: row.full_name || email,
+    userID: Buffer.from(String(row.id)),
+    attestationType: "none",
+    excludeCredentials: existing.map((item) => ({ id: Buffer.from(item.credential_id).toString("base64url") })),
+    authenticatorSelection: { authenticatorAttachment: "platform", residentKey: "required", userVerification: "required" }
+  });
+  webAuthnChallengeStore.set(webAuthnKey("register", email), { challenge: options.challenge, rpID: context.rpID, origin: context.origin, expiresAt: Date.now() + 5 * 60 * 1000 });
+  json(res, 200, { ok: true, options, email });
+}
+
+async function verifyWebAuthnRegistration(req, res, body) {
+  const row = await findWebAuthnStudent(body.email || body.regNumber);
+  if (!row) return json(res, 404, { error: "Student account was not found." });
+  const email = String(row.email).trim().toLowerCase();
+  const key = webAuthnKey("register", email);
+  const saved = webAuthnChallengeStore.get(key);
+  if (!saved || saved.expiresAt < Date.now()) return json(res, 400, { error: "Device enrollment expired. Try again." });
+  try {
+    const verification = await verifyRegistrationResponse({ response: body.response, expectedChallenge: saved.challenge, expectedOrigin: saved.origin, expectedRPID: saved.rpID, requireUserVerification: true });
+    if (!verification.verified || !verification.registrationInfo?.credential) return json(res, 401, { error: "Device enrollment was not verified." });
+    const credential = verification.registrationInfo.credential;
+    await dbRun("INSERT INTO webauthn_credentials (student_id, credential_id, public_key, sign_count) VALUES (?, ?, ?, ?) ON CONFLICT(credential_id) DO UPDATE SET public_key = excluded.public_key, sign_count = excluded.sign_count", [row.id, Buffer.from(credential.id, "base64url"), Buffer.from(credential.publicKey), Number(credential.counter || 0)]);
+    webAuthnChallengeStore.delete(key);
+    json(res, 200, { ok: true, email, credential: encodeCredential(credential) });
+  } catch (error) {
+    json(res, 400, { error: error.message || "Device enrollment failed." });
+  }
+}
+
+async function getWebAuthnLoginOptions(req, res, body) {
+  const row = await findWebAuthnStudent(body.email || body.regNumber);
+  if (!row) return json(res, 404, { error: "Student account was not found." });
+  const credentials = await dbAll("SELECT credential_id FROM webauthn_credentials WHERE student_id = ?", [row.id]);
+  if (!credentials.length) return json(res, 409, { error: "Fingerprint enrollment is required. Complete registration first." });
+  const email = String(row.email).trim().toLowerCase();
+  const context = getWebAuthnContext(req);
+  const options = await generateAuthenticationOptions({
+    rpID: context.rpID,
+    userVerification: "required",
+    allowCredentials: credentials.map((item) => ({ id: Buffer.from(item.credential_id).toString("base64url"), type: "public-key" }))
+  });
+  webAuthnChallengeStore.set(webAuthnKey("login", email), { challenge: options.challenge, rpID: context.rpID, origin: context.origin, purpose: body.purpose === "attendance" ? "attendance" : "login", sessionId: String(body.sessionId || ""), expiresAt: Date.now() + 5 * 60 * 1000 });
+  json(res, 200, { ok: true, options, email });
+}
+
+async function verifyWebAuthnLogin(req, res, body) {
+  const row = await findWebAuthnStudent(body.email || body.regNumber);
+  if (!row) return json(res, 404, { error: "Student account was not found." });
+  const email = String(row.email).trim().toLowerCase();
+  const key = webAuthnKey("login", email);
+  const saved = webAuthnChallengeStore.get(key);
+  if (!saved || saved.expiresAt < Date.now()) return json(res, 400, { error: "Fingerprint request expired. Try again." });
+  const rawId = String(body.response?.rawId || "");
+  const stored = rawId ? await dbGet("SELECT * FROM webauthn_credentials WHERE student_id = ? AND credential_id = ?", [row.id, Buffer.from(rawId, "base64url")]) : null;
+  if (!stored) return json(res, 401, { error: "This fingerprint is not enrolled for this student." });
+  try {
+    const verification = await verifyAuthenticationResponse({ response: body.response, expectedChallenge: saved.challenge, expectedOrigin: saved.origin, expectedRPID: saved.rpID, requireUserVerification: true, credential: { id: Buffer.from(stored.credential_id).toString("base64url"), publicKey: Buffer.from(stored.public_key), counter: Number(stored.sign_count || 0) } });
+    if (!verification.verified) return json(res, 401, { error: "Fingerprint verification failed." });
+    const newCounter = Number(verification.authenticationInfo?.newCounter || 0);
+    const oldCounter = Number(stored.sign_count || 0);
+    if (oldCounter > 0 && newCounter <= oldCounter) return json(res, 401, { error: "Fingerprint security counter failed. Re-enroll this device." });
+    await dbRun("UPDATE webauthn_credentials SET sign_count = ? WHERE id = ?", [newCounter, stored.id]);
+    webAuthnChallengeStore.delete(key);
+    let checkinToken = null;
+    if (saved.purpose === "attendance" && saved.sessionId) {
+      checkinToken = crypto.randomBytes(32).toString("base64url");
+      attendanceAuthorizationStore.set(checkinToken, { email, sessionId: saved.sessionId, expiresAt: Date.now() + 2 * 60 * 1000 });
+    }
+    json(res, 200, { ok: true, user: sqliteStudentFromRow(row), method: "fingerprint", checkinToken });
+  } catch (error) {
+    json(res, 400, { error: error.message || "Fingerprint verification failed." });
+  }
+}
 async function saveBiometricProfile(res, profile) {
   if (!profile || !isEmail(profile.email)) {
     json(res, 400, { error: "A valid profile email is required." });
@@ -1799,6 +1940,12 @@ async function saveAttendance(res, record) {
 
   if (!email && regNumber) email = `${regNumber.toLowerCase()}@reg.geoattend.local`;
   if (!regNumber) regNumber = normalizeRegNumber(record.regNumber) || "--";
+  const checkinToken = String(record.checkinToken || "");
+  const authorization = attendanceAuthorizationStore.get(checkinToken);
+  if (!authorization || authorization.expiresAt < Date.now() || authorization.email !== email || authorization.sessionId !== sessionId) {
+    json(res, 403, { error: "Verify your own fingerprint immediately before checking in." });
+    return;
+  }
   const alreadyCheckedIn = attendance.some((entry) => entry && entry.sessionId === sessionId && (
     (regNumber !== "--" && normalizeRegNumber(entry.regNumber) === regNumber)
     || String(entry.email || "").trim().toLowerCase() === email
@@ -2600,6 +2747,7 @@ async function deleteStudentAccount(res, body) {
   const targetEmail = String(row.email || email || "").trim().toLowerCase();
   const targetReg = normalizeRegNumber(row.reg_number || regNumber);
   await dbRun("DELETE FROM biometric_profiles WHERE email = ? COLLATE NOCASE", [targetEmail]);
+  await dbRun("DELETE FROM webauthn_credentials WHERE student_id = ?", [row.id]);
 
   const result = await dbRun("DELETE FROM students WHERE id = ?", [row.id]);
 
@@ -2654,6 +2802,7 @@ async function saveStudent(res, body) {
   if (body.registrationFlow === true) {
     await dbRun("DELETE FROM biometric_profiles WHERE email = ? COLLATE NOCASE", [email]);
     const studentRow = await dbGet("SELECT id FROM students WHERE email = ? COLLATE NOCASE", [email]);
+    if (studentRow) await dbRun("DELETE FROM webauthn_credentials WHERE student_id = ?", [studentRow.id]);
 
     const profiles = readJsonFile(BIOMETRIC_PROFILES_FILE, {});
     Object.keys(profiles && typeof profiles === "object" ? profiles : {}).forEach((profileId) => {
