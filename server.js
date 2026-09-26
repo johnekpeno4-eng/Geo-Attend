@@ -1454,16 +1454,15 @@ async function getWebAuthnLoginOptions(req, res, body) {
     return;
   }
   const email = String(row.email || "").trim().toLowerCase();
-  const profile = await loadBiometricProfileByEmail(email);
-  const credential = profile?.webauthnCredential;
-  if (!credential?.id) {
+  const credentials = await dbAll("SELECT credential_id FROM credentials WHERE student_id = ?", [row.id]);
+  if (!credentials.length) {
     json(res, 409, { error: "No registered fingerprint security is enrolled for this student. Complete identity verification first." });
     return;
   }
   const { rpID, origin } = getWebAuthnContext(req);
   const options = await generateAuthenticationOptions({
     rpID,
-    allowCredentials: [{ id: credential.id, transports: credential.transports || [] }],
+    allowCredentials: credentials.map((credential) => ({ id: Buffer.from(credential.credential_id).toString("base64url"), type: "public-key" })),
     userVerification: "required"
   });
   webAuthnChallengeStore.set(challengeKey("login", email), {
@@ -1490,12 +1489,17 @@ async function verifyWebAuthnLogin(req, res, body) {
     json(res, 400, { error: "Login security request expired. Try again." });
     return;
   }
-  const profile = await loadBiometricProfileByEmail(email);
-  const storedCredential = deserializeWebAuthnCredential(profile?.webauthnCredential);
-  if (!storedCredential) {
-    json(res, 409, { error: "No registered fingerprint security is enrolled for this student." });
+  const rawCredentialId = String(body.response?.rawId || "");
+  const storedRow = rawCredentialId ? await dbGet("SELECT * FROM credentials WHERE student_id = ? AND credential_id = ?", [row.id, Buffer.from(rawCredentialId, "base64url")]) : null;
+  if (!storedRow) {
+    json(res, 409, { error: "This fingerprint is not enrolled for this student." });
     return;
   }
+  const storedCredential = {
+    id: Buffer.from(storedRow.credential_id).toString("base64url"),
+    publicKey: Buffer.from(storedRow.public_key),
+    counter: Number(storedRow.sign_count || 0)
+  };
   const verification = await verifyAuthenticationResponse({
     response: body.response,
     expectedChallenge: saved.challenge,
@@ -1508,9 +1512,19 @@ async function verifyWebAuthnLogin(req, res, body) {
     json(res, 401, { error: "Device security login failed." });
     return;
   }
+  const newCounter = Number(verification.authenticationInfo?.newCounter || 0);
+  const oldCounter = Number(storedRow.sign_count || 0);
+  if (oldCounter > 0 && newCounter <= oldCounter) {
+    json(res, 401, { error: "Fingerprint security counter check failed. Re-enroll this device." });
+    return;
+  }
   webAuthnChallengeStore.delete(challengeKey("login", email));
-  profile.webauthnCredential.counter = verification.authenticationInfo.newCounter;
-  await saveBiometricProfileObject(profile);
+  await dbRun("UPDATE credentials SET sign_count = ? WHERE id = ?", [newCounter, storedRow.id]);
+  const profile = await loadBiometricProfileByEmail(email);
+  if (profile?.webauthnCredential) {
+    profile.webauthnCredential.counter = newCounter;
+    await saveBiometricProfileObject(profile);
+  }
   let checkinToken = null;
   if (saved.purpose === "attendance" && saved.sessionId) {
     checkinToken = crypto.randomBytes(32).toString("base64url");
@@ -2876,6 +2890,7 @@ async function deleteStudentAccount(res, body) {
   const targetEmail = String(row.email || email || "").trim().toLowerCase();
   const targetReg = normalizeRegNumber(row.reg_number || regNumber);
   await dbRun("DELETE FROM biometric_profiles WHERE email = ? COLLATE NOCASE", [targetEmail]);
+  await dbRun("DELETE FROM credentials WHERE student_id = ?", [row.id]);
   const result = await dbRun("DELETE FROM students WHERE id = ?", [row.id]);
 
   const students = readJsonFile(STUDENTS_FILE, []).filter((item) => {
@@ -2928,6 +2943,8 @@ async function saveStudent(res, body) {
 
   if (body.registrationFlow === true) {
     await dbRun("DELETE FROM biometric_profiles WHERE email = ? COLLATE NOCASE", [email]);
+    const studentRow = await dbGet("SELECT id FROM students WHERE email = ? COLLATE NOCASE", [email]);
+    if (studentRow) await dbRun("DELETE FROM credentials WHERE student_id = ?", [studentRow.id]);
     const profiles = readJsonFile(BIOMETRIC_PROFILES_FILE, {});
     Object.keys(profiles && typeof profiles === "object" ? profiles : {}).forEach((profileId) => {
       if (String(profiles[profileId]?.email || "").trim().toLowerCase() === email) delete profiles[profileId];
