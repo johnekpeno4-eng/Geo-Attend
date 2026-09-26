@@ -1303,17 +1303,21 @@ function getWebAuthnContext(req) {
   const forwardedProtocol = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim().toLowerCase();
   const fallbackProtocol = forwardedProtocol === "https" || (req.socket && req.socket.encrypted) ? "https" : "http";
   const originHeader = String(req.headers.origin || "").trim();
+  const refererHeader = String(req.headers.referer || "").trim();
   const fallbackOrigin = `${fallbackProtocol}://${host}`;
   let origin = fallbackOrigin;
   let rpID = host.split(":")[0];
 
-  try {
-    const candidate = new URL(originHeader || fallbackOrigin);
-    if (candidate.protocol === "https:" || candidate.hostname === "localhost" || candidate.hostname === "127.0.0.1") {
+  for (const candidateValue of [originHeader, refererHeader, fallbackOrigin]) {
+    try {
+      const candidate = new URL(candidateValue);
+      const isAllowedProtocol = candidate.protocol === "https:" || candidate.hostname === "localhost" || candidate.hostname === "127.0.0.1";
+      if (!isAllowedProtocol) continue;
       origin = candidate.origin;
       rpID = candidate.hostname;
-    }
-  } catch {}
+      break;
+    } catch {}
+  }
 
   return { rpName: "GeoAttend", rpID, origin };
 }

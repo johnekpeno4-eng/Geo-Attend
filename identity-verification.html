@@ -128,6 +128,10 @@
       button.textContent = "Opening fingerprint prompt...";
       try {
         const optionsData = await postJson("/api/webauthn/register-options", { email: currentUser });
+        const requestedRpId = String(optionsData.options?.rp?.id || "").toLowerCase();
+        if (requestedRpId && requestedRpId !== window.location.hostname.toLowerCase()) {
+          throw new Error(`WebAuthn site mismatch. This page is ${window.location.hostname}, but the server requested ${requestedRpId}. Reopen the current HTTPS tunnel address.`);
+        }
         const credential = await navigator.credentials.create({ publicKey: prepareCredentialCreation(optionsData.options) });
         if (!credential) throw new DOMException("Fingerprint setup was cancelled.", "NotAllowedError");
         const verified = await postJson("/api/webauthn/register-verify", { email: currentUser, response: serializeRegistrationCredential(credential) });
