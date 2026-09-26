@@ -6,7 +6,7 @@ const path = require("path");
 const nodemailer = require("nodemailer");
 const sqlite3 = require("sqlite3").verbose();
 const QRCode = require("qrcode");
-const { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } = require("@simplewebauthn/server");
+
 
 const ROOT = __dirname;
 loadEnv();
@@ -34,8 +34,8 @@ const otpStore = new Map();
 const otpAttemptStore = new Map();
 const loginAttemptStore = new Map();
 const totpSetupStore = new Map();
-const webAuthnChallengeStore = new Map();
-const attendanceAuthorizationStore = new Map();
+
+
 const ADMIN_GEOFENCE_MAX_ACCURACY_METERS = 20;
 const STUDENT_GPS_MAX_ACCURACY_METERS = 30;
 const STUDENT_GPS_MAX_AGE_MS = 15 * 1000;
@@ -172,6 +172,22 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "DELETE" && req.url.startsWith("/api/courses")) {
       await deleteCourse(req, res);
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/api/save-biometric-profile") {
+      const body = await readJson(req);
+      await saveBiometricProfile(res, body);
+      return;
+    }
+
+    if (req.method === "GET" && req.url.startsWith("/api/biometric-profile")) {
+      await getBiometricProfile(req, res);
+      return;
+    }
+
+    if (req.method === "GET" && req.url === "/api/live-sessions") {
+      await getLiveSessions(req, res);
       return;
     }
 
@@ -582,6 +598,13 @@ async function initDatabase() {
   )`);
   await seedAcademicScope();
 
+  await dbRun(`CREATE TABLE IF NOT EXISTS biometric_profiles (
+    profile_id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    profile_json TEXT NOT NULL,
+    saved_at TEXT NOT NULL
+  )`);
+  await dbRun("CREATE INDEX IF NOT EXISTS idx_biometric_profiles_email ON biometric_profiles(email)");
   await dbRun(`CREATE TABLE IF NOT EXISTS live_sessions (
     id TEXT PRIMARY KEY,
     status TEXT NOT NULL DEFAULT 'active',
@@ -616,7 +639,7 @@ async function initDatabase() {
   )`);
   await dbRun("CREATE INDEX IF NOT EXISTS idx_lecturer_course_assignments_lecturer ON lecturer_course_assignments(lecturer_email)");
   await migrateJsonDataToSqlite();
-  await migrateWebAuthnCredentials();
+
 }
 
 async function migrateJsonDataToSqlite() {
@@ -630,6 +653,16 @@ async function migrateJsonDataToSqlite() {
     totpSecret: student.totpSecret || student.totp_secret || "",
     totpEnabled: student.totpEnabled || student.totp_enabled || false
   });
+  }
+
+  const profiles = readJsonFile(BIOMETRIC_PROFILES_FILE, {});
+  for (const profile of Object.values(profiles && typeof profiles === "object" ? profiles : {})) {
+    if (!profile?.email) continue;
+    const email = String(profile.email || "").trim().toLowerCase();
+    const profileId = profile.profileId || crypto.createHash("sha256").update(email).digest("hex");
+    const savedAt = profile.savedAt || new Date().toISOString();
+    await dbRun(`INSERT OR IGNORE INTO biometric_profiles (profile_id, email, profile_json, saved_at)
+      VALUES (?, ?, ?, ?)`, [profileId, email, JSON.stringify({ ...profile, email, profileId, savedAt }), savedAt]);
   }
 
   const sessions = readJsonFile(LIVE_SESSIONS_FILE, []);
@@ -1216,6 +1249,49 @@ function setCorsHeaders(res) {
   Object.entries(getCorsHeaders()).forEach(([key, value]) => res.setHeader(key, value));
 }
 
+async function saveBiometricProfile(res, profile) {
+  if (!profile || !isEmail(profile.email)) {
+    json(res, 400, { error: "A valid profile email is required." });
+    return;
+  }
+
+  const hasSecurity = Boolean(profile?.faceTemplateHash || profile?.faceCaptures);
+  if (!hasSecurity) {
+    json(res, 400, { error: "Complete one login security method before saving." });
+    return;
+  }
+
+  const email = profile.email.trim().toLowerCase();
+  const normalizedProfile = {
+    ...profile,
+    email,
+
+  };
+  const { profileId, savedAt } = await saveBiometricProfileObject(normalizedProfile);
+  json(res, 200, { ok: true, source: "sqlite", profileId, savedAt });
+}
+
+async function getBiometricProfile(req, res) {
+  const url = new URL(req.url, "http://127.0.0.1");
+  const email = String(url.searchParams.get("email") || "").trim().toLowerCase();
+
+  if (!isEmail(email)) {
+    json(res, 400, { error: "A valid email is required." });
+    return;
+  }
+
+  const profileId = crypto.createHash("sha256").update(email).digest("hex");
+  const row = await dbGet("SELECT profile_json FROM biometric_profiles WHERE profile_id = ? OR email = ?", [profileId, email]);
+  const profile = parseJsonColumn(row?.profile_json, null);
+
+  if (!profile) {
+    json(res, 404, { error: "No biometric profile found for that email." });
+    return;
+  }
+
+  json(res, 200, { ok: true, source: "sqlite", profile });
+}
+
 async function getLiveSessions(req, res) {
   autoFinalizeExpiredSessions();
   const { items: sessions, source } = await readLiveSessionsStore();
@@ -1723,13 +1799,6 @@ async function saveAttendance(res, record) {
 
   if (!email && regNumber) email = `${regNumber.toLowerCase()}@reg.geoattend.local`;
   if (!regNumber) regNumber = normalizeRegNumber(record.regNumber) || "--";
-  const checkinToken = String(record.checkinToken || "");
-  const authorization = attendanceAuthorizationStore.get(checkinToken);
-  if (!authorization || authorization.expiresAt < Date.now() || authorization.email !== email || authorization.sessionId !== sessionId) {
-    json(res, 403, { error: "Verify your own registered fingerprint immediately before checking in." });
-    return;
-  }
-
   const alreadyCheckedIn = attendance.some((entry) => entry && entry.sessionId === sessionId && (
     (regNumber !== "--" && normalizeRegNumber(entry.regNumber) === regNumber)
     || String(entry.email || "").trim().toLowerCase() === email
@@ -1775,7 +1844,7 @@ async function saveAttendance(res, record) {
     checkedInAt,
     savedAt: new Date().toISOString()
   };
-  delete normalizedRecord.checkinToken;
+
   const nextAttendance = [
     normalizedRecord,
     ...attendance.filter((entry) => {
@@ -1788,7 +1857,7 @@ async function saveAttendance(res, record) {
   ].slice(0, 2000);
 
   const { source } = await writeAttendanceStore(nextAttendance);
-  attendanceAuthorizationStore.delete(checkinToken);
+
   json(res, 200, { ok: true, source, record: normalizedRecord, attendance: nextAttendance });
 }
 
@@ -2530,7 +2599,8 @@ async function deleteStudentAccount(res, body) {
 
   const targetEmail = String(row.email || email || "").trim().toLowerCase();
   const targetReg = normalizeRegNumber(row.reg_number || regNumber);
-`r`n  await dbRun("DELETE FROM credentials WHERE student_id = ?", [row.id]);
+  await dbRun("DELETE FROM biometric_profiles WHERE email = ? COLLATE NOCASE", [targetEmail]);
+
   const result = await dbRun("DELETE FROM students WHERE id = ?", [row.id]);
 
   const students = readJsonFile(STUDENTS_FILE, []).filter((item) => {
@@ -2539,7 +2609,14 @@ async function deleteStudentAccount(res, body) {
     return itemEmail !== targetEmail && itemReg !== targetReg;
   });
   writeLocalJson(STUDENTS_FILE, sortStudents(students));
-`r`n
+
+  const profiles = readJsonFile(BIOMETRIC_PROFILES_FILE, {});
+  Object.keys(profiles && typeof profiles === "object" ? profiles : {}).forEach((profileId) => {
+    const profileEmail = String(profiles[profileId]?.email || "").trim().toLowerCase();
+    if (profileEmail === targetEmail) delete profiles[profileId];
+  });
+  writeLocalJson(BIOMETRIC_PROFILES_FILE, profiles);
+
   const remainingStudents = sortStudents(await readStudentsStore());
   json(res, 200, {
     ok: true,
@@ -2575,8 +2652,10 @@ async function saveStudent(res, body) {
   const passwordHash = password ? hashPassword(password) : "";
 
   if (body.registrationFlow === true) {
-`r`n    const studentRow = await dbGet("SELECT id FROM students WHERE email = ? COLLATE NOCASE", [email]);
-`r`n    const profiles = readJsonFile(BIOMETRIC_PROFILES_FILE, {});
+    await dbRun("DELETE FROM biometric_profiles WHERE email = ? COLLATE NOCASE", [email]);
+    const studentRow = await dbGet("SELECT id FROM students WHERE email = ? COLLATE NOCASE", [email]);
+
+    const profiles = readJsonFile(BIOMETRIC_PROFILES_FILE, {});
     Object.keys(profiles && typeof profiles === "object" ? profiles : {}).forEach((profileId) => {
       if (String(profiles[profileId]?.email || "").trim().toLowerCase() === email) delete profiles[profileId];
     });

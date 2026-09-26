@@ -30,7 +30,7 @@ while ($true) {
   if (-not $healthy) {
     $listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
     if (-not $listener) {
-      # WebAuthn relies on Web Crypto; --no-warnings only hides Node's experimental notices.
+
       Start-Process -FilePath node -ArgumentList "--no-warnings", "server.js" -WorkingDirectory $RootPath -RedirectStandardOutput "server-live.out.log" -RedirectStandardError "server-live.err.log" -WindowStyle Hidden
       Start-Sleep -Seconds 2
     }

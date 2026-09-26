@@ -553,16 +553,13 @@
       if (savedAccountIndex >= 0) accounts[savedAccountIndex] = pendingAccount;
       else accounts.push(pendingAccount);
       saveAccounts(accounts);
-      const biometricProfiles = JSON.parse(localStorage.getItem("geoAttendBiometricProfiles") || "{}");
-      delete biometricProfiles[pendingAccount.email];
-      localStorage.setItem("geoAttendBiometricProfiles", JSON.stringify(biometricProfiles));
       localStorage.setItem("geoAttendCurrentUser", pendingAccount.email);
       localStorage.setItem("geoAttendRole", pendingAccount.role);
       localStorage.setItem("geoAttendView", "student");
-      showMessage("Authenticator verified and account created. Opening identity verification...");
+      showMessage("Authenticator verified and account created. Account created. Opening student portal...");
 
       setTimeout(() => {
-        window.location.href = "identity-verification.html";
+        window.location.href = "student-home.html";
       }, 800);
     });
   </script>

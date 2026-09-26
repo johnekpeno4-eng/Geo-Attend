@@ -4,7 +4,7 @@
   document.documentElement.classList.toggle("light", savedTheme !== "dark");
 
   const ADMIN_PAGES = new Set(["dashboard.html", "create-session.html", "live-monitor.html", "students.html", "records.html", "session-report.html", "admin-management.html", "courses.html"]);
-  const STUDENT_PAGES = new Set(["student-home.html", "student-history.html", "student-profile.html", "identity-verification.html"]);
+  const STUDENT_PAGES = new Set(["student-home.html", "student-history.html", "student-profile.html"]);
   const PUBLIC_PAGES = new Set(["login.html", "register.html", ""]);
 
   const page = window.location.pathname.split("/").pop();
@@ -37,7 +37,6 @@
       if (!version || localStorage.getItem("geoAttendRegistrationResetVersion") === version) return;
       const currentRole = localStorage.getItem("geoAttendRole");
       localStorage.removeItem("geoAttendAccounts");
-      localStorage.removeItem("geoAttendBiometricProfiles");
       Object.keys(localStorage).forEach((key) => {
         if (key.startsWith("geoAttendStudentSettings:")) localStorage.removeItem(key);
       });
@@ -56,12 +55,6 @@
   const isAdminSession = role === "admin" && currentUserEmail && adminEmail && currentUserEmail === adminEmail;
 
 
-  function studentIdentityComplete(email, account) {
-    if (!email) return false;
-    const profiles = JSON.parse(localStorage.getItem("geoAttendBiometricProfiles") || "{}");
-    const profile = profiles[email];
-    return Boolean(profile?.webauthnCredential?.id && profile?.identityVerified === true);
-  }
   function firstTwoNames(value) {
     const text = String(value || "").trim();
     if (!text) return "";
@@ -96,10 +89,6 @@
   }
 
 
-  if (role === "student" && isStudentPage && page !== "identity-verification.html" && !studentIdentityComplete(currentUserEmail, currentAccount)) {
-    go("identity-verification.html");
-    return;
-  }
   if (!role && !isPublicPage) {
     go("login.html");
     return;
@@ -126,17 +115,6 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     updateHeaderIdentity();
-
-    if (role === "student" && page === "student-checkin.html") {
-      const currentUser = localStorage.getItem("geoAttendCurrentUser");
-      const profiles = JSON.parse(localStorage.getItem("geoAttendBiometricProfiles") || "{}");
-      if (currentUser && !profiles[currentUser]) {
-        window.location.replace("identity-verification.html");
-        return;
-      }
-      window.location.replace("student-home.html#active-classes");
-      return;
-    }
 
     const loginForm = document.querySelector("[data-login-form]");
     if (loginForm) {
@@ -267,72 +245,6 @@
       });
     }
 
-    const biometricLoginButton = document.getElementById("biometric-login");
-    if (biometricLoginButton) {
-      const decodeBase64Url = (value) => {
-        const text = String(value || "");
-        const padded = text.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(text.length / 4) * 4, "=");
-        const binary = atob(padded);
-        return Uint8Array.from(binary, (character) => character.charCodeAt(0)).buffer;
-      };
-      const encodeBase64Url = (value) => {
-        const bytes = new Uint8Array(value);
-        let binary = "";
-        bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
-        return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-      };
-      const prepareAuthenticationOptions = (options) => ({
-        ...options,
-        challenge: decodeBase64Url(options.challenge),
-        allowCredentials: (options.allowCredentials || []).map((credential) => ({
-          ...credential,
-          id: decodeBase64Url(credential.id)
-        }))
-      });
-      const serializeAuthenticationResponse = (credential) => ({
-        id: credential.id,
-        rawId: encodeBase64Url(credential.rawId),
-        type: credential.type,
-        response: {
-          authenticatorData: encodeBase64Url(credential.response.authenticatorData),
-          clientDataJSON: encodeBase64Url(credential.response.clientDataJSON),
-          signature: encodeBase64Url(credential.response.signature),
-          userHandle: credential.response.userHandle ? encodeBase64Url(credential.response.userHandle) : null
-        }
-      });
-      biometricLoginButton.addEventListener("click", async () => {
-        const identifier = String(document.getElementById("email")?.value || "").trim();
-        const message = document.getElementById("login-message");
-        const showError = (text) => {
-          if (!message) return;
-          message.textContent = text;
-          message.classList.remove("hidden", "text-[#0058be]", "bg-[#eff4ff]");
-          message.classList.add("text-[#93000a]", "bg-[#ffdad6]");
-        };
-        if (!identifier) {
-          showError("Enter your email or registration number first.");
-          document.getElementById("email")?.focus();
-          return;
-        }
-        if (!window.isSecureContext || !navigator.credentials?.get) {
-          showError("Fingerprint login requires the HTTPS GeoAttend address. Open the secure tunnel link.");
-          return;
-        }
-        biometricLoginButton.disabled = true;
-        biometricLoginButton.innerHTML = '<span class="material-symbols-outlined">fingerprint</span>Waiting for fingerprint...';
-        try {
-          const optionsData = await postJson("/api/webauthn/login-options", { email: identifier, purpose: "login" });
-          const credential = await navigator.credentials.get({ publicKey: prepareAuthenticationOptions(optionsData.options) });
-          if (!credential) throw new Error("Fingerprint login was cancelled.");
-          const result = await postJson("/api/webauthn/login-verify", { email: identifier, response: serializeAuthenticationResponse(credential) });
-          await finishStudentLogin(result.user, "Fingerprint login successful. Redirecting...");
-        } catch (error) {
-          showError(error?.name === "NotAllowedError" ? "Fingerprint login was cancelled or timed out." : (error.message || "Fingerprint login failed."));
-          biometricLoginButton.disabled = false;
-          biometricLoginButton.innerHTML = '<span class="material-symbols-outlined">fingerprint</span>Login with fingerprint';
-        }
-      });
-    }
     const togglePassword = document.getElementById("toggle-password");
     const passwordInput = document.getElementById("password");
 

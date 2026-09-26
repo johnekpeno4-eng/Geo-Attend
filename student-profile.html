@@ -132,7 +132,7 @@
         <span><strong class="block">Require device security</strong><span class="mt-1 block text-sm muted">Check-in will open your phone or computer security prompt automatically.</span></span>
         <span class="relative shrink-0"><input class="sr-only" id="device-security-toggle" type="checkbox" /><span class="toggle-track block"><span class="toggle-thumb block"></span></span></span>
       </label>
-      <a class="mt-4 inline-flex items-center gap-2 font-bold secondary" href="identity-verification.html" id="identity-link"><span class="material-symbols-outlined text-[20px]">badge</span><span id="identity-link-text">Review identity setup</span></a>
+      <a class="mt-4 inline-flex items-center gap-2 font-bold secondary" href="student-profile.html#account" id="identity-link"><span class="material-symbols-outlined text-[20px]">badge</span><span id="identity-link-text">Review account details</span></a>
     </section>
 
     <section class="mt-5 rounded-xl border p-5 shadow-sm surface">
@@ -163,8 +163,6 @@
 
   <script>
     const email = localStorage.getItem("geoAttendCurrentUser") || "student";
-    const profiles = JSON.parse(localStorage.getItem("geoAttendBiometricProfiles") || "{}");
-    const profile = profiles[email] || null;
     const logs = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]").filter((item) => item.email === email);
     const settingsKey = `geoAttendStudentSettings:${email}`;
     const securityToggle = document.getElementById("device-security-toggle");
@@ -325,7 +323,7 @@
       document.getElementById("checkin-count").textContent = logs.length;
       document.getElementById("security-icon").textContent = hasProfile ? "verified_user" : "shield_lock";
       document.getElementById("security-helper").textContent = hasProfile ? "Your 4-digit PIN is ready for attendance check-in." : "Set your 4-digit attendance PIN before checking in.";
-      document.getElementById("identity-link-text").textContent = hasProfile ? "Review identity setup" : "Set up identity verification";
+      document.getElementById("identity-link-text").textContent = hasProfile ? "Review account details" : "Set up identity verification";
     }
     securityToggle.addEventListener("change", () => { const settings = getSettings(); settings.deviceSecurityEnabled = securityToggle.checked; saveSettings(settings); updateSecurityState(); });
     themeToggle.addEventListener("change", () => setTheme(themeToggle.checked ? "dark" : "light"));

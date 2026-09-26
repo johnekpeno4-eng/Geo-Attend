@@ -209,10 +209,7 @@
           <span class="material-symbols-outlined text-secondary" id="identity-icon">verified_user</span>
         </div>
         <p class="font-bold text-on-surface mt-2" id="identity-status">Checking...</p>
-        <a class="text-sm font-semibold text-secondary mt-2 inline-flex items-center gap-1" href="identity-verification.html" id="identity-link">
-          <span class="material-symbols-outlined text-[18px]">badge</span>
-          Setup
-        </a>
+        <p class="text-sm text-on-surface-variant mt-2">Account verified with your password.</p>
       </article>
       <article class="bg-surface-container-lowest border border-outline-variant rounded-xl p-3 shadow-sm">
         <div class="flex items-center justify-between gap-3">
@@ -229,7 +226,7 @@
         <div class="min-w-0">
           <p class="text-xs uppercase tracking-wider text-on-surface-variant font-semibold">Active Classes</p>
           <h2 class="text-xl font-bold text-on-surface mt-1">Live attendance sessions</h2>
-          <p class="text-sm text-on-surface-variant mt-1">Choose a live class. Your saved device security prompt opens automatically.</p>
+          <p class="text-sm text-on-surface-variant mt-1">Choose a live class and check in while you are inside the session area.</p>
         </div>
         <div class="flex items-center gap-xs bg-secondary-container/20 text-secondary px-3 py-1 rounded-full h-fit">
           <span class="material-symbols-outlined text-[18px] orb-pulse" style="font-variation-settings: 'FILL' 1;">sensors</span>
@@ -256,15 +253,9 @@
 
         <div class="p-4 space-y-4">
                     <div id="checkin-method-choice">
-            <p class="text-sm text-on-surface-variant" id="checkin-security-copy">Use your registered fingerprint to check in. Assisted check-in is disabled.</p>
+            <p class="text-sm text-on-surface-variant" id="checkin-security-copy">Confirm your location and check in personally. Assisted check-in is disabled.</p>
             <div class="grid gap-3 mt-3">
-              <button class="rounded-xl border border-outline-variant bg-surface-container-low p-4 flex items-center gap-3 text-left hover:border-secondary transition-colors" data-checkin-method="fingerprint" type="button" id="checkin-fingerprint-option">
-                <span class="material-symbols-outlined text-secondary text-3xl">fingerprint</span>
-                <span class="min-w-0">
-                  <strong class="block text-on-surface">Fingerprint</strong>
-                  <span class="block text-sm text-on-surface-variant">Only your own registered device security can check you in.</span>
-                </span>
-              </button>
+              <button class="w-full rounded-xl bg-secondary text-on-primary p-4 font-bold" type="button" id="checkin-option">Check in now</button>
             </div>
           </div>
 
@@ -325,9 +316,6 @@
     let checkinQrTimer = null;    let sessionCountdownInterval = null;
     let attendanceLogs = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]")
       .filter((item) => !email || item.email === email);
-    const profiles = JSON.parse(localStorage.getItem("geoAttendBiometricProfiles") || "{}");
-    let biometricProfileCache = profiles[email] || null;
-    let biometricProfileLoadPromise = null;
     let isWithinGeofence = false;
     let latestPosition = null;
     let locationWatchId = null;
@@ -421,11 +409,6 @@
       document.getElementById("current-session-location").textContent = activeSession ? (activeSession.locationName || activeSession.geofence?.name || "Selected location") : "Tap a live class below to check in.";
       document.getElementById("session-countdown").textContent = activeSession ? formatSessionWindow(activeSession) : "Waiting for session";
     }
-    function updateVerification() {
-      const ready = Boolean(biometricProfileCache?.webauthnCredential);
-      document.getElementById("identity-status").textContent = ready ? "Fingerprint ready" : "Setup required";
-      document.getElementById("identity-icon").textContent = ready ? "verified_user" : "fingerprint";
-    }
     function updateGpsReadiness() {
       document.getElementById("gps-status").textContent = navigator.geolocation ? "Supported" : "Unsupported";
       document.getElementById("gps-helper").textContent = navigator.geolocation ? "Location support ready" : "Use a browser with GPS support";
@@ -442,35 +425,6 @@
       if (!response.ok) throw new Error(data.error || "Unable to complete request.");
       return data;
     }
-    function base64UrlToBuffer(value) {
-      const padded = String(value).replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(String(value).length / 4) * 4, "=");
-      const binary = atob(padded);
-      return Uint8Array.from(binary, (char) => char.charCodeAt(0)).buffer;
-    }
-    function bufferToBase64Url(buffer) {
-      const bytes = new Uint8Array(buffer);
-      let binary = "";
-      bytes.forEach((byte) => binary += String.fromCharCode(byte));
-      return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-    }
-    function prepareCredentialRequest(options) {
-      return { ...options, challenge: base64UrlToBuffer(options.challenge), allowCredentials: (options.allowCredentials || []).map((credential) => ({ ...credential, id: base64UrlToBuffer(credential.id) })) };
-    }
-    function serializeCredentialResponse(credential) {
-      return { id: credential.id, rawId: bufferToBase64Url(credential.rawId), type: credential.type, response: { authenticatorData: bufferToBase64Url(credential.response.authenticatorData), clientDataJSON: bufferToBase64Url(credential.response.clientDataJSON), signature: bufferToBase64Url(credential.response.signature), userHandle: credential.response.userHandle ? bufferToBase64Url(credential.response.userHandle) : null } };
-    }
-    async function loadSavedBiometricProfile() {
-      if (biometricProfileLoadPromise) return biometricProfileLoadPromise;
-      biometricProfileLoadPromise = fetch(`/api/biometric-profile?email=${encodeURIComponent(email)}`, { cache: "no-store" })
-        .then((response) => response.ok ? response.json() : null)
-        .then((data) => {
-          if (data?.profile) biometricProfileCache = data.profile;
-          updateVerification();
-          return biometricProfileCache;
-        })
-        .catch(() => biometricProfileCache);
-      return biometricProfileLoadPromise;
-    }
     function setCheckinMessage(text, isError = false) {
       const node = document.getElementById("checkin-modal-message");
       if (!node) return;
@@ -483,42 +437,18 @@
       node.textContent = "";
       node.className = "hidden rounded-2xl px-4 py-3 text-sm";
     }
-    function showCheckinPanel() {
-      document.getElementById("checkin-method-choice")?.classList.remove("hidden");
-    }
     function resetCheckinModal() {
       clearCheckinMessage();
       checkinInProgress = false;
     }
     function setupCheckinModal() {
       document.querySelectorAll("[data-dismiss-checkin]").forEach((button) => button.addEventListener("click", closeCheckinModal));
-      document.getElementById("checkin-fingerprint-option")?.addEventListener("click", () => verifyFingerprintAndCheckIn());
-    }
-    async function verifyFingerprintAndCheckIn() {
-      if (checkinInProgress) return;
-      if (!selectedCheckinSession) return;
-      if (!window.PublicKeyCredential || !navigator.credentials?.get) {
-        setCheckinMessage("Fingerprint check-in is not supported on this browser/device.", true);
-        return;
-      }
-      checkinInProgress = true;
-      setCheckinMessage("Open the fingerprint prompt and verify your own device.");
-      try {
-        await loadSavedBiometricProfile();
-        const optionsData = await postJson("/api/webauthn/login-options", { email, purpose: "attendance", sessionId: selectedCheckinSession.id });
-        const credential = await navigator.credentials.get({ publicKey: prepareCredentialRequest(optionsData.options) });
-        await postJson("/api/webauthn/login-verify", { email, response: serializeCredentialResponse(credential) });
-        await showSuccess();
-        closeCheckinModal();
-      } catch (error) {
-        setCheckinMessage(error.message || "Fingerprint check-in failed.", true);
-      } finally {
-        checkinInProgress = false;
-      }
-    }
-    async function startAutomaticDeviceSecurityCheckin() {
-      showCheckinPanel("fingerprint");
-      await verifyFingerprintAndCheckIn();
+      document.getElementById("checkin-option")?.addEventListener("click", async () => {
+        if (checkinInProgress || !selectedCheckinSession) return;
+        checkinInProgress = true;
+        setCheckinMessage("Checking your location...");
+        try { await showSuccess(); closeCheckinModal(); } catch (error) { setCheckinMessage(error.message || "Unable to check in.", true); } finally { checkinInProgress = false; }
+      });
     }
 
     function openCheckinModal(sessionId) {
@@ -565,11 +495,6 @@
       modal?.classList.remove("hidden");
       modal?.classList.add("flex");
       modal?.setAttribute("aria-hidden", "false");
-      if (!isWeakAdminGeofence(session.geofence || {})) {
-        window.requestAnimationFrame(() => {
-          window.setTimeout(startAutomaticDeviceSecurityCheckin, 0);
-        });
-      }
     }
 
     function closeCheckinModal() {
@@ -858,7 +783,7 @@
       transition(currentStep, nextStep);
     }
 
-    async function showSuccess(checkinToken) {
+    async function showSuccess() {
       if (!isWithinGeofence) {
         alert("You are outside the geofence. Move within the session area and try again.");
         return;
@@ -906,7 +831,6 @@
         geofence,
         checkedInAt: checkedInAt.toISOString(),
         status: "present",
-        checkinToken
       };
 
       try { await postJson("/api/attendance", record); } catch (error) { throw error; }
@@ -954,11 +878,9 @@
     }
 
     document.getElementById("student-email").textContent = email;
-    loadSavedBiometricProfile();
     updateSummary();
     updateTodayStatus();
     updateSession();
-    updateVerification();
     updateGpsReadiness();
     renderActiveClasses();
     renderRecentCheckins();

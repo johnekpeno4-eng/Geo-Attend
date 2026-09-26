@@ -6,7 +6,7 @@
   <title>GeoAttend | Sign In</title>
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-  <script src="role-access.js?v=20260926-fingerprint-login" defer></script>
+  <script src="role-access.js?v=20260926-password-login" defer></script>
   <link rel="stylesheet" href="mobile-student.css?v=20260924-mobilefix" />
   <style>
     body { font-family: Inter, sans-serif; }
@@ -39,7 +39,7 @@
             <label class="block text-xs font-bold uppercase tracking-widest text-[#45464d] mb-2" for="email">Email or Reg Number</label>
             <div class="relative">
               <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#76777d]">alternate_email</span>
-              <input class="w-full rounded-2xl border border-[#c6c6cd] bg-[#f8f9ff] py-4 pl-12 pr-4 text-base outline-none transition focus:border-[#0058be] focus:ring-4 focus:ring-[#0058be]/10" id="email" name="email" placeholder="you@school.edu or 25/EG/EE/001" required type="text" autocomplete="username webauthn">
+              <input class="w-full rounded-2xl border border-[#c6c6cd] bg-[#f8f9ff] py-4 pl-12 pr-4 text-base outline-none transition focus:border-[#0058be] focus:ring-4 focus:ring-[#0058be]/10" id="email" name="email" placeholder="you@school.edu or 25/EG/EE/001" required type="text" autocomplete="username">
             </div>
           </div>
 
@@ -58,10 +58,6 @@
           </div>
         </div>
 
-        <button class="mt-4 w-full rounded-2xl border border-[#0058be] bg-[#eff4ff] py-4 font-bold text-[#0058be] flex items-center justify-center gap-2" id="biometric-login" type="button">
-          <span class="material-symbols-outlined">fingerprint</span>
-          Login with fingerprint
-        </button>
         <button class="mt-8 w-full bg-black text-white rounded-2xl py-4 font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform" type="submit">
           Login
           <span class="material-symbols-outlined">arrow_forward</span>

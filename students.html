@@ -278,7 +278,7 @@
       const student = students.find((item) => item.email === email || String(item.regNumber || "").toUpperCase() === String(regNumber || "").toUpperCase());
       if (!student) return;
       const label = `${student.fullName || student.email} (${student.regNumber || "no reg no"})`;
-      const confirmed = window.confirm(`Delete ${label}? This removes the student account and biometric login from the database.`);
+      const confirmed = window.confirm(`Delete ${label}? This permanently removes the student account from the database.`);
       if (!confirmed) return;
       const adminPassword = window.prompt("Enter your admin password to confirm deletion:");
       if (!adminPassword) {
