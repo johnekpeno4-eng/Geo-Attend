@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GeoAttend | Device Enrollment</title>
+<link rel="stylesheet" href="mobile-student.css?v=device-enrollment-1">
+<style>
+body{margin:0;min-height:100vh;background:#f8f9ff;color:#0b1c30;font-family:Inter,Arial,sans-serif;display:grid;place-items:center;padding:24px;box-sizing:border-box}
+main{width:min(620px,100%);background:#fff;border:1px solid #c6c6cd;border-radius:22px;padding:28px;box-shadow:0 18px 44px #0b1c3020}
+h1{margin:0 0 10px;font-size:clamp(28px,7vw,42px)}p{line-height:1.5}.eyebrow{color:#0058be;font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+.account{padding:14px;border-radius:12px;background:#eff4ff;overflow-wrap:anywhere}
+button{width:100%;margin-top:18px;border:0;border-radius:14px;padding:16px;background:#000;color:#fff;font:inherit;font-weight:800;cursor:pointer}button:disabled{opacity:.6;cursor:wait}
+.message{margin-top:16px;padding:14px;border-radius:12px;white-space:pre-wrap;overflow-wrap:anywhere;font-weight:700}.error{color:#93000a;background:#ffdad6;border:1px solid #ffb4ab}.success{color:#0f6b31;background:#dcfce7;border:1px solid #86efac}
+.secure{color:#0058be;background:#eff4ff;padding:12px;border-radius:12px;display:none;margin-top:16px}
+</style>
+</head>
+<body data-role-required="student">
+<main>
+<p class="eyebrow">Required registration step</p><h1>Enroll device security</h1>
+<p>Use the fingerprint or screen-lock security already registered on this device. GeoAttend stores only a cryptographic public key, never a fingerprint image.</p>
+<p class="account" id="account">Loading student account...</p>
+<button id="enroll" type="button">Enroll fingerprint</button>
+<a class="secure" id="secure-link" target="_blank" rel="noopener">Open the HTTPS enrollment address</a>
+<div class="message" id="message" role="alert">Registration cannot finish until this device is enrolled.</div>
+</main>
+<script src="role-access.js?v=device-enrollment-1"></script>
+<script>
+(()=>{const email=String(localStorage.getItem("geoAttendCurrentUser")||"").trim().toLowerCase(),account=document.getElementById("account"),button=document.getElementById("enroll"),message=document.getElementById("message"),secureLink=document.getElementById("secure-link");account.textContent=email||"No student account selected.";secureLink.href=window.location.origin+"/identity-verification.html";
+function show(text,type="error"){message.textContent=text;message.className="message "+type}
+function buffer(value){const text=String(value||""),padded=text.replace(/-/g,"+").replace(/_/g,"/").padEnd(Math.ceil(text.length/4)*4,"="),binary=atob(padded);return Uint8Array.from(binary,c=>c.charCodeAt(0)).buffer}
+function base64(value){const bytes=new Uint8Array(value);let binary="";bytes.forEach(byte=>binary+=String.fromCharCode(byte));return btoa(binary).replace(/+/g,"-").replace(///g,"_").replace(/=+$/g,"")}
+function prepare(options){return{...options,challenge:buffer(options.challenge),user:{...options.user,id:buffer(options.user.id)},excludeCredentials:(options.excludeCredentials||[]).map(item=>({...item,id:buffer(item.id)}))}}
+function serialize(credential){return{id:credential.id,rawId:base64(credential.rawId),type:credential.type,response:{attestationObject:base64(credential.response.attestationObject),clientDataJSON:base64(credential.response.clientDataJSON)}}}
+async function post(url,payload){const response=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload),cache:"no-store"}),data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||"Request failed.");return data}
+if(!email){show("Your registration session is missing. Start registration again.");button.disabled=true;return}
+button.addEventListener("click",async()=>{if(!window.isSecureContext||!navigator.credentials?.create){secureLink.style.display="block";show("Fingerprint enrollment requires HTTPS. Open the secure address below.");return}if(!window.PublicKeyCredential){show("This browser does not support fingerprint enrollment. Use a modern Chrome, Edge, Safari, or Android browser with a screen lock.");return}button.disabled=true;button.textContent="Waiting for device security...";try{const available=await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();if(!available)throw new Error("No fingerprint or platform screen-lock security is available on this device.");const result=await post("/api/webauthn/register-options",{email}),credential=await navigator.credentials.create({publicKey:prepare(result.options)});if(!credential)throw new Error("Enrollment was cancelled.");const verified=await post("/api/webauthn/register-verify",{email,response:serialize(credential)}),profiles=JSON.parse(localStorage.getItem("geoAttendBiometricProfiles")||"{}");profiles[email]={email,identityVerified:true,biometricVerified:true,webauthnCredential:verified.credential,enrolledAt:new Date().toISOString()};localStorage.setItem("geoAttendBiometricProfiles",JSON.stringify(profiles));const accounts=JSON.parse(localStorage.getItem("geoAttendAccounts")||"[]");localStorage.setItem("geoAttendAccounts",JSON.stringify(accounts.map(item=>item.email===email?{...item,identityVerified:true,biometricVerified:true}:item)));show("Device enrolled. Opening student portal...","success");setTimeout(()=>window.location.replace("student-home.html"),500)}catch(error){show(error?.name==="NotAllowedError"?"Enrollment was cancelled or timed out. Try again.":(error.message||"Device enrollment failed."));button.disabled=false;button.textContent="Enroll fingerprint"}})})()
+</script>
+</body></html>
