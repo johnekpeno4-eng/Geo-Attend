@@ -629,6 +629,16 @@ async function initDatabase() {
     saved_at TEXT NOT NULL
   )`);
   await dbRun("CREATE INDEX IF NOT EXISTS idx_biometric_profiles_email ON biometric_profiles(email)");
+  await dbRun(`CREATE TABLE IF NOT EXISTS credentials (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    credential_id BLOB NOT NULL UNIQUE,
+    public_key BLOB NOT NULL,
+    sign_count INTEGER NOT NULL DEFAULT 0,
+    device_label TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`);
+  await dbRun("CREATE INDEX IF NOT EXISTS idx_credentials_student_id ON credentials(student_id)");
 
   await dbRun(`CREATE TABLE IF NOT EXISTS live_sessions (
     id TEXT PRIMARY KEY,
@@ -664,6 +674,7 @@ async function initDatabase() {
   )`);
   await dbRun("CREATE INDEX IF NOT EXISTS idx_lecturer_course_assignments_lecturer ON lecturer_course_assignments(lecturer_email)");
   await migrateJsonDataToSqlite();
+  await migrateWebAuthnCredentials();
 }
 
 async function migrateJsonDataToSqlite() {
@@ -699,6 +710,19 @@ async function migrateJsonDataToSqlite() {
   for (const record of Array.isArray(attendance) ? attendance : []) {
     if (!record?.id || !record?.sessionId) continue;
     await upsertSqliteAttendance(record);
+  }
+}
+
+async function migrateWebAuthnCredentials() {
+  const rows = await dbAll(`SELECT s.id AS student_id, b.profile_json
+    FROM biometric_profiles b
+    JOIN students s ON s.email = b.email COLLATE NOCASE`);
+  for (const row of rows) {
+    const profile = parseJsonColumn(row.profile_json, null);
+    const credential = profile?.webauthnCredential;
+    if (!row.student_id || !credential?.id || !credential?.publicKey) continue;
+    await dbRun(`INSERT OR IGNORE INTO credentials (student_id, credential_id, public_key, sign_count, device_label)
+      VALUES (?, ?, ?, ?, ?)`, [row.student_id, Buffer.from(credential.id, "base64url"), Buffer.from(credential.publicKey, "base64url"), Number(credential.counter || 0), credential.credentialDeviceType || "platform"]);
   }
 }
 
@@ -1358,8 +1382,7 @@ async function getWebAuthnRegistrationOptions(req, res, body) {
   }
   const { rpName, rpID, origin } = getWebAuthnContext(req);
   const email = String(row.email || "").trim().toLowerCase();
-  const existingProfile = await loadBiometricProfileByEmail(email);
-  const existingCredential = existingProfile?.webauthnCredential;
+  const existingCredentials = await dbAll("SELECT credential_id FROM credentials WHERE student_id = ?", [row.id]);
   const options = await generateRegistrationOptions({
     rpName,
     rpID,
@@ -1372,7 +1395,7 @@ async function getWebAuthnRegistrationOptions(req, res, body) {
       residentKey: "preferred",
       userVerification: "required"
     },
-    excludeCredentials: existingCredential?.id ? [{ id: existingCredential.id, transports: existingCredential.transports || [] }] : []
+    excludeCredentials: existingCredentials.map((credential) => ({ id: Buffer.from(credential.credential_id).toString("base64url") }))
   });
   webAuthnChallengeStore.set(challengeKey("register", email), {
     challenge: options.challenge,
@@ -1412,6 +1435,15 @@ async function verifyWebAuthnRegistration(req, res, body) {
     credentialDeviceType: verification.registrationInfo.credentialDeviceType,
     credentialBackedUp: verification.registrationInfo.credentialBackedUp
   });
+  await dbRun(`INSERT INTO credentials (student_id, credential_id, public_key, sign_count, device_label)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(credential_id) DO UPDATE SET student_id = excluded.student_id, public_key = excluded.public_key, sign_count = excluded.sign_count, device_label = excluded.device_label`, [
+    row.id,
+    Buffer.from(credential.id, "base64url"),
+    Buffer.from(credential.publicKey, "base64url"),
+    Number(credential.counter || 0),
+    credential.credentialDeviceType || "platform"
+  ]);
   json(res, 200, { ok: true, email, credential, method: "biometric" });
 }
 
