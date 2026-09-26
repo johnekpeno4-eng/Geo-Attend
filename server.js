@@ -2894,6 +2894,14 @@ async function saveStudent(res, body) {
   const password = String(body.password || "");
   const passwordHash = password ? hashPassword(password) : "";
 
+  if (body.registrationFlow === true) {
+    await dbRun("DELETE FROM biometric_profiles WHERE email = ? COLLATE NOCASE", [email]);
+    const profiles = readJsonFile(BIOMETRIC_PROFILES_FILE, {});
+    Object.keys(profiles && typeof profiles === "object" ? profiles : {}).forEach((profileId) => {
+      if (String(profiles[profileId]?.email || "").trim().toLowerCase() === email) delete profiles[profileId];
+    });
+    writeLocalJson(BIOMETRIC_PROFILES_FILE, profiles);
+  }
   await writeStudentStore({
     ...existingStudent,
     fullName,
