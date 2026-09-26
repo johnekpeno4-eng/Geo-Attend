@@ -94,30 +94,53 @@
         }
       };
     }
+    function fingerprintErrorMessage(error) {
+      if (error?.name === "NotAllowedError") return "Fingerprint setup was cancelled or timed out. Unlock this phone, then try again.";
+      if (error?.name === "SecurityError") return "Fingerprint setup requires the HTTPS Dev Tunnel address, not an IP address or plain HTTP.";
+      if (error?.name === "InvalidStateError") return "This device already has a fingerprint credential for this account. Try logging in instead.";
+      if (error?.name === "NotSupportedError") return "This phone/browser cannot use its fingerprint security here. Use Chrome or Edge with a screen lock and fingerprint enrolled.";
+      return error?.message || "Unable to save fingerprint.";
+    }
 
     document.getElementById("save-fingerprint-button")?.addEventListener("click", async () => {
       const button = document.getElementById("save-fingerprint-button");
+      if (!window.isSecureContext) {
+        showMessage("Fingerprint setup requires the HTTPS Dev Tunnel address. Do not use an IP address or plain HTTP.", true);
+        return;
+      }
       if (!window.PublicKeyCredential || !navigator.credentials?.create) {
         showMessage("Fingerprint registration is not supported on this browser/device.", true);
         return;
       }
+      try {
+        const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+        if (!available) {
+          showMessage("No device fingerprint security is available. Add a fingerprint and screen lock in your phone settings, then reopen this page in Chrome or Edge.", true);
+          return;
+        }
+      } catch {
+        showMessage("This browser could not check device fingerprint support. Update Chrome or Edge and try again.", true);
+        return;
+      }
+
       button.disabled = true;
       button.textContent = "Opening fingerprint prompt...";
       try {
         const optionsData = await postJson("/api/webauthn/register-options", { email: currentUser });
         const credential = await navigator.credentials.create({ publicKey: prepareCredentialCreation(optionsData.options) });
+        if (!credential) throw new DOMException("Fingerprint setup was cancelled.", "NotAllowedError");
         const verified = await postJson("/api/webauthn/register-verify", { email: currentUser, response: serializeRegistrationCredential(credential) });
         const profile = { email: currentUser, security: { fingerprint: true }, biometric: { platformAuthenticator: true }, checkinAuthMethod: "fingerprint", webauthnCredential: verified.credential, livenessVerified: true, biometricVerified: true, identityVerified: true, storedAt: new Date().toISOString(), storageMode: "fingerprint-only" };
+        await postJson("/api/save-biometric-profile", profile);
         const profiles = JSON.parse(localStorage.getItem("geoAttendBiometricProfiles") || "{}");
         profiles[currentUser] = profile;
         localStorage.setItem("geoAttendBiometricProfiles", JSON.stringify(profiles));
         const accounts = JSON.parse(localStorage.getItem("geoAttendAccounts") || "[]");
         localStorage.setItem("geoAttendAccounts", JSON.stringify(accounts.map((account) => account.email === currentUser ? { ...account, checkinAuthMethod: "fingerprint", identityVerified: true, biometricVerified: true, biometricProfileStoredAt: profile.storedAt } : account)));
-        await postJson("/api/save-biometric-profile", profile);
         showMessage("Fingerprint saved. Opening student dashboard...");
         setTimeout(() => { window.location.href = "student-home.html#active-classes"; }, 700);
       } catch (error) {
-        showMessage(error.message || "Unable to save fingerprint.", true);
+        showMessage(fingerprintErrorMessage(error), true);
         button.disabled = false;
         button.innerHTML = 'Set Up Fingerprint <span class="material-symbols-outlined">fingerprint</span>';
       }

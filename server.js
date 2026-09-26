@@ -1274,14 +1274,23 @@ function setCorsHeaders(res) {
 }
 
 function getWebAuthnContext(req) {
-  const host = String(req.headers.host || `127.0.0.1:${PORT}`).trim();
+  const forwardedHost = String(req.headers["x-forwarded-host"] || "").split(",")[0].trim();
+  const host = forwardedHost || String(req.headers.host || `127.0.0.1:${PORT}`).trim();
+  const forwardedProtocol = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim().toLowerCase();
+  const fallbackProtocol = forwardedProtocol === "https" || (req.socket && req.socket.encrypted) ? "https" : "http";
   const originHeader = String(req.headers.origin || "").trim();
-  const fallbackProtocol = (req.socket && req.socket.encrypted) ? "https" : "http";
-  const origin = originHeader || `${fallbackProtocol}://${host}`;
+  const fallbackOrigin = `${fallbackProtocol}://${host}`;
+  let origin = fallbackOrigin;
   let rpID = host.split(":")[0];
+
   try {
-    rpID = new URL(origin).hostname;
+    const candidate = new URL(originHeader || fallbackOrigin);
+    if (candidate.protocol === "https:" || candidate.hostname === "localhost" || candidate.hostname === "127.0.0.1") {
+      origin = candidate.origin;
+      rpID = candidate.hostname;
+    }
   } catch {}
+
   return { rpName: "GeoAttend", rpID, origin };
 }
 
