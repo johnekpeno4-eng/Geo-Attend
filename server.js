@@ -2005,6 +2005,7 @@ async function saveAttendance(res, record) {
 
   const { source } = await writeAttendanceStore(nextAttendance);
 
+  attendanceAuthorizationStore.delete(checkinToken);
   json(res, 200, { ok: true, source, record: normalizedRecord, attendance: nextAttendance });
 }
 
