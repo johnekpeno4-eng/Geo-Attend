@@ -481,12 +481,6 @@
           regNumberInput.focus();
           return;
         }
-
-        if (accounts.some((account) => account.email === email || account.regNumber.toLowerCase() === regNumber.toLowerCase())) {
-          showMessage("An account with this email or reg number already exists. Please login.", true);
-          return;
-        }
-
         if (password.length < 6) {
           showMessage("Password must be at least 6 characters.", true);
           return;
@@ -554,7 +548,9 @@
         showMessage(error.message, true);
         return;
       }
-      accounts.push(pendingAccount);
+      const savedAccountIndex = accounts.findIndex((account) => account.email === pendingAccount.email || String(account.regNumber || "").toLowerCase() === pendingAccount.regNumber.toLowerCase());
+      if (savedAccountIndex >= 0) accounts[savedAccountIndex] = { ...accounts[savedAccountIndex], ...pendingAccount };
+      else accounts.push(pendingAccount);
       saveAccounts(accounts);
       localStorage.setItem("geoAttendCurrentUser", pendingAccount.email);
       localStorage.setItem("geoAttendRole", pendingAccount.role);
