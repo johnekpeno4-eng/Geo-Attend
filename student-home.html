@@ -208,8 +208,8 @@
           <p class="text-xs uppercase tracking-wider text-on-surface-variant font-semibold">Identity</p>
           <span class="material-symbols-outlined text-secondary" id="identity-icon">verified_user</span>
         </div>
-        <p class="font-bold text-on-surface mt-2" id="identity-status">Password verified</p>
-        <p class="text-sm text-on-surface-variant mt-2">Account verified with your password.</p>
+        <p class="font-bold text-on-surface mt-2" id="identity-status">Fingerprint verified</p>
+        <p class="text-sm text-on-surface-variant mt-2">Attendance requires your enrolled fingerprint.</p>
       </article>
       <article class="bg-surface-container-lowest border border-outline-variant rounded-xl p-3 shadow-sm">
         <div class="flex items-center justify-between gap-3">
@@ -819,6 +819,9 @@
     }
 
     function completeStep(stepNum) {
+      if (!checkinToken) {
+        throw new Error("Fingerprint verification is required before attendance check-in.");
+      }
       if (!isWithinGeofence) {
         alert("You must be within the live GPS geofence before checking in.");
         return;
@@ -832,6 +835,9 @@
     }
 
     async function showSuccess(checkinToken) {
+      if (!checkinToken) {
+        throw new Error("Fingerprint verification is required before attendance check-in.");
+      }
       if (!isWithinGeofence) {
         alert("You are outside the geofence. Move within the session area and try again.");
         return;
