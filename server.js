@@ -1294,24 +1294,25 @@ function setCorsHeaders(res) {
 }
 
 function getWebAuthnContext(req) {
-  // WebAuthn must use the exact origin visible in the browser address bar.
-  // Never derive an RP ID from a tunnel forwarded host.
+  // WebAuthn must use the public HTTPS hostname seen by the browser.
+  const forwardedProtocol = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim().toLowerCase();
+  const protocol = forwardedProtocol === "https" || req.socket?.encrypted ? "https" : "http";
+  const forwardedHost = String(req.headers["x-forwarded-host"] || "").split(",")[0].trim();
+  const forwardedHostname = forwardedHost.replace(/^\[|\]$/g, "").split(":")[0].toLowerCase();
+  const publicForwardedHost = protocol === "https" && forwardedHost && forwardedHostname !== "localhost" && forwardedHostname !== "127.0.0.1";
   const originHeader = String(req.headers.origin || "").trim();
   if (originHeader) {
     const origin = new URL(originHeader);
     const local = origin.hostname === "localhost" || origin.hostname === "127.0.0.1";
     if (origin.protocol !== "https:" && !local) throw new Error("WebAuthn requires the exact HTTPS page address.");
+    if (publicForwardedHost && local) return { rpName: "GeoAttend", rpID: forwardedHostname, origin: "https://" + forwardedHost };
     return { rpName: "GeoAttend", rpID: origin.hostname, origin: origin.origin };
   }
-  const forwardedProtocol = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim().toLowerCase();
-  const protocol = forwardedProtocol === "https" || req.socket?.encrypted ? "https" : "http";
-  const forwardedHost = String(req.headers["x-forwarded-host"] || "").split(",")[0].trim();
-  const host = (protocol === "https" && forwardedHost) ? forwardedHost : String(req.headers.host || ("127.0.0.1:" + PORT)).split(",")[0].trim();
+  const host = publicForwardedHost ? forwardedHost : String(req.headers.host || ("127.0.0.1:" + PORT)).split(",")[0].trim();
   const hostname = host.replace(/^\[|\]$/g, "").split(":")[0];
   if (protocol !== "https" && hostname !== "localhost") throw new Error("WebAuthn requires an HTTPS origin. Open the exact HTTPS tunnel address.");
   return { rpName: "GeoAttend", rpID: hostname, origin: protocol + "://" + host };
 }
-
 function getWebAuthnContextDiagnostic(req) {
   let context = null;
   let error = null;
