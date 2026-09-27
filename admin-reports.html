@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en" class="light">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GeoAttend | Student Reports</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <style>body{background:#f8f9ff;color:#0b1c30;font-family:Inter,sans-serif}.material-symbols-outlined{vertical-align:middle}.surface{background:#fff;border-color:#c6c6cd}.muted{color:#45464d}</style>
+</head>
+<body class="min-h-screen" data-role-required="admin">
+  <script src="role-access.js?v=20260924-loginfix"></script>
+  <aside class="fixed left-0 top-0 z-40 hidden h-screen w-[280px] flex-col border-r bg-white p-5 lg:flex"><a class="mb-8 text-2xl font-extrabold" href="dashboard.html">GeoAttend</a><nav class="space-y-2"><a class="flex items-center gap-3 rounded-lg p-3 muted" href="dashboard.html"><span class="material-symbols-outlined">dashboard</span>Dashboard</a><a class="flex items-center gap-3 rounded-lg bg-blue-50 p-3 font-bold text-blue-700" href="admin-reports.html"><span class="material-symbols-outlined">report_problem</span>Student Reports</a><a class="flex items-center gap-3 rounded-lg p-3 muted" href="students.html"><span class="material-symbols-outlined">groups</span>Students</a></nav></aside>
+  <main class="lg:ml-[280px]">
+    <header class="sticky top-0 z-30 flex min-h-16 items-center justify-between border-b bg-white/90 px-5 py-3 backdrop-blur"><div><p class="text-xs font-bold uppercase tracking-widest text-blue-700">Admin</p><h1 class="text-2xl font-extrabold">Student Reports</h1></div><a class="rounded-lg bg-blue-700 px-4 py-2 text-sm font-bold text-white" href="dashboard.html">Dashboard</a></header>
+    <div class="mx-auto max-w-4xl p-5"><div class="mb-5 rounded-xl border p-5 surface"><p class="text-sm muted">Reports submitted by students appear here. Mark each one handled after reviewing it.</p></div><div class="space-y-4" id="reports-list"><p class="rounded-xl border p-5 surface muted">Loading reports...</p></div></div>
+  </main>
+  <script>
+    const list = document.getElementById("reports-list");
+    const escapeHtml = (value) => String(value || "").replace(/[&<>"']/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[char]));
+    function formatDate(value) { const date = new Date(value); return Number.isNaN(date.getTime()) ? "" : date.toLocaleString(); }
+    async function loadReports() {
+      const actorEmail = localStorage.getItem("geoAttendCurrentUser") || "";
+      const response = await fetch(`/api/student-reports?actorEmail=${encodeURIComponent(actorEmail)}`, { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to load reports.");
+      const reports = Array.isArray(data.reports) ? data.reports : [];
+      list.innerHTML = reports.length ? reports.map((report) => `<article class="rounded-xl border p-5 shadow-sm surface ${report.status === "new" ? "border-blue-200" : ""}"><div class="flex flex-wrap items-start justify-between gap-3"><div><p class="text-xs font-bold uppercase tracking-widest text-blue-700">${escapeHtml(report.category)}</p><h2 class="mt-1 text-lg font-extrabold">${escapeHtml(report.studentName || "Student")}</h2><p class="text-sm muted">${escapeHtml(report.regNumber)} · ${escapeHtml(report.studentEmail)} · ${formatDate(report.createdAt)}</p></div><span class="rounded-full px-3 py-1 text-xs font-bold ${report.status === "new" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"}">${report.status === "new" ? "New" : "Handled"}</span></div><p class="mt-4 whitespace-pre-wrap text-sm leading-6">${escapeHtml(report.message)}</p><button class="mt-4 rounded-lg border border-blue-700 px-4 py-2 text-sm font-bold text-blue-700 ${report.status === "handled" ? "hidden" : ""}" data-report-id="${escapeHtml(report.id)}">Mark handled</button></article>`).join("") : '<div class="rounded-xl border p-8 text-center surface"><span class="material-symbols-outlined text-4xl text-blue-700">task_alt</span><p class="mt-2 font-bold">No student reports</p><p class="mt-1 text-sm muted">New reports will appear here.</p></div>';
+      list.querySelectorAll("[data-report-id]").forEach((button) => button.addEventListener("click", async () => { button.disabled = true; const result = await fetch("/api/student-reports/status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: button.dataset.reportId, status: "handled", actorEmail }) }); if (result.ok) loadReports(); else button.disabled = false; }));
+    }
+    loadReports().catch((error) => { list.innerHTML = `<p class="rounded-xl border p-5 text-red-700 surface">${escapeHtml(error.message)}</p>`; });
+  </script>
+</body>
+</html>
