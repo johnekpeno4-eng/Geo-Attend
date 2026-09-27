@@ -4,7 +4,7 @@
   document.documentElement.classList.toggle("light", savedTheme !== "dark");
 
   const ADMIN_PAGES = new Set(["dashboard.html", "create-session.html", "live-monitor.html", "students.html", "records.html", "session-report.html", "admin-management.html", "courses.html"]);
-  const STUDENT_PAGES = new Set(["student-home.html", "student-history.html", "student-profile.html", "security.html"]);
+  const STUDENT_PAGES = new Set(["student-home.html", "student-history.html", "student-profile.html"]);
   const PUBLIC_PAGES = new Set(["login.html", "register.html", ""]);
 
   const page = window.location.pathname.split("/").pop();
@@ -56,12 +56,6 @@
   const isAdminSession = role === "admin" && currentUserEmail && adminEmail && currentUserEmail === adminEmail;
 
 
-  function studentIdentityComplete(email) {
-    const profiles = JSON.parse(localStorage.getItem("geoAttendBiometricProfiles") || "{}");
-    const accounts = getAccounts();
-    const account = accounts.find((item) => String(item.email || "").toLowerCase() === String(email || "").toLowerCase());
-    return Boolean(profiles[email]?.webauthnCredential?.id && profiles[email]?.identityVerified === true);
-  }
   function firstTwoNames(value) {
     const text = String(value || "").trim();
     if (!text) return "";
@@ -95,11 +89,6 @@
     return;
   }
 
-
-  if (role === "student" && isStudentPage && page !== "security.html" && !studentIdentityComplete(currentUserEmail)) {
-    go("security/security.html");
-    return;
-  }
 
   if (!role && !isPublicPage) {
     go("login.html");

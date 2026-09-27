@@ -121,14 +121,6 @@
 
     <section class="mt-5 rounded-xl border p-5 shadow-sm surface">
       <div class="flex items-start justify-between gap-4">
-        <div><p class="text-xs font-bold uppercase tracking-widest muted">Security</p><h2 class="mt-1 text-xl font-extrabold">Security &amp; verification</h2><p class="mt-1 text-sm muted">Manage fingerprint attendance verification and Google Authenticator 2FA in one place.</p></div>
-        <span class="material-symbols-outlined secondary text-3xl">shield_lock</span>
-      </div>
-      <a class="primary-button mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-3 font-extrabold" href="security/security.html"><span class="material-symbols-outlined">arrow_forward</span>Open security settings</a>
-      <p class="mt-3 text-sm muted" id="security-helper">Checking device verification...</p>
-    </section>
-    <section class="mt-5 rounded-xl border p-5 shadow-sm surface">
-      <div class="flex items-start justify-between gap-4">
         <div><p class="text-xs font-bold uppercase tracking-widest muted">Appearance</p><h2 class="mt-1 text-xl font-extrabold">Theme</h2><p class="mt-1 text-sm muted" id="theme-helper">Light mode is active.</p></div>
         <span class="material-symbols-outlined secondary text-3xl" id="theme-icon">light_mode</span>
       </div>
@@ -140,8 +132,8 @@
 
     <section class="mt-5 space-y-3 rounded-xl border p-5 shadow-sm surface">
       <div class="flex justify-between gap-4"><span class="muted">Role</span><strong>Student</strong></div>
-      <div class="flex justify-between gap-4"><span class="muted">Identity</span><strong id="verification-status">Checking</strong></div>
       <div class="flex justify-between gap-4"><span class="muted">Total Check-ins</span><strong id="checkin-count">0</strong></div>
+      <a class="block rounded-xl border border-[#2170e4] px-4 py-3 text-center font-bold text-[#2170e4]" href="security.html">Manage extra security</a>
     </section>
 
     <button class="primary-button mt-5 w-full rounded-xl py-3 font-extrabold" type="button" data-logout>Logout</button>
@@ -302,19 +294,12 @@
       document.getElementById("theme-helper").textContent = theme === "dark" ? "Dark mode is active." : "Light mode is active.";
       document.getElementById("theme-icon").textContent = theme === "dark" ? "dark_mode" : "light_mode";
     }
-    function updateSecurityState() {
-      const deviceProfile = JSON.parse(localStorage.getItem("geoAttendBiometricProfiles") || "{}")[email] || {};
-      const hasProfile = Boolean(deviceProfile.identityVerified || currentAccount?.identityVerified);
-      document.getElementById("verification-status").textContent = hasProfile ? "Verified" : "Not verified";
-      document.getElementById("checkin-count").textContent = logs.length;
-      document.getElementById("security-helper").textContent = hasProfile ? "Device verification is ready for attendance check-in." : "Complete device verification before checking in.";
-    }
     themeToggle.addEventListener("change", () => setTheme(themeToggle.checked ? "dark" : "light"));
     window.addEventListener("resize", resizeSignatureCanvas);
-    updateSecurityState();
+    document.getElementById("checkin-count").textContent = logs.length;
     setTheme(localStorage.getItem("geoAttendTheme") || "light");
     resizeSignatureCanvas();
-    loadStudentProfile().then(() => { redrawSignature(); updateSecurityState(); });
+    loadStudentProfile().then(redrawSignature);
   </script>
 </body>
 </html>

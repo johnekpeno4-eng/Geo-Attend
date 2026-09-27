@@ -489,7 +489,13 @@
         await showSuccess(verified.checkinToken);
         closeCheckinModal();
       } catch (error) {
-        setCheckinMessage(error?.name === "NotAllowedError" ? "Fingerprint verification was cancelled or timed out." : (error.message || "Fingerprint check-in failed."), true);
+        const detail = String(error?.message || "").toLowerCase();
+        const message = error?.name === "NotAllowedError"
+          ? "Fingerprint verification was cancelled or timed out."
+          : (detail.includes("credential") || detail.includes("not registered"))
+            ? "Device security is not set up for this account. Open Manage extra security to enroll it, then try again."
+            : "We could not verify device security. Please try again.";
+        setCheckinMessage(message, true);
       } finally {
         checkinInProgress = false;
       }
