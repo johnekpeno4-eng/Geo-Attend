@@ -607,7 +607,7 @@
         switchLink.classList.add("fixed", "top-4", "left-4", "z-[999]");
         document.body.appendChild(switchLink);
       }
-      setupAdminProfileMenu();
+      setupAdminProfileMenu();`r`n      setupAdminNotifications();
     }
 
   if (role === "admin" && isStudentPage) {
@@ -698,6 +698,131 @@
       });
     }
 
+    function setupAdminNotifications() {
+      const header = document.querySelector("main > header, main > div > header");
+      if (!header || header.dataset.notificationsReady === "true") return;
+
+      const currentEmail = localStorage.getItem("geoAttendCurrentUser") || "admin";
+      const headerRight = header.lastElementChild;
+      const iconButton = Array.from(header.querySelectorAll("button")).find((button) => (
+        button.querySelector(".material-symbols-outlined")?.textContent.trim() === "notifications"
+      ));
+      const host = iconButton?.parentElement || headerRight || header;
+      const bell = iconButton || document.createElement("button");
+
+      if (!iconButton) {
+        bell.type = "button";
+        bell.className = "relative inline-flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-secondary";
+        bell.innerHTML = '<span class="material-symbols-outlined">notifications</span>';
+        host.appendChild(bell);
+      }
+      bell.type = "button";
+      bell.setAttribute("aria-label", "Notifications");
+      bell.setAttribute("aria-expanded", "false");
+      bell.classList.add("relative");
+      bell.querySelector(".bg-error")?.remove();
+
+      const root = document.createElement("div");
+      root.className = "relative";
+      root.innerHTML = `
+        <span class="admin-notification-badge hidden absolute -right-0.5 -top-0.5 min-w-4 h-4 px-1 rounded-full bg-error text-white text-[10px] font-bold leading-4 text-center border-2 border-surface" aria-hidden="true"></span>
+        <div class="admin-notification-menu hidden absolute right-0 top-12 z-[1000] w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-2xl">
+          <div class="flex items-center justify-between border-b border-outline-variant px-4 py-3">
+            <div><p class="font-bold text-on-surface">Notifications</p><p class="text-xs text-on-surface-variant">Latest activity</p></div>
+            <button type="button" class="admin-notification-clear text-xs font-bold text-secondary hover:underline">Mark read</button>
+          </div>
+          <div class="admin-notification-list max-h-80 overflow-y-auto p-2"><p class="px-3 py-5 text-sm text-on-surface-variant">Loading notifications...</p></div>
+        </div>
+      `;
+      host.appendChild(root);
+      header.dataset.notificationsReady = "true";
+
+      const badge = root.querySelector(".admin-notification-badge");
+      const menu = root.querySelector(".admin-notification-menu");
+      const list = root.querySelector(".admin-notification-list");
+      const readKey = `geoAttendReadNotifications:${currentEmail.toLowerCase()}`;
+      const readIds = () => new Set(JSON.parse(localStorage.getItem(readKey) || "[]"));
+      const saveReadIds = (ids) => localStorage.setItem(readKey, JSON.stringify(Array.from(ids).slice(-100)));
+      let notificationItems = [];
+
+      function render(items) {
+        notificationItems = items;
+        const read = readIds();
+        const unread = items.filter((item) => !read.has(item.id));
+        badge.textContent = unread.length > 9 ? "9+" : String(unread.length);
+        badge.classList.toggle("hidden", unread.length === 0);
+        list.innerHTML = items.length ? items.map((item) => `
+          <a href="${item.href}" class="flex items-start gap-3 rounded-lg px-3 py-3 hover:bg-surface-container-low ${read.has(item.id) ? "" : "bg-secondary/5"}">
+            <span class="material-symbols-outlined mt-0.5 text-secondary text-[20px]">${item.icon}</span>
+            <span class="min-w-0"><span class="block font-bold text-sm text-on-surface">${escapeLocalHtml(item.title)}</span><span class="block text-xs leading-5 text-on-surface-variant">${escapeLocalHtml(item.body)}</span></span>
+          </a>
+        `).join("") : '<p class="px-3 py-5 text-sm text-on-surface-variant">You are all caught up.</p>';
+      }
+
+      async function load() {
+        try {
+          const actor = encodeURIComponent(currentEmail);
+          const [sessionsResponse, studentsResponse] = await Promise.all([
+            fetch(`/api/live-sessions?actorEmail=${actor}`, { cache: "no-store" }),
+            fetch(`/api/students?actorEmail=${actor}`, { cache: "no-store" })
+          ]);
+          const sessionsData = sessionsResponse.ok ? await sessionsResponse.json() : { sessions: [] };
+          const studentsData = studentsResponse.ok ? await studentsResponse.json() : { students: [] };
+          const sessions = Array.isArray(sessionsData.sessions) ? sessionsData.sessions : [];
+          const students = Array.isArray(studentsData.students) ? studentsData.students : [];
+          const recentStudents = students.filter((student) => {
+            const createdAt = new Date(student.createdAt || 0).getTime();
+            return Number.isFinite(createdAt) && Date.now() - createdAt <= 86400000;
+          });
+          const items = sessions.map((session) => ({
+            id: `session:${session.id}`,
+            icon: "sensors",
+            title: "Live session active",
+            body: `${session.course || session.title || "Attendance session"} is open for check-in.`,
+            href: "live-monitor.html"
+          }));
+          if (recentStudents.length) {
+            items.push({
+              id: `students:${recentStudents.map((student) => student.email || student.regNumber).sort().join(",")}`,
+              icon: "person_add",
+              title: "New student registration",
+              body: `${recentStudents.length} student${recentStudents.length === 1 ? "" : "s"} registered in the last 24 hours.`,
+              href: "students.html"
+            });
+          }
+          render(items);
+        } catch {
+          list.innerHTML = '<p class="px-3 py-5 text-sm text-on-surface-variant">Notifications are temporarily unavailable.</p>';
+        }
+      }
+
+      bell.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const open = !menu.classList.contains("hidden");
+        menu.classList.toggle("hidden", open);
+        bell.setAttribute("aria-expanded", String(!open));
+        if (!open) {
+          const ids = readIds();
+          notificationItems.forEach((item) => ids.add(item.id));
+          saveReadIds(ids);
+          render(notificationItems);
+        }
+      });
+      root.querySelector(".admin-notification-clear").addEventListener("click", () => {
+        const ids = readIds();
+        notificationItems.forEach((item) => ids.add(item.id));
+        saveReadIds(ids);
+        render(notificationItems);
+      });
+      document.addEventListener("click", (event) => {
+        if (!root.contains(event.target)) {
+          menu.classList.add("hidden");
+          bell.setAttribute("aria-expanded", "false");
+        }
+      });
+      load();
+      window.setInterval(load, 30000);
+    }
     function escapeLocalHtml(value) {
       return String(value || "")
         .replaceAll("&", "&amp;")
