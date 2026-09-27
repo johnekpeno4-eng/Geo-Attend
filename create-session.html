@@ -1397,7 +1397,7 @@
       const satelliteHybrid = L.layerGroup([imagery, imageryRoads, imageryLabels]);
       campusPoiLayer = createCampusPoiLayer();
 
-      streetMap.addTo(leafletMap);
+      satelliteHybrid.addTo(leafletMap);
       campusPoiLayer.addTo(leafletMap);
       L.control.layers(
         {
