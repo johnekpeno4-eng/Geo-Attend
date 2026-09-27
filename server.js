@@ -228,7 +228,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (req.method === "GET" && req.url === "/api/live-sessions") {
+    if (req.method === "GET" && req.url.startsWith("/api/live-sessions")) {
       await getLiveSessions(req, res);
       return;
     }

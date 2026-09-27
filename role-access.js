@@ -607,7 +607,8 @@
         switchLink.classList.add("fixed", "top-4", "left-4", "z-[999]");
         document.body.appendChild(switchLink);
       }
-      setupAdminProfileMenu();`r`n      setupAdminNotifications();
+      setupAdminProfileMenu();
+      setupAdminNotifications();
     }
 
   if (role === "admin" && isStudentPage) {
