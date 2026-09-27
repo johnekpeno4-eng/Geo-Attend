@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en" class="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GeoAttend | Report an Issue</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <style>
+    :root { --background:#f8f9ff; --surface:#fff; --panel:#eff4ff; --ink:#0b1c30; --muted:#45464d; --outline:#c6c6cd; --primary:#000; --secondary:#0058be; }
+    body { background:var(--background); color:var(--ink); font-family:Inter,sans-serif; }
+    .surface { background:var(--surface); border-color:var(--outline); }
+    .muted { color:var(--muted); }
+    .field { width:100%; border:1px solid var(--outline); background:var(--surface); color:var(--ink); border-radius:14px; padding:13px 14px; outline:none; }
+    .field:focus { border-color:var(--secondary); box-shadow:0 0 0 4px rgba(0,88,190,.12); }
+    .primary-button { background:var(--primary); color:#fff; }
+    .material-symbols-outlined { vertical-align:middle; }
+  </style>
+</head>
+<body class="min-h-screen" data-role-required="student">
+  <script src="role-access.js?v=20260924-loginfix"></script>
+  <header class="fixed top-0 z-50 h-14 w-full border-b px-4 py-2 surface"><div class="mx-auto flex h-full max-w-lg items-center justify-between"><a class="text-xl font-extrabold" href="student-home.html">GeoAttend</a><a class="rounded-full p-1" href="student-profile.html" aria-label="Back to profile"><span class="material-symbols-outlined">person</span></a></div></header>
+  <main class="mx-auto max-w-lg px-4 pb-24 pt-20">
+    <a class="mb-5 inline-flex items-center gap-1 text-sm font-bold text-[#0058be]" href="student-profile.html"><span class="material-symbols-outlined text-base">arrow_back</span>Profile</a>
+    <section class="rounded-xl border p-5 shadow-sm surface">
+      <div class="flex items-start gap-3"><span class="material-symbols-outlined text-3xl text-[#0058be]">report_problem</span><div><p class="text-xs font-bold uppercase tracking-widest text-[#0058be]">Student support</p><h1 class="mt-1 text-2xl font-extrabold">Report an issue</h1><p class="mt-2 text-sm muted">Send a message to the admin about a problem with your account or attendance.</p></div></div>
+      <form class="mt-6 space-y-4" id="report-form">
+        <label class="block"><span class="mb-2 block text-xs font-bold uppercase tracking-widest muted">Report type</span><select class="field" id="report-category" required><option value="">Choose a type</option><option>Attendance check-in</option><option>Account or profile</option><option>Fingerprint verification</option><option>Incorrect attendance record</option><option>Other</option></select></label>
+        <label class="block"><span class="mb-2 block text-xs font-bold uppercase tracking-widest muted">What happened?</span><textarea class="field min-h-40 resize-y" id="report-message" maxlength="2000" minlength="5" placeholder="Describe the problem clearly" required></textarea></label>
+        <button class="primary-button w-full rounded-xl py-3 font-extrabold" id="report-submit" type="submit">Send report</button>
+      </form>
+      <p class="mt-4 hidden rounded-xl px-4 py-3 text-sm font-bold" id="report-status"></p>
+    </section>
+  </main>
+  <nav class="fixed bottom-0 left-0 z-50 flex h-16 w-full items-center justify-around border-t px-2 pb-2 pt-1 shadow-md surface"><a class="flex flex-col items-center justify-center px-4 py-1 muted" href="student-home.html"><span class="material-symbols-outlined">home</span><span class="text-xs font-semibold">Home</span></a><a class="flex flex-col items-center justify-center px-4 py-1 muted" href="student-history.html"><span class="material-symbols-outlined">history</span><span class="text-xs font-semibold">History</span></a><a class="flex flex-col items-center justify-center rounded-full bg-[#2170e4] px-4 py-1 text-white scale-90" href="student-profile.html"><span class="material-symbols-outlined">person</span><span class="text-xs font-semibold">Profile</span></a></nav>
+  <script>
+    const form = document.getElementById("report-form");
+    const status = document.getElementById("report-status");
+    const button = document.getElementById("report-submit");
+    function showStatus(message, error = false) { status.textContent = message; status.className = `mt-4 rounded-xl border px-4 py-3 text-sm font-bold ${error ? "border-red-200 bg-red-50 text-red-700" : "border-green-200 bg-green-50 text-green-700"}`; }
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      button.disabled = true; button.textContent = "Sending...";
+      try {
+        const response = await fetch("/api/student-reports", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studentEmail: localStorage.getItem("geoAttendCurrentUser") || "", category: document.getElementById("report-category").value, message: document.getElementById("report-message").value }) });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Unable to send report.");
+        form.reset(); showStatus("Your report was sent to the admin.");
+      } catch (error) { showStatus(error.message, true); }
+      finally { button.disabled = false; button.textContent = "Send report"; }
+    });
+  </script>
+</body>
+</html>
