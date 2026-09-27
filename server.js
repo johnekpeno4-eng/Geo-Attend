@@ -1303,7 +1303,8 @@ function getWebAuthnContext(req) {
     if (origin.protocol !== "https:" && !local) throw new Error("WebAuthn requires the exact HTTPS page address.");
     return { rpName: "GeoAttend", rpID: origin.hostname, origin: origin.origin };
   }
-  const host = String(req.headers.host || ("127.0.0.1:" + PORT)).split(",")[0].trim();
+  const forwardedHost = String(req.headers["x-forwarded-host"] || "").split(",")[0].trim();
+  const host = (protocol === "https" && forwardedHost) ? forwardedHost : String(req.headers.host || ("127.0.0.1:" + PORT)).split(",")[0].trim();
   const forwardedProtocol = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim().toLowerCase();
   const protocol = forwardedProtocol === "https" || req.socket?.encrypted ? "https" : "http";
   const hostname = host.replace(/^\[|\]$/g, "").split(":")[0];
