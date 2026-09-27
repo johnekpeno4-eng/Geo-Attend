@@ -669,7 +669,6 @@
 
       if (role === "admin") {
         document.querySelectorAll("main > header .text-right p:first-child, main > header .hidden p:first-child").forEach((node) => {
-          if (/Sarah|Jenkins|Chen|Dr\./i.test(node.textContent || "")) node.textContent = displayName;
         });
       }
 

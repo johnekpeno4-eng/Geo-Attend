@@ -550,7 +550,7 @@
 
     function hydrateSessionDetails() {
       const session = activeSession || {
-        course: "CS302 - Data Structures"
+        course: "Active Class"
       };
       const title = document.getElementById("checkin-session-title");
       if (title) title.textContent = session.course || "Attendance workflow";
@@ -729,7 +729,7 @@
 
       const session = activeSession || {
         id: "default-session",
-        course: "CS302 - Data Structures",
+        course: "Active Class",
         geofence: {
           lat: 5.1065259,
           lng: 7.8103804,
@@ -764,7 +764,7 @@
         signatureStrokes: Array.isArray(account?.signatureStrokes) ? account.signatureStrokes : [],
         attendeeRole: isAdminUser ? "admin" : "student",
         sessionId: session.id || "default-session",
-        course: session.course || "CS302 - Data Structures",
+        course: session.course || "Active Class",
         position: latestPosition,
         geofence,
         checkedInAt: checkedInAt.toISOString(),

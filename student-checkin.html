@@ -126,7 +126,7 @@
       <div class="flex justify-between items-start mb-sm">
         <div>
           <span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Current Session</span>
-          <h1 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface mt-xs" id="session-title">CS302 - Data Structures</h1>
+          <h1 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface mt-xs" id="session-title">Active Class</h1>
         </div>
         <div class="flex items-center gap-xs bg-secondary-container/20 text-secondary px-sm py-xs rounded-full">
           <span class="material-symbols-outlined text-[18px] orb-pulse" style="font-variation-settings: 'FILL' 1;">sensors</span>
@@ -153,7 +153,7 @@
       <div class="verification-step" id="step-1">
         <div class="flex items-center gap-sm mb-md">
           <div class="w-6 h-6 rounded-full bg-secondary text-on-secondary flex items-center justify-center text-[10px] font-bold">1</div>
-          <h2 class="font-title-md text-title-md">Facial Verification</h2>
+          <h2 class="font-title-md text-title-md">Location Verification</h2>
         </div>
         <div class="relative w-full aspect-square max-w-[280px] mx-auto rounded-full border-4 border-secondary-container overflow-hidden bg-primary-container group">
           <img class="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-700" alt="Student face scan preview" src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=800&q=80" />
@@ -165,14 +165,14 @@
         <p class="text-center mt-md text-on-surface-variant font-body-md italic">Align your face within the frame</p>
         <button class="w-full mt-lg bg-primary text-on-primary font-bold py-md rounded-xl active:scale-95 transition-all flex items-center justify-center gap-sm disabled:opacity-50 disabled:cursor-not-allowed" id="face-step-button" type="button" onclick="completeStep(1)" disabled>
           <span class="material-symbols-outlined">face</span>
-          Capture Face ID
+          Continue
         </button>
       </div>
 
       <div class="verification-step hidden-step" id="step-2">
         <div class="flex items-center gap-sm mb-md">
           <div class="w-6 h-6 rounded-full bg-secondary text-on-secondary flex items-center justify-center text-[10px] font-bold">2</div>
-          <h2 class="font-title-md text-title-md">Fingerprint Sensor</h2>
+          <h2 class="font-title-md text-title-md">Attendance PIN</h2>
         </div>
         <div class="bg-surface-container-high rounded-2xl p-xl flex flex-col items-center justify-center border-2 border-dashed border-outline">
           <button class="w-24 h-24 rounded-full bg-white shadow-lg flex items-center justify-center mb-md active:scale-90 transition-transform cursor-pointer overflow-hidden relative" type="button" onclick="completeStep(2)" aria-label="Verify fingerprint">
@@ -187,7 +187,7 @@
         <div class="bg-secondary-container/10 border border-secondary rounded-2xl p-lg text-center">
           <span class="material-symbols-outlined text-secondary text-[48px] mb-sm" style="font-variation-settings: 'FILL' 1;">verified_user</span>
           <h2 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">Identity Verified</h2>
-          <p class="text-on-surface-variant mt-xs mb-lg">Geofence and biometrics confirmed.</p>
+          <p class="text-on-surface-variant mt-xs mb-lg">Geofence and attendance PIN confirmed.</p>
           <button class="w-full bg-secondary text-on-secondary font-bold py-md rounded-xl shadow-lg shadow-secondary/20 active:scale-95 transition-all flex items-center justify-center gap-sm disabled:opacity-50 disabled:cursor-not-allowed" id="checkin-button" type="button" onclick="showSuccess()" disabled>
             Check-in Now
             <span class="material-symbols-outlined">arrow_forward</span>
@@ -205,15 +205,15 @@
           </div>
         </div>
         <h1 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface mb-xs">Attendance Marked</h1>
-        <p class="text-on-surface-variant mb-xl">Your attendance for CS302 has been securely logged at 10:04 AM.</p>
+        <p class="text-on-surface-variant mb-xl">Your attendance has been securely logged.</p>
         <div class="grid grid-cols-2 gap-sm">
           <div class="bg-surface-container p-md rounded-xl text-left border border-outline-variant">
             <span class="font-label-md text-label-md text-on-surface-variant uppercase">Method</span>
-            <p class="font-title-md text-title-md text-secondary">AI Hybrid</p>
+            <p class="font-title-md text-title-md text-secondary">PIN</p>
           </div>
           <div class="bg-surface-container p-md rounded-xl text-left border border-outline-variant">
-            <span class="font-label-md text-label-md text-on-surface-variant uppercase">Trust Score</span>
-            <p class="font-title-md text-title-md text-green-600">99.8%</p>
+            <span class="font-label-md text-label-md text-on-surface-variant uppercase">Status</span>
+            <p class="font-title-md text-title-md text-green-600">Present</p>
           </div>
         </div>
         <button class="mt-xl text-secondary font-bold flex items-center justify-center gap-xs mx-auto" type="button" onclick="location.reload()">
@@ -248,7 +248,7 @@
     let latestPosition = null;
     let locationWatchId = null;
     const defaultSession = {
-      course: "CS302 - Data Structures",
+      course: "Active Class",
       locationName: "University of Uyo",
       geofence: {
         lat: 5.1065259,
