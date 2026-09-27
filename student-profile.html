@@ -123,7 +123,7 @@
       <div class="flex items-start justify-between gap-4">
         <div>
           <p class="text-xs font-bold uppercase tracking-widest muted">Security</p>
-          <h2 class="mt-1 text-xl font-extrabold">Attendance PIN check-in</h2>
+          <h2 class="mt-1 text-xl font-extrabold">Attendance verification</h2>
           <p class="mt-1 text-sm muted" id="security-helper">Checking identity setup...</p>
         </div>
         <span class="material-symbols-outlined secondary text-3xl" id="security-icon">shield_lock</span>
@@ -137,6 +137,20 @@
 
     <section class="mt-5 rounded-xl border p-5 shadow-sm surface">
       <div class="flex items-start justify-between gap-4">
+        <div><p class="text-xs font-bold uppercase tracking-widest muted">Two-factor authentication</p><h2 class="mt-1 text-xl font-extrabold">Google Authenticator</h2><p class="mt-1 text-sm muted" id="twofa-status">Not configured</p></div>
+        <span class="material-symbols-outlined secondary text-3xl">security</span>
+      </div>
+      <button class="primary-button mt-5 w-full rounded-xl py-3 font-extrabold" id="twofa-setup" type="button">Set up 2FA</button>
+      <div class="mt-4 hidden rounded-xl border p-4 panel" id="twofa-panel">
+        <p class="text-sm font-semibold">Scan the QR code with Google Authenticator, then enter the six-digit code.</p>
+        <img class="mx-auto mt-4 h-44 w-44 rounded-xl bg-white p-2" id="twofa-qr" alt="Google Authenticator setup QR code" />
+        <input class="field mt-4 text-center font-mono text-lg tracking-[.35em]" id="twofa-code" inputmode="numeric" maxlength="6" placeholder="000000" />
+        <button class="primary-button mt-4 w-full rounded-xl py-3 font-extrabold" id="twofa-verify" type="button">Verify 2FA</button>
+      </div>
+      <p class="mt-3 hidden rounded-xl px-4 py-3 text-sm font-bold" id="twofa-message"></p>
+    </section>
+    <section class="mt-5 rounded-xl border p-5 shadow-sm surface">
+      <div class="flex items-start justify-between gap-4">
         <div><p class="text-xs font-bold uppercase tracking-widest muted">Appearance</p><h2 class="mt-1 text-xl font-extrabold">Theme</h2><p class="mt-1 text-sm muted" id="theme-helper">Light mode is active.</p></div>
         <span class="material-symbols-outlined secondary text-3xl" id="theme-icon">light_mode</span>
       </div>
@@ -148,7 +162,7 @@
 
     <section class="mt-5 space-y-3 rounded-xl border p-5 shadow-sm surface">
       <div class="flex justify-between gap-4"><span class="muted">Role</span><strong>Student</strong></div>
-      <div class="flex justify-between gap-4"><span class="muted">Identity</span><strong id="pin-status">Checking</strong></div>
+      <div class="flex justify-between gap-4"><span class="muted">Identity</span><strong id="verification-status">Checking</strong></div>
       <div class="flex justify-between gap-4"><span class="muted">Total Check-ins</span><strong id="checkin-count">0</strong></div>
       <a class="block rounded-xl border border-[#2170e4] px-4 py-3 text-center font-bold text-[#2170e4]" href="security.html">Manage extra security</a>
     </section>
@@ -317,19 +331,27 @@
     }
     function updateSecurityState() {
       const settings = getSettings();
-      const hasProfile = Boolean(profile?.identityVerified || profile?.pinVerified || profile?.attendancePinHash);
+      const deviceProfile = JSON.parse(localStorage.getItem("geoAttendBiometricProfiles") || "{}")[email] || {};
+      const hasProfile = Boolean(deviceProfile.identityVerified || currentAccount?.identityVerified);
       securityToggle.checked = hasProfile && settings.deviceSecurityEnabled === true;
       securityToggle.disabled = !hasProfile;
-      document.getElementById("pin-status").textContent = hasProfile ? "Verified" : "Not verified";
+      document.getElementById("verification-status").textContent = hasProfile ? "Verified" : "Not verified";
       document.getElementById("checkin-count").textContent = logs.length;
       document.getElementById("security-icon").textContent = hasProfile ? "verified_user" : "shield_lock";
-      document.getElementById("security-helper").textContent = hasProfile ? "Your 4-digit PIN is ready for attendance check-in." : "Set your 4-digit attendance PIN before checking in.";
+      document.getElementById("security-helper").textContent = hasProfile ? "Device verification is ready for attendance check-in." : "Complete device verification before checking in.";
       document.getElementById("identity-link-text").textContent = hasProfile ? "Review account details" : "Set up identity verification";
     }
+    async function refreshTwoFactor() {
+      if (!currentAccount?.email) return;
+      try { const data = await fetch(`/api/students?email=${encodeURIComponent(currentAccount.email)}`, { cache: "no-store" }).then(response => response.json()); const student = (data.students || []).find(item => item.email === currentAccount.email); const enabled = Boolean(student?.totpEnabled); document.getElementById("twofa-status").textContent = enabled ? "Enabled" : "Not configured"; document.getElementById("twofa-setup").textContent = enabled ? "Regenerate setup code" : "Set up 2FA"; } catch {}
+    }
+    document.getElementById("twofa-setup").addEventListener("click", async () => { try { const data = await fetch("/api/totp-registration-setup", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ email:currentAccount.email, fullName:currentAccount.fullName }) }).then(async response => { const value=await response.json(); if(!response.ok) throw new Error(value.error || "Unable to start 2FA setup."); return value; }); document.getElementById("twofa-qr").src=data.qrDataUrl; document.getElementById("twofa-panel").classList.remove("hidden"); } catch(error) { showMessage("twofa-message", error.message, true); } });
+    document.getElementById("twofa-verify").addEventListener("click", async () => { const code=document.getElementById("twofa-code").value.replace(/\D/g, ""); if(!/^\d{6}$/.test(code)) return showMessage("twofa-message", "Enter the six-digit authenticator code.", true); try { const response=await fetch("/api/verify-registration-totp", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({email:currentAccount.email, code}) }); const data=await response.json(); if(!response.ok) throw new Error(data.error || "Incorrect authenticator code."); currentAccount.totpSecret=data.totpSecret; currentAccount.totpEnabled=true; await saveStudentProfile({ totpSecret:data.totpSecret, totpEnabled:true }); showMessage("twofa-message", "Google Authenticator 2FA enabled."); refreshTwoFactor(); } catch(error) { showMessage("twofa-message", error.message, true); } });
     securityToggle.addEventListener("change", () => { const settings = getSettings(); settings.deviceSecurityEnabled = securityToggle.checked; saveSettings(settings); updateSecurityState(); });
     themeToggle.addEventListener("change", () => setTheme(themeToggle.checked ? "dark" : "light"));
     window.addEventListener("resize", resizeSignatureCanvas);
     updateSecurityState();
+    refreshTwoFactor();
     setTheme(localStorage.getItem("geoAttendTheme") || "light");
     resizeSignatureCanvas();
     loadStudentProfile().then(redrawSignature);
