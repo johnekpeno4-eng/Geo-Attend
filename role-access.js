@@ -656,14 +656,22 @@
           </button>
         </div>
       `;
+      const existingImage = header.querySelector("img[alt*='avatar' i]");
+      const existingIcon = Array.from(header.querySelectorAll(".material-symbols-outlined")).find((node) => ["person", "account_circle"].includes(node.textContent.trim()));
+      const existingTarget = existingImage || existingIcon?.parentElement;
+      const trigger = existingTarget || root.querySelector(".admin-profile-trigger");
       const headerRight = header.lastElementChild;
-      if (headerRight && headerRight !== header.firstElementChild) {
-        headerRight.appendChild(root);
-      } else {
-        header.appendChild(root);
+      if (existingTarget) {
+        const generatedTrigger = root.querySelector(".admin-profile-trigger");
+        generatedTrigger.style.display = "none";
+        existingTarget.setAttribute("role", "button");
+        existingTarget.setAttribute("tabindex", "0");
+        existingTarget.setAttribute("aria-label", "Admin profile menu");
+        existingTarget.style.cursor = "pointer";
       }
+      const menuHost = existingTarget?.parentElement || headerRight || header;
+      menuHost.appendChild(root);
 
-      const trigger = root.querySelector(".admin-profile-trigger");
       const menu = root.querySelector(".admin-profile-menu");
       const themeToggle = root.querySelector(".admin-theme-toggle");
       trigger?.addEventListener("click", (event) => {
