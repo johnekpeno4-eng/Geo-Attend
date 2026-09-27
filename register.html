@@ -121,6 +121,8 @@
       transform: rotate(45deg);
       margin-top: -2px;
     }
+    .otp-digit { width: 2.9rem; height: 3.5rem; border: 1px solid #c6c6cd; border-radius: .75rem; background: #fff; text-align: center; font-size: 1.35rem; font-weight: 800; outline: none; }
+    .otp-digit:focus { border-color: #0058be; box-shadow: 0 0 0 4px rgba(0,88,190,.1); }
   </style>
   <script src="role-access.js?v=20260924-loginfix" defer></script>
   <link rel="stylesheet" href="mobile-student.css?v=20260924-mobilefix" />
@@ -144,7 +146,6 @@
       <section class="mx-auto w-full max-w-md lg:mx-0">
         <div class="mb-10">
           <h1 class="text-display-lg font-bold text-on-surface mb-2">Create Student Account</h1>
-          <p class="text-body-lg text-on-surface-variant">Join thousands of students using secure geo-fenced attendance tracking.</p>
         </div>
 
         <form class="space-y-6" id="register-form">
@@ -184,7 +185,6 @@
               <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-secondary transition-colors">badge</span>
               <input class="w-full bg-surface-container-lowest border-outline-variant focus:border-secondary focus:ring-4 focus:ring-secondary/10 rounded-xl py-4 pl-12 pr-4 transition-all outline-none text-body-lg font-mono-data uppercase" id="reg-number" name="regNumber" placeholder="Example: 25/EG/EE/001" required type="text" />
             </div>
-            <p class="text-body-md text-on-surface-variant">Type your full registration number manually, for example: <span class="font-mono-data text-secondary">25/EG/EE/001</span>.</p>
           </div>
 
           <div class="flex flex-col gap-2">
@@ -232,7 +232,6 @@
             <button class="w-full text-secondary font-bold py-2 disabled:cursor-not-allowed disabled:opacity-50" id="resend-otp" type="button" disabled>Resend code</button>
             <p class="text-center text-body-md text-on-surface-variant"><span class="material-symbols-outlined align-middle text-[18px] text-secondary">verified_user</span> Your data is encrypted and managed via ISO-27001 standards.</p>
           </section>
-          </div>
 
           <button class="w-full bg-primary text-on-primary font-bold py-5 rounded-xl shadow-lg hover:shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-3 group" type="submit">
             <span class="text-lg" id="register-button-label">Send verification code</span>
@@ -375,14 +374,12 @@
     const registerForm = document.getElementById("register-form");
     const message = document.getElementById("form-message");
     const otpSection = document.getElementById("otp-section");
-    const otpHelper = document.getElementById("otp-helper");
-    const otpInput = document.getElementById("otp-code");
-    const totpQrBox = document.getElementById("totp-qr-box");
-    const totpQr = document.getElementById("totp-qr");
-    const totpManualKey = document.getElementById("totp-manual-key");
+    const registrationFields = document.getElementById("registration-fields");
+    const otpEmail = document.getElementById("otp-email");
+    const otpDigits = [...document.querySelectorAll(".otp-digit")];
+    const otpTimer = document.getElementById("otp-timer");
     const registerButtonLabel = document.getElementById("register-button-label");
     const resendOtp = document.getElementById("resend-otp");
-    const resendOtpLabel = document.getElementById("resend-otp-label");
     const submitButton = registerForm.querySelector('button[type="submit"]');
     let pendingAccount = null;
     let resendSeconds = 0;
@@ -413,27 +410,26 @@
     }
 
     async function sendOtp() {
-      setBusy(true, "Generating QR...");
-      const result = await postJson("/api/totp-registration-setup", {
+      setBusy(true, "Sending code...");
+      const result = await postJson("/api/send-registration-otp", {
         email: pendingAccount.email,
         fullName: pendingAccount.fullName
       });
       otpSection.classList.remove("hidden");
-      registerButtonLabel.textContent = "Verify Authenticator & Create Account";
-      otpHelper.textContent = `Scan this QR code in Google Authenticator for ${pendingAccount.email}, then enter the current 6-digit code.`;
-      if (totpQrBox) totpQrBox.classList.remove("hidden");
-      if (totpQr) totpQr.src = result.qrDataUrl;
-      if (totpManualKey) totpManualKey.textContent = `Manual key: ${result.manualKey}`;
-      otpInput.value = "";
-      showMessage("Google Authenticator QR generated. Scan it and enter the 6-digit code.");
+      registrationFields.classList.add("hidden");
+      otpEmail.textContent = pendingAccount.email;
+      otpDigits.forEach((input) => input.value = "");
+      registerButtonLabel.textContent = "Verify email & create account";
+      showMessage(result.deliveryMode === "demo" ? `Demo mode: use code ${result.demoOtp}.` : "A verification code was sent to your email.");
       setBusy(false);
-      startResendCountdown(15);
+      startResendCountdown(60);
+      otpDigits[0]?.focus();
     }
 
-    function setBusy(isBusy, label = "Set Up Authenticator") {
+    function setBusy(isBusy, label = "Send verification code") {
       submitButton.disabled = isBusy;
       resendOtp.disabled = isBusy || resendSeconds > 0;
-      registerButtonLabel.textContent = isBusy ? label : (pendingAccount ? "Verify Authenticator & Create Account" : "Set Up Authenticator");
+      registerButtonLabel.textContent = isBusy ? label : (pendingAccount ? "Verify email & create account" : "Send verification code");
     }
 
     function startResendCountdown(seconds) {
@@ -450,7 +446,7 @@
     function updateResendButton() {
       const coolingDown = resendSeconds > 0;
       resendOtp.disabled = coolingDown;
-      resendOtpLabel.textContent = coolingDown ? `Generate New QR in ${resendSeconds}s` : "Generate New QR";
+      otpTimer.textContent = coolingDown ? `You can resend a code in ${resendSeconds}s.` : "Didn't receive a code?";
       resendOtp.classList.toggle("opacity-60", coolingDown);
       resendOtp.classList.toggle("cursor-not-allowed", coolingDown);
     }
@@ -465,6 +461,24 @@
       }
     });
 
+    otpDigits.forEach((input, index) => {
+      input.addEventListener("input", (event) => {
+        const value = event.target.value.replace(/\D/g, "");
+        event.target.value = value.slice(-1);
+        if (value && index < otpDigits.length - 1) otpDigits[index + 1].focus();
+      });
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Backspace" && !input.value && index > 0) otpDigits[index - 1].focus();
+      });
+      input.addEventListener("paste", (event) => {
+        const code = event.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+        if (!code) return;
+        event.preventDefault();
+        code.split("").forEach((digit, position) => { if (otpDigits[position]) otpDigits[position].value = digit; });
+        otpDigits[Math.min(code.length, 6) - 1]?.focus();
+      });
+    });
+
     registerForm.addEventListener("submit", async (event) => {
       event.preventDefault();
 
@@ -474,7 +488,7 @@
       const regNumber = formData.get("regNumber").trim().toUpperCase();
       const email = formData.get("email").trim().toLowerCase();
       const password = formData.get("password");
-      const otpCode = formData.get("otpCode").trim();
+      const otpCode = otpDigits.map((input) => input.value).join("");
       const accounts = getAccounts();
 
       if (!pendingAccount) {
@@ -514,19 +528,17 @@
         return;
       }
 
-      if (!otpCode) {
-        showMessage("Enter the 6-digit Google Authenticator code.", true);
+      if (!/^\d{6}$/.test(otpCode)) {
+        showMessage("Enter the 6-digit code sent to your email.", true);
         return;
       }
 
       try {
-        setBusy(true, "Verifying Authenticator...");
-        const verification = await postJson("/api/verify-registration-totp", {
+        setBusy(true, "Verifying email...");
+        await postJson("/api/verify-registration-otp", {
           email: pendingAccount.email,
-          code: otpCode
+          otp: otpCode
         });
-        pendingAccount.totpSecret = verification.totpSecret;
-        pendingAccount.totpEnabled = true;
       } catch (error) {
         setBusy(false);
         showMessage(error.message, true);
@@ -546,8 +558,7 @@
           departmentName: pendingAccount.departmentName,
           levelId: pendingAccount.levelId,
           levelName: pendingAccount.levelName,
-          totpSecret: pendingAccount.totpSecret,
-          totpEnabled: pendingAccount.totpEnabled,
+          totpEnabled: false,
           verified: true,
           createdAt: pendingAccount.createdAt
         });
@@ -561,10 +572,10 @@
       localStorage.setItem("geoAttendCurrentUser", pendingAccount.email);
       localStorage.setItem("geoAttendRole", pendingAccount.role);
       localStorage.setItem("geoAttendView", "student");
-      showMessage("Authenticator verified and account created. Opening identity verification...");
+      showMessage("Email verified and account created. Opening identity verification...");
 
       setTimeout(() => {
-        window.location.href = "identity-verification.html";
+        window.location.href = "security.html?onboarding=1";
       }, 800);
     });
   </script>

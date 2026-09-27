@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GeoAttend | Extra Security</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+</head>
+<body class="min-h-screen bg-[#f8f9ff] font-[Inter,Arial,sans-serif] text-[#0b1c30]">
+  <main class="mx-auto max-w-xl px-6 py-12">
+    <a class="text-sm font-bold text-[#0058be] hover:underline" href="student-profile.html">← Back to account settings</a>
+    <section class="mt-6 rounded-3xl border border-[#c6c6cd] bg-white p-7 shadow-xl">
+      <p class="text-xs font-bold uppercase tracking-[.16em] text-[#0058be]">Account security</p>
+      <h1 class="mt-2 text-3xl font-extrabold">Add extra security</h1>
+      <p class="mt-3 text-[#45464d]">Enable Registration Number verification (optional). Your email code remains the primary way to verify your account.</p>
+
+      <div class="mt-7 space-y-5" id="setup-form">
+        <label class="block text-xs font-bold uppercase tracking-widest text-[#45464d]" for="security-reg-number">Registration number
+          <input class="mt-2 w-full rounded-xl border border-[#c6c6cd] bg-white px-4 py-4 font-mono text-base uppercase outline-none focus:border-[#0058be] focus:ring-4 focus:ring-[#0058be]/10" id="security-reg-number" placeholder="Example: 25/EG/EE/001" />
+          <span class="mt-2 block normal-case tracking-normal text-sm font-normal text-[#76777d]">Type your full registration number manually, for example: 25/EG/EE/001.</span>
+        </label>
+        <button class="w-full rounded-xl bg-black py-4 font-bold text-white" id="setup-button" type="button">Set Up Authenticator</button>
+        <button class="hidden w-full py-2 font-bold text-[#0058be]" id="skip-button" type="button">Skip for now</button>
+      </div>
+
+      <section class="mt-6 hidden rounded-2xl border border-[#0058be]/30 bg-[#eff4ff] p-5 text-center" id="verify-section">
+        <p class="font-bold text-[#0058be]">Registration Number Authenticator</p>
+        <p class="mt-2 text-sm text-[#45464d]">Scan this QR code in your authenticator app, then enter its 6-digit code.</p>
+        <img class="mx-auto mt-4 h-48 w-48 rounded-xl bg-white p-2" id="qr-code" alt="Authenticator QR code" />
+        <input class="mt-4 w-full rounded-xl border border-[#c6c6cd] bg-white px-4 py-4 text-center font-mono text-xl tracking-[.4em] outline-none focus:border-[#0058be]" id="auth-code" inputmode="numeric" maxlength="6" placeholder="000000" />
+        <button class="mt-4 w-full rounded-xl bg-black py-4 font-bold text-white" id="verify-button" type="button">Verify & Enable</button>
+      </section>
+      <section class="mt-6 rounded-2xl border border-[#c6c6cd] bg-white p-5" id="biometric-section">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-2"><span class="material-symbols-outlined text-[#0058be]">fingerprint</span><h2 class="font-bold">Enable Biometric Login</h2></div>
+            <p class="mt-1 text-sm text-[#76777d]" id="biometric-copy">Use this device's fingerprint or Face ID to sign in faster.</p>
+          </div>
+          <label class="relative inline-flex cursor-pointer items-center"><input class="peer sr-only" id="biometric-toggle" type="checkbox" /><span class="h-7 w-12 rounded-full bg-[#c6c6cd] transition peer-checked:bg-[#0058be]"></span><span class="absolute left-1 h-5 w-5 rounded-full bg-white transition peer-checked:translate-x-5"></span></label>
+        </div>
+        <button class="mt-4 hidden w-full rounded-xl border border-[#0058be] py-3 font-bold text-[#0058be]" id="remove-biometric" type="button">Remove biometric login</button>
+        <p class="mt-4 text-center text-sm text-[#76777d]"><span class="text-[#0058be]">●</span> Your data is encrypted and managed via ISO-27001 standards.</p>
+      </section>
+      <p class="mt-6 text-center text-sm text-[#76777d]"><span class="text-[#0058be]">●</span> Your data is encrypted and managed via ISO-27001 standards.</p>
+      <p class="mt-4 hidden rounded-xl px-4 py-3 text-sm" id="message"></p>
+    </section>
+  </main>
+  <script>
+    const accountEmail = localStorage.getItem("geoAttendCurrentUser");
+    const accounts = JSON.parse(localStorage.getItem("geoAttendAccounts") || "[]");
+    const account = accounts.find((item) => item.email === accountEmail);
+    const message = document.getElementById("message");
+    const onboarding = new URLSearchParams(location.search).get("onboarding") === "1";
+    if (!account) location.href = "login.html";
+    document.getElementById("security-reg-number").value = account?.regNumber || "";
+    if (onboarding) document.getElementById("skip-button").classList.remove("hidden");
+    function show(text, error = false) { message.textContent = text; message.className = `mt-4 rounded-xl px-4 py-3 text-sm ${error ? "bg-red-50 text-red-700" : "bg-blue-50 text-[#0058be]"}`; }
+    async function post(url, body) { const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.error || "Unable to complete request."); return data; }
+    function fromBase64url(value) { const base64 = String(value).replace(/-/g, "+").replace(/_/g, "/"); const padded = base64 + "=".repeat((4 - base64.length % 4) % 4); return Uint8Array.from(atob(padded), char => char.charCodeAt(0)); }
+    function toBase64url(buffer) { return btoa(String.fromCharCode(...new Uint8Array(buffer))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, ""); }
+    function registrationOptions(options) { return { ...options, challenge: fromBase64url(options.challenge), user: { ...options.user, id: fromBase64url(options.user.id) }, excludeCredentials: (options.excludeCredentials || []).map(item => ({ ...item, id: fromBase64url(item.id) })) }; }
+    function registrationResponse(credential) { return { id: credential.id, rawId: toBase64url(credential.rawId), type: credential.type, response: { clientDataJSON: toBase64url(credential.response.clientDataJSON), attestationObject: toBase64url(credential.response.attestationObject), transports: credential.response.getTransports?.() || [] }, clientExtensionResults: credential.getClientExtensionResults?.() || {} }; }
+    const biometricToggle = document.getElementById("biometric-toggle");
+    const biometricCopy = document.getElementById("biometric-copy");
+    const removeBiometric = document.getElementById("remove-biometric");
+    async function refreshBiometric() { if (!account) return; try { const data = await fetch(`/api/webauthn/status?email=${encodeURIComponent(account.email)}`).then(r => r.json()); biometricToggle.checked = Boolean(data.enabled); removeBiometric.classList.toggle("hidden", !data.enabled); biometricCopy.textContent = data.enabled ? "Biometric login enabled on this account." : "Use this device's fingerprint or Face ID to sign in faster."; } catch {} }
+    biometricToggle.addEventListener("change", async () => { if (!biometricToggle.checked) return removeCredential(); if (!window.PublicKeyCredential) { biometricToggle.checked = false; return show("Biometric login is not available in this browser.", true); } try { biometricToggle.disabled = true; biometricCopy.textContent = "Follow your device prompt to register biometrics..."; const data = await post("/api/webauthn/register-options", { email: account.email }); const credential = await navigator.credentials.create({ publicKey: registrationOptions(data.options) }); await post("/api/webauthn/register-verify", { email: account.email, response: registrationResponse(credential) }); biometricCopy.textContent = "Biometric login enabled."; removeBiometric.classList.remove("hidden"); show("Biometric login enabled."); } catch (error) { biometricToggle.checked = false; biometricCopy.textContent = "Use this device's fingerprint or Face ID to sign in faster."; show(error.message || "Biometric registration was cancelled.", true); } finally { biometricToggle.disabled = false; } });
+    async function removeCredential() { try { await post("/api/webauthn/remove", { email: account.email }); biometricToggle.checked = false; removeBiometric.classList.add("hidden"); biometricCopy.textContent = "Use this device's fingerprint or Face ID to sign in faster."; show("Biometric login removed."); } catch (error) { biometricToggle.checked = true; show(error.message, true); } }
+    removeBiometric.addEventListener("click", removeCredential);
+    refreshBiometric();
+    document.getElementById("setup-button").addEventListener("click", async () => {
+      const regNumber = document.getElementById("security-reg-number").value.trim().toUpperCase();
+      if (!regNumber) return show("Enter your full registration number first.", true);
+      try { const data = await post("/api/totp-registration-setup", { email: account.email, fullName: account.fullName }); account.regNumber = regNumber; document.getElementById("qr-code").src = data.qrDataUrl; document.getElementById("verify-section").classList.remove("hidden"); show("Authenticator setup ready."); } catch (error) { show(error.message, true); }
+    });
+    document.getElementById("verify-button").addEventListener("click", async () => {
+      const code = document.getElementById("auth-code").value.replace(/\D/g, "");
+      if (!/^\d{6}$/.test(code)) return show("Enter the 6-digit authenticator code.", true);
+      try { const verified = await post("/api/verify-registration-totp", { email: account.email, code }); Object.assign(account, { totpSecret: verified.totpSecret, totpEnabled: true }); await post("/api/students", { ...account, password: account.password, verified: true }); localStorage.setItem("geoAttendAccounts", JSON.stringify(accounts)); show("Extra security is enabled."); setTimeout(() => location.href = "student-profile.html", 700); } catch (error) { show(error.message, true); }
+    });
+    document.getElementById("skip-button").addEventListener("click", () => location.href = "identity-verification.html");
+  </script>
+</body>
+</html>

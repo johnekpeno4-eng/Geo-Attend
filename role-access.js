@@ -134,11 +134,52 @@
 
     const loginForm = document.querySelector("[data-login-form]");
     if (loginForm) {
+      const loginIdentifier = document.getElementById("email");
+      const passwordField = document.getElementById("password-login-field");
+      const biometricPrompt = document.getElementById("biometric-login-prompt");
+      const biometricCopy = document.getElementById("biometric-login-copy");
+      const passwordInstead = document.getElementById("use-password-instead");
+      let biometricPrompting = false;
+      let passwordChosen = false;
+      const base64urlToBytes = (value) => { const base64 = String(value).replace(/-/g, "+").replace(/_/g, "/"); const padded = base64 + "=".repeat((4 - base64.length % 4) % 4); return Uint8Array.from(atob(padded), char => char.charCodeAt(0)); };
+      const bytesToBase64url = (buffer) => btoa(String.fromCharCode(...new Uint8Array(buffer))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+      const authOptions = (options) => ({ ...options, challenge: base64urlToBytes(options.challenge), allowCredentials: (options.allowCredentials || []).map(item => ({ ...item, id: base64urlToBytes(item.id) })) });
+      const authResponse = (credential) => ({ id: credential.id, rawId: bytesToBase64url(credential.rawId), type: credential.type, response: { clientDataJSON: bytesToBase64url(credential.response.clientDataJSON), authenticatorData: bytesToBase64url(credential.response.authenticatorData), signature: bytesToBase64url(credential.response.signature), userHandle: credential.response.userHandle ? bytesToBase64url(credential.response.userHandle) : undefined }, clientExtensionResults: credential.getClientExtensionResults?.() || {} });
+      function showPasswordLogin() { passwordChosen = true; biometricPrompt?.classList.add("hidden"); passwordField?.classList.remove("hidden"); document.getElementById("password")?.focus(); }
+      async function finishBiometricLogin(user) {
+        const accounts = getAccounts(); const existing = accounts.find(item => item.email === user.email);
+        if (existing) Object.assign(existing, user, { verified: true }); else accounts.push({ ...user, verified: true, role: user.role || "student" });
+        saveAccounts(accounts); localStorage.setItem("geoAttendCurrentUser", user.email); localStorage.setItem("geoAttendRole", user.role || "student"); localStorage.setItem("geoAttendView", "student");
+        const message = document.getElementById("login-message"); if (message) { message.textContent = "Biometric login successful. Redirecting..."; message.className = "mt-4 rounded-2xl bg-[#eff4ff] px-4 py-3 text-sm font-semibold text-[#0058be]"; }
+        setTimeout(() => { window.location.href = "student-home.html"; }, 400);
+      }
+      async function tryBiometricLogin() {
+        const identifier = (loginIdentifier?.value || localStorage.getItem("geoAttendRememberedEmail") || "").trim().toLowerCase();
+        if (!identifier || passwordChosen || biometricPrompting || !window.PublicKeyCredential) return;
+        try {
+          const status = await fetch(`/api/webauthn/status?email=${encodeURIComponent(identifier)}`, { cache: "no-store" }).then(response => response.json());
+          if (!status.enabled || passwordChosen) return;
+          passwordField?.classList.add("hidden"); biometricPrompt?.classList.remove("hidden"); biometricPrompting = true;
+          biometricCopy.textContent = "Confirm with your fingerprint or Face ID.";
+          const data = await postJson("/api/webauthn/login-options", { email: status.email || identifier });
+          const credential = await navigator.credentials.get({ publicKey: authOptions(data.options) });
+          const verified = await postJson("/api/webauthn/login-verify", { email: status.email || identifier, response: authResponse(credential) });
+          await finishBiometricLogin(verified.user);
+        } catch (error) {
+          if (!passwordChosen) { biometricCopy.textContent = "Biometric login was not completed. You can use your password instead."; passwordField?.classList.remove("hidden"); }
+        } finally { biometricPrompting = false; }
+      }
+      passwordInstead?.addEventListener("click", showPasswordLogin);
+      loginIdentifier?.addEventListener("change", () => { passwordChosen = false; tryBiometricLogin(); });
+      loginIdentifier?.addEventListener("blur", tryBiometricLogin);
+      const remembered = localStorage.getItem("geoAttendRememberedEmail");
+      if (remembered && loginIdentifier && !loginIdentifier.value) { loginIdentifier.value = remembered; setTimeout(tryBiometricLogin, 0); }
       loginForm.addEventListener("submit", async (event) => {
         event.preventDefault();
         const formData = new FormData(loginForm);
         const email = (formData.get("email") || "").trim().toLowerCase();
         const password = formData.get("password") || "";
+        localStorage.setItem("geoAttendRememberedEmail", email);
 
         const message = document.getElementById("login-message");
 

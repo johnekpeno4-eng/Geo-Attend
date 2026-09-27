@@ -167,6 +167,18 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "GET" && req.url.startsWith("/api/webauthn/status")) {
+      const identifier = new URL(req.url, `http://${req.headers.host}`).searchParams.get("email") || "";
+      await getWebAuthnStatus(res, identifier);
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/api/webauthn/remove") {
+      const body = await readJson(req);
+      await removeWebAuthnCredential(res, body);
+      return;
+    }
+
     if (req.method === "POST" && req.url === "/api/save-biometric-profile") {
       const body = await readJson(req);
       await saveBiometricProfile(res, body);
@@ -1304,7 +1316,36 @@ async function verifyWebAuthnRegistration(req, res, body) {
     credentialDeviceType: verification.registrationInfo.credentialDeviceType,
     credentialBackedUp: verification.registrationInfo.credentialBackedUp
   });
+  const profile = {
+    ...(await loadBiometricProfileByEmail(email) || {}),
+    email,
+    userId: String(row.id),
+    biometric: { ...(await loadBiometricProfileByEmail(email) || {}).biometric, platformAuthenticator: true },
+    biometricEnabled: true,
+    checkinAuthMethod: "biometric",
+    webauthnCredential: credential
+  };
+  await saveBiometricProfileObject(profile);
   json(res, 200, { ok: true, email, credential, method: "biometric" });
+}
+
+async function getWebAuthnStatus(res, identifier) {
+  const row = await findStudentRowByIdentifier(identifier);
+  if (!row) return json(res, 200, { ok: true, enabled: false });
+  const profile = await loadBiometricProfileByEmail(row.email);
+  json(res, 200, { ok: true, enabled: Boolean(profile?.webauthnCredential?.id), email: row.email });
+}
+
+async function removeWebAuthnCredential(res, body) {
+  const row = await findStudentRowByIdentifier(body.email || body.regNumber);
+  if (!row) return json(res, 404, { error: "No student account was found." });
+  const profile = await loadBiometricProfileByEmail(row.email);
+  if (!profile?.webauthnCredential) return json(res, 200, { ok: true, enabled: false });
+  delete profile.webauthnCredential;
+  profile.biometricEnabled = false;
+  if (profile.biometric) profile.biometric.platformAuthenticator = false;
+  await saveBiometricProfileObject(profile);
+  json(res, 200, { ok: true, enabled: false });
 }
 
 async function getWebAuthnLoginOptions(req, res, body) {
