@@ -174,7 +174,7 @@
       <a class="bg-secondary text-white rounded-xl p-4 shadow-sm flex items-center justify-between gap-4 active:scale-[0.99] transition-transform" href="#active-classes" id="primary-action-link">
         <div>
           <p class="font-bold" id="primary-action-title">View active classes</p>
-          <p class="text-sm opacity-80" id="primary-action-helper">Pick a live class, then confirm your saved device security prompt</p>
+          <p class="text-sm opacity-80" id="primary-action-helper">Fingerprint verification is required for check-in</p>
         </div>
         <span class="material-symbols-outlined text-2xl" id="primary-action-icon">event_available</span>
       </a>
@@ -908,7 +908,7 @@
       const actionIcon = document.getElementById("primary-action-icon");
       if (actionLink) actionLink.href = "#active-classes";
       if (actionTitle) actionTitle.textContent = "View active classes";
-      if (actionHelper) actionHelper.textContent = "Tap a live class, then choose a verification method";
+      if (actionHelper) actionHelper.textContent = "Tap a live class, then verify your fingerprint";
       if (actionIcon) actionIcon.textContent = "event_available";
 
       updateSummary();
