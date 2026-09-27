@@ -1303,10 +1303,10 @@ function getWebAuthnContext(req) {
     if (origin.protocol !== "https:" && !local) throw new Error("WebAuthn requires the exact HTTPS page address.");
     return { rpName: "GeoAttend", rpID: origin.hostname, origin: origin.origin };
   }
-  const forwardedHost = String(req.headers["x-forwarded-host"] || "").split(",")[0].trim();
-  const host = (protocol === "https" && forwardedHost) ? forwardedHost : String(req.headers.host || ("127.0.0.1:" + PORT)).split(",")[0].trim();
   const forwardedProtocol = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim().toLowerCase();
   const protocol = forwardedProtocol === "https" || req.socket?.encrypted ? "https" : "http";
+  const forwardedHost = String(req.headers["x-forwarded-host"] || "").split(",")[0].trim();
+  const host = (protocol === "https" && forwardedHost) ? forwardedHost : String(req.headers.host || ("127.0.0.1:" + PORT)).split(",")[0].trim();
   const hostname = host.replace(/^\[|\]$/g, "").split(":")[0];
   if (protocol !== "https" && hostname !== "localhost") throw new Error("WebAuthn requires an HTTPS origin. Open the exact HTTPS tunnel address.");
   return { rpName: "GeoAttend", rpID: hostname, origin: protocol + "://" + host };
