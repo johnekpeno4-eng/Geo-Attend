@@ -385,6 +385,7 @@
         body.innerHTML = assignments.length ? assignments.map((item) => `<tr class="border-t border-outline-variant/30"><td class="p-md font-bold">${escapeHtml(item.lecturerName)}</td><td class="p-md">${escapeHtml(item.courseCode)}: ${escapeHtml(item.courseTitle)}</td><td class="p-md text-on-surface-variant">${escapeHtml(item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "--")}</td><td class="p-md text-right"><button class="rounded-lg border border-red-200 px-md py-sm font-bold text-red-700" data-remove-lecturer-course="${escapeHtml(item.lecturerEmail)}|${escapeHtml(item.courseCode)}" type="button">Remove</button></td></tr>`).join("") : '<tr><td class="p-lg text-on-surface-variant" colspan="4">No lecturer course assignments yet.</td></tr>';
       } catch (error) { body.innerHTML = `<tr><td class="p-lg text-[#93000a]" colspan="4">${escapeHtml(error.message)}</td></tr>`; }
 
+    }
     document.getElementById("lecturer-assignment-form")?.addEventListener("submit", async (event) => {
       event.preventDefault();
       try {
