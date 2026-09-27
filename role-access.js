@@ -708,7 +708,7 @@
       const iconButton = Array.from(header.querySelectorAll("button")).find((button) => (
         button.querySelector(".material-symbols-outlined")?.textContent.trim() === "notifications"
       ));
-      const host = iconButton?.parentElement || headerRight || header;
+      const host = iconButton?.parentElement || header;
       const bell = iconButton || document.createElement("button");
 
       if (!iconButton) {
