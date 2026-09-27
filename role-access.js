@@ -3,7 +3,7 @@
   document.documentElement.classList.toggle("dark", savedTheme === "dark");
   document.documentElement.classList.toggle("light", savedTheme !== "dark");
 
-  const ADMIN_PAGES = new Set(["dashboard.html", "create-session.html", "live-monitor.html", "students.html", "records.html", "session-report.html", "admin-management.html", "courses.html"]);
+  const ADMIN_PAGES = new Set(["dashboard.html", "create-session.html", "live-monitor.html", "students.html", "records.html", "session-report.html", "admin-management.html", "courses.html", "admin-reports.html"]);
   const STUDENT_PAGES = new Set(["student-home.html", "student-history.html", "student-profile.html"]);
   const PUBLIC_PAGES = new Set(["login.html", "register.html", ""]);
 
@@ -752,12 +752,14 @@
       async function load() {
         try {
           const actor = encodeURIComponent(currentEmail);
-          const [sessionsResponse, studentsResponse] = await Promise.all([
+          const [sessionsResponse, studentsResponse, reportsResponse] = await Promise.all([
             fetch(`/api/live-sessions?actorEmail=${actor}`, { cache: "no-store" }),
-            fetch(`/api/students?actorEmail=${actor}`, { cache: "no-store" })
+            fetch(`/api/students?actorEmail=${actor}`, { cache: "no-store" }),
+            fetch(`/api/student-reports?actorEmail=${actor}`, { cache: "no-store" })
           ]);
           const sessionsData = sessionsResponse.ok ? await sessionsResponse.json() : { sessions: [] };
           const studentsData = studentsResponse.ok ? await studentsResponse.json() : { students: [] };
+          const reportsData = reportsResponse?.ok ? await reportsResponse.json() : { reports: [] };
           const sessions = Array.isArray(sessionsData.sessions) ? sessionsData.sessions : [];
           const students = Array.isArray(studentsData.students) ? studentsData.students : [];
           const recentStudents = students.filter((student) => {
@@ -770,6 +772,14 @@
             title: "Live session active",
             body: `${session.course || session.title || "Attendance session"} is open for check-in.`,
             href: "live-monitor.html"
+          }));
+          const newReports = (Array.isArray(reportsData.reports) ? reportsData.reports : []).filter((report) => report.status === "new");
+          newReports.slice(0, 5).forEach((report) => items.push({
+            id: `report:${report.id}`,
+            icon: "report_problem",
+            title: "Student report",
+            body: `${report.studentName || "A student"}: ${report.category}`,
+            href: "admin-reports.html"
           }));
           if (recentStudents.length) {
             items.push({

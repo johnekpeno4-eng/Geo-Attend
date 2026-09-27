@@ -20,6 +20,7 @@ const SQLITE_DB_FILE = path.join(DATA_DIR, "geoattend.db");
 const BIOMETRIC_PROFILES_FILE = path.join(DATA_DIR, "biometric-profiles.json");
 const LIVE_SESSIONS_FILE = path.join(DATA_DIR, "live-sessions.json");
 const ADMIN_LOGIN_AUDIT_FILE = path.join(DATA_DIR, "admin-login-audit.json");
+const STUDENT_REPORTS_FILE = path.join(DATA_DIR, "student-reports.json");
 const ATTENDANCE_LOG_FILE = path.join(DATA_DIR, "attendance-log.json");
 const STUDENTS_FILE = path.join(DATA_DIR, "students.json");
 const REGISTRATION_RESET_FILE = path.join(DATA_DIR, "registration-reset.json");
@@ -287,6 +288,22 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "GET" && req.url.startsWith("/api/student-reports")) {
+      await getStudentReports(req, res);
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/api/student-reports") {
+      const body = await readJson(req);
+      await createStudentReport(res, body);
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/api/student-reports/status") {
+      const body = await readJson(req);
+      await updateStudentReportStatus(res, body);
+      return;
+    }
     if (req.method === "GET" && req.url.startsWith("/api/students")) {
       await getStudents(req, res);
       return;
@@ -2747,6 +2764,82 @@ async function writeStudentStore(student) {
   return normalized;
 }
 
+function normalizeStudentReport(item = {}) {
+  return {
+    id: String(item.id || ""),
+    studentEmail: String(item.studentEmail || "").trim().toLowerCase(),
+    studentName: String(item.studentName || "").trim(),
+    regNumber: String(item.regNumber || "").trim().toUpperCase(),
+    category: String(item.category || "Other").trim(),
+    message: String(item.message || "").trim(),
+    status: item.status === "handled" ? "handled" : "new",
+    createdAt: item.createdAt || null,
+    updatedAt: item.updatedAt || null
+  };
+}
+
+async function getStudentReports(req, res) {
+  const principal = getRequestPrincipal(req);
+  const reports = readJsonFile(STUDENT_REPORTS_FILE, []).map(normalizeStudentReport).filter((item) => item.id);
+  if (principal.admin) {
+    json(res, 200, { ok: true, reports });
+    return;
+  }
+  if (principal.studentEmail) {
+    json(res, 200, { ok: true, reports: reports.filter((report) => report.studentEmail === principal.studentEmail) });
+    return;
+  }
+  json(res, 403, { error: "A signed-in student or admin account is required." });
+}
+
+async function createStudentReport(res, body) {
+  const email = String(body?.studentEmail || body?.email || "").trim().toLowerCase();
+  const category = String(body?.category || "").trim().slice(0, 80);
+  const message = String(body?.message || "").trim().slice(0, 2000);
+  if (!email || !category || message.length < 5) {
+    json(res, 400, { error: "Choose a report type and enter at least 5 characters." });
+    return;
+  }
+  const student = (await readStudentsStore()).find((item) => String(item.email || "").trim().toLowerCase() === email);
+  if (!student) {
+    json(res, 403, { error: "Only a registered student can submit a report." });
+    return;
+  }
+  const now = new Date().toISOString();
+  const report = normalizeStudentReport({
+    id: `student-report-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    studentEmail: email,
+    studentName: student.fullName,
+    regNumber: student.regNumber,
+    category,
+    message,
+    status: "new",
+    createdAt: now,
+    updatedAt: now
+  });
+  const reports = readJsonFile(STUDENT_REPORTS_FILE, []).map(normalizeStudentReport).filter((item) => item.id);
+  writeLocalJson(STUDENT_REPORTS_FILE, [report, ...reports].slice(0, 500));
+  json(res, 201, { ok: true, report });
+}
+
+async function updateStudentReportStatus(res, body) {
+  const actor = findAdminByIdentifier(body?.actorEmail || body?.adminEmail || "");
+  const id = String(body?.id || "").trim();
+  const status = body?.status === "new" ? "new" : "handled";
+  if (!actor || !id) {
+    json(res, 403, { error: "Admin access is required." });
+    return;
+  }
+  const reports = readJsonFile(STUDENT_REPORTS_FILE, []).map(normalizeStudentReport);
+  const index = reports.findIndex((item) => item.id === id);
+  if (index < 0) {
+    json(res, 404, { error: "Report not found." });
+    return;
+  }
+  reports[index] = { ...reports[index], status, updatedAt: new Date().toISOString() };
+  writeLocalJson(STUDENT_REPORTS_FILE, reports);
+  json(res, 200, { ok: true, report: reports[index] });
+}
 async function getStudents(req, res) {
   const principal = getRequestPrincipal(req);
   const students = isLecturerAdmin(principal.admin) ? [] : sortStudents(await readStudentsStore());
