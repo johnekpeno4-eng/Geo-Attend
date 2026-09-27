@@ -58,7 +58,9 @@
 
   function studentIdentityComplete(email) {
     const profiles = JSON.parse(localStorage.getItem("geoAttendBiometricProfiles") || "{}");
-    return Boolean(profiles[email]?.webauthnCredential?.id && profiles[email]?.identityVerified === true);
+    const accounts = getAccounts();
+    const account = accounts.find((item) => String(item.email || "").toLowerCase() === String(email || "").toLowerCase());
+    return Boolean((profiles[email]?.webauthnCredential?.id && profiles[email]?.identityVerified === true) || account?.deviceSecuritySkipped === true);
   }
   function firstTwoNames(value) {
     const text = String(value || "").trim();
