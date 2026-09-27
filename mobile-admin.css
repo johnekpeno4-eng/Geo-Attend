@@ -1250,8 +1250,7 @@ html.dark table thead,
 html.dark .pdf-report-item,
 html.dark #pdf-report-message,
 html.dark #admin-student-preview,
-html.dark #remove-admin-preview,
-html.dark #subscription-summary {
+html.dark #remove-admin-preview {
   background-color: #17253a !important;
 }
 
@@ -1354,7 +1353,6 @@ body[data-role-required="admin"] aside.w-\[280px\] nav a {
 
   #admin-form,
   #remove-admin-form,
-  #subscription-form,
   #backup-form,
   #session-form,
   #create-session-form {
@@ -1364,10 +1362,8 @@ body[data-role-required="admin"] aside.w-\[280px\] nav a {
 
   #admin-form button,
   #remove-admin-form button,
-  #subscription-form button,
   #backup-now,
-  #subscription-refresh,
-  #subscription-cancel {
+  #backup-now {
     width: 100% !important;
   }
 
@@ -1752,7 +1748,6 @@ body[data-role-required="admin"] aside.w-\[280px\] nav a {
   }
 
   body[data-role-required="admin"] #admin-form,
-  body[data-role-required="admin"] #subscription-form,
   body[data-role-required="admin"] #session-form,
   body[data-role-required="admin"] #create-session-form,
   body[data-role-required="admin"] form.grid.md\:grid-cols-2,
@@ -2157,7 +2152,6 @@ body[data-role-required="admin"] aside.w-\[280px\] nav a {
   }
 
   body[data-role-required="admin"] #admin-form,
-  body[data-role-required="admin"] #subscription-form,
   body[data-role-required="admin"] #session-form,
   body[data-role-required="admin"] #create-session-form,
   body[data-role-required="admin"] form.grid.md\:grid-cols-2,

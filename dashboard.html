@@ -93,6 +93,7 @@
   </style>
   <script src="role-access.js?v=20260924-loginfix" defer></script>
   <link rel="stylesheet" href="mobile-admin.css?v=20260924-fixed1200" />
+  <link rel="stylesheet" href="form-controls.css?v=20260924-dropdowns" />
 </head>
 <body class="bg-background text-on-background font-body-md overflow-x-hidden" data-role-required="admin">
   <aside class="w-[280px] h-screen fixed left-0 top-0 bg-surface-container-lowest border-r border-outline-variant shadow-sm flex flex-col py-lg px-md z-50">
@@ -114,6 +115,10 @@
       <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="create-session.html">
         <span class="material-symbols-outlined">add_circle</span>
         <span>Create Session</span>
+      </a>
+      <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200" href="courses.html">
+        <span class="material-symbols-outlined">menu_book</span>
+        <span class="font-body-md">Courses</span>
       </a>
       <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="live-monitor.html">
         <span class="material-symbols-outlined">security</span>
@@ -359,10 +364,7 @@
             <span class="material-symbols-outlined">face</span>
             Verify Face
           </button>
-          <button class="rounded-lg bg-surface-container-low border border-outline-variant text-on-surface px-md py-sm font-bold active:scale-95 transition-all flex items-center justify-center gap-sm" type="button" id="assist-biometric-button">
-            <span class="material-symbols-outlined">fingerprint</span>
-            Device Biometric
-          </button>
+
         </div>
 
         <div class="hidden rounded-xl border border-outline-variant bg-surface-container-low p-sm" id="assist-camera-panel">
@@ -508,7 +510,7 @@
 
     async function refreshStudentsFromServer() {
       try {
-        const response = await fetch("/api/students", { cache: "no-store" });
+        const response = await fetch(`/api/students?actorEmail=${encodeURIComponent(localStorage.getItem("geoAttendCurrentUser") || "")}`, { cache: "no-store" });
         if (!response.ok) throw new Error("Students unavailable");
         const data = await response.json();
         registeredStudents = Array.isArray(data.students) ? data.students : [];
@@ -838,31 +840,6 @@
       return { method: "Admin assisted Face ID", faceCapture: capturedImage };
     }
 
-    async function verifyAssistBiometric(profile) {
-      const credentialId = profile.platformCredentialRawId || profile.platformCredential?.rawId || profile.platformCredentialId || profile.platformCredential?.id;
-      if (!credentialId) throw new Error("This student has no saved device biometric credential.");
-      if (!window.PublicKeyCredential || !navigator.credentials?.get) throw new Error("Device biometric verification is not supported in this browser.");
-      const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().catch(() => false);
-      if (!available) throw new Error("No built-in biometric authenticator was found on this device.");
-      const assertion = await navigator.credentials.get({
-        publicKey: {
-          challenge: crypto.getRandomValues(new Uint8Array(32)),
-          timeout: 60000,
-          userVerification: "required",
-          allowCredentials: [{
-            id: base64UrlToUint8Array(credentialId),
-            type: "public-key",
-            transports: ["internal"]
-          }]
-        }
-      });
-      const savedCredentialId = profile.platformCredentialId || profile.platformCredential?.id;
-      if (!assertion || (savedCredentialId && assertion.id !== savedCredentialId)) {
-        throw new Error("Device security mismatch. Check-in denied.");
-      }
-      return { method: "Admin assisted biometric", faceCapture: null };
-    }
-
     function stopAssistFaceCamera() {
       if (assistedFaceStream) {
         assistedFaceStream.getTracks().forEach((track) => track.stop());
@@ -918,9 +895,7 @@
       try {
         setAssistMessage("Loading saved student identity profile...");
         const profile = await loadAssistBiometricProfile(student.email);
-        const verification = type === "face"
-          ? await verifyAssistFace(student, profile)
-          : await verifyAssistBiometric(profile);
+        const verification = await verifyAssistFace(student, profile);
         setAssistMessage("Identity confirmed. Saving attendance...");
         await saveAssistedAttendance(student, verification);
         setAssistMessage(`${student.fullName || student.email} checked in for this session.`);
@@ -1429,7 +1404,6 @@
       button.addEventListener("click", closeAssistedCheckinModal);
     });
     document.getElementById("assist-face-button")?.addEventListener("click", () => runAssistedCheckin("face"));
-    document.getElementById("assist-biometric-button")?.addEventListener("click", () => runAssistedCheckin("biometric"));
     loadSavedPdfReports();
     window.addEventListener("storage", () => {
       realtimeAttendance = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]");
@@ -1439,5 +1413,3 @@
   </script>
 </body>
 </html>
-
-

@@ -185,39 +185,6 @@
     min-height: 100%;
   }
 
-  #biometric-capture-pad {
-    padding: 20px !important;
-  }
-
-  #biometric-pad-button {
-    width: 96px !important;
-    height: 96px !important;
-  }
-
-  .verification-tab {
-    padding-left: 10px !important;
-    padding-right: 10px !important;
-    font-size: 13px !important;
-  }
-
-  #face-panel,
-  #biometric-panel,
-  #success-panel,
-  #register-form,
-  [data-login-form] {
-    width: 100%;
-  }
-
-  #face-panel > .flex,
-  #biometric-panel > .flex {
-    align-items: flex-start !important;
-  }
-
-  #liveness-prompt,
-  #biometric-pad-title {
-    overflow-wrap: anywhere;
-  }
-
   #profile-owner,
   #profile-email,
   #student-email,

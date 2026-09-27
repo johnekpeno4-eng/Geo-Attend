@@ -8,6 +8,7 @@ const sqlite3 = require("sqlite3").verbose();
 const QRCode = require("qrcode");
 const { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } = require("@simplewebauthn/server");
 
+
 const ROOT = __dirname;
 loadEnv();
 
@@ -35,7 +36,14 @@ const otpAttemptStore = new Map();
 const loginAttemptStore = new Map();
 const totpSetupStore = new Map();
 const webAuthnChallengeStore = new Map();
-const assistedApprovalStore = new Map();
+const attendanceAuthorizationStore = new Map();
+
+
+const ADMIN_GEOFENCE_MAX_ACCURACY_METERS = 20;
+const STUDENT_GPS_MAX_ACCURACY_METERS = 30;
+const STUDENT_GPS_MAX_AGE_MS = 15 * 1000;
+const MIN_GEOFENCE_RADIUS_METERS = 20;
+const MAX_GEOFENCE_RADIUS_METERS = 5000;
 let mailTransporter = null;
 let sqliteDb = null;
 
@@ -138,8 +146,40 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (req.method === "GET" && req.url === "/api/academic-scope") {
-      getAcademicScope(res);
+    if (req.method === "GET" && req.url.startsWith("/api/academic-scope")) {
+      await getAcademicScope(req, res);
+      return;
+    }
+    if (req.method === "GET" && req.url.startsWith("/api/lecturer-assignments")) {
+      await getLecturerAssignments(req, res);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/lecturer-assignments") {
+      const body = await readJson(req);
+      await saveLecturerCourseAssignment(res, body);
+      return;
+    }
+    if (req.method === "DELETE" && req.url.startsWith("/api/lecturer-assignments")) {
+      await deleteLecturerCourseAssignment(req, res);
+      return;
+    }
+
+    if (req.method === "GET" && req.url === "/api/courses") {
+      await getCourses(res);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/courses") {
+      const body = await readJson(req);
+      await saveCourse(res, body);
+      return;
+    }
+    if (req.method === "DELETE" && req.url.startsWith("/api/courses")) {
+      await deleteCourse(req, res);
+      return;
+    }
+
+    if (req.method === "GET" && req.url === "/api/webauthn/context") {
+      json(res, 200, getWebAuthnContextDiagnostic(req));
       return;
     }
 
@@ -166,7 +206,6 @@ const server = http.createServer(async (req, res) => {
       await verifyWebAuthnLogin(req, res, body);
       return;
     }
-
     if (req.method === "GET" && req.url.startsWith("/api/webauthn/status")) {
       const identifier = new URL(req.url, `http://${req.headers.host}`).searchParams.get("email") || "";
       await getWebAuthnStatus(res, identifier);
@@ -178,7 +217,6 @@ const server = http.createServer(async (req, res) => {
       await removeWebAuthnCredential(res, body);
       return;
     }
-
     if (req.method === "POST" && req.url === "/api/save-biometric-profile") {
       const body = await readJson(req);
       await saveBiometricProfile(res, body);
@@ -238,19 +276,8 @@ const server = http.createServer(async (req, res) => {
       await getAttendance(req, res);
       return;
     }
-
-
-    if (req.method === "GET" && req.url.startsWith("/api/assisted-approval/student-lookup")) {
-      await lookupApprovedAssistedStudent(req, res);
-      return;
-    }
-    if (req.method === "GET" && req.url.startsWith("/api/assisted-approval/status")) {
-      getAssistedApprovalStatus(req, res);
-      return;
-    }
-    if (req.method === "POST" && req.url === "/api/assisted-approval/toggle") {
-      const body = await readJson(req);
-      toggleAssistedApproval(res, body);
+    if (req.url.startsWith("/api/assisted-approval")) {
+      json(res, 410, { error: "Student-assisted check-in is disabled. Each student must check in personally." });
       return;
     }
 
@@ -261,7 +288,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "GET" && req.url.startsWith("/api/students")) {
-      await getStudents(res);
+      await getStudents(req, res);
       return;
     }
 
@@ -307,24 +334,6 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && req.url === "/api/admins/remove") {
       const body = await readJson(req);
       removeAdminUser(res, body);
-      return;
-    }
-
-
-    if (req.method === "GET" && req.url.startsWith("/api/subscription")) {
-      await getDepartmentSubscription(req, res);
-      return;
-    }
-
-    if (req.method === "POST" && req.url === "/api/subscription") {
-      const body = await readJson(req);
-      await saveDepartmentSubscription(res, body);
-      return;
-    }
-
-    if (req.method === "POST" && req.url === "/api/subscription/cancel") {
-      const body = await readJson(req);
-      await cancelDepartmentSubscription(res, body);
       return;
     }
     if (req.method === "POST" && req.url === "/api/backup") {
@@ -465,8 +474,110 @@ function normalizeAcademicScope(input = {}) {
   };
 }
 
-function getAcademicScope(res) {
-  json(res, 200, { ok: true, scope: ACADEMIC_SCOPE, ...ACADEMIC_SCOPE, defaults: getAcademicDefaults() });
+async function readAcademicCourses() {
+  try {
+    const rows = await dbAll("SELECT code, title, faculty_id, department_id, level_id FROM academic_courses ORDER BY code COLLATE NOCASE");
+    return rows.map((row) => ({ code: row.code, title: row.title, facultyId: row.faculty_id, departmentId: row.department_id, levelId: row.level_id }));
+  } catch {
+    return ACADEMIC_SCOPE.courses;
+  }
+}
+
+async function getAcademicScope(req, res) {
+  let courses = await readAcademicCourses();
+  const principal = getRequestPrincipal(req);
+  if (principal.admin && isLecturerAdmin(principal.admin)) {
+    const assignedCodes = new Set(await getLecturerAssignedCourseCodes(principal.admin.email));
+    courses = courses.filter((course) => assignedCodes.has(course.code));
+  }
+  const scope = { ...ACADEMIC_SCOPE, courses };
+  json(res, 200, { ok: true, scope, ...scope, defaults: getAcademicDefaults() });
+}
+
+function getCourseCode(value) {
+  return String(value || "").split(":")[0].trim().toUpperCase();
+}
+
+function isLecturerAdmin(admin) {
+  return normalizeAdminRole(admin?.adminRole || admin?.role) === "lecturer_admin";
+}
+
+async function getLecturerAssignedCourseCodes(email) {
+  const lecturerEmail = String(email || "").trim().toLowerCase();
+  if (!lecturerEmail) return [];
+  const rows = await dbAll("SELECT course_code FROM lecturer_course_assignments WHERE lecturer_email = ? COLLATE NOCASE", [lecturerEmail]);
+  return rows.map((row) => String(row.course_code || "").trim().toUpperCase()).filter(Boolean);
+}
+
+async function getLecturerAssignments(req, res) {
+  const principal = getRequestPrincipal(req);
+  if (!principal.admin) return json(res, 403, { error: "Admin access is required." });
+  const requestedEmail = String(new URL(req.url, "http://127.0.0.1").searchParams.get("lecturerEmail") || "").trim().toLowerCase();
+  if (!isOwnerAdmin(principal.admin.email) && requestedEmail && requestedEmail !== principal.admin.email) return json(res, 403, { error: "You can only view your own course assignments." });
+  const lecturerEmail = isOwnerAdmin(principal.admin.email) ? requestedEmail : principal.admin.email;
+  const rows = await dbAll("SELECT lecturer_email, course_code, assigned_by, created_at FROM lecturer_course_assignments WHERE (? = '' OR lecturer_email = ? COLLATE NOCASE) ORDER BY lecturer_email COLLATE NOCASE, course_code COLLATE NOCASE", [lecturerEmail, lecturerEmail]);
+  const courseMap = new Map((await readAcademicCourses()).map((course) => [course.code, course]));
+  const adminMap = new Map(getAdminRoster().map((admin) => [admin.email, admin]));
+  json(res, 200, { ok: true, assignments: rows.map((row) => ({ lecturerEmail: row.lecturer_email, lecturerName: adminMap.get(String(row.lecturer_email).toLowerCase())?.fullName || row.lecturer_email, courseCode: row.course_code, courseTitle: courseMap.get(row.course_code)?.title || "", assignedBy: row.assigned_by, createdAt: row.created_at })) });
+}
+
+async function saveLecturerCourseAssignment(res, body = {}) {
+  const actorEmail = String(body.actorEmail || "").trim().toLowerCase();
+  if (!isOwnerAdmin(actorEmail)) return json(res, 403, { error: "Only the overall admin can assign lecturer courses." });
+  const lecturer = findAdminByIdentifier(body.lecturerEmail || body.lecturerRegNumber);
+  const courseCode = getCourseCode(body.courseCode);
+  if (!lecturer || !isLecturerAdmin(lecturer)) return json(res, 400, { error: "Select an admin with the Lecturer Admin role." });
+  const course = (await readAcademicCourses()).find((item) => item.code === courseCode);
+  if (!course) return json(res, 404, { error: "Course not found." });
+  await dbRun("INSERT OR IGNORE INTO lecturer_course_assignments (lecturer_email, course_code, assigned_by, created_at) VALUES (?, ?, ?, ?)", [lecturer.email, courseCode, actorEmail, new Date().toISOString()]);
+  json(res, 200, { ok: true, message: `${courseCode} assigned to ${lecturer.fullName || lecturer.email}.` });
+}
+
+async function deleteLecturerCourseAssignment(req, res) {
+  const url = new URL(req.url, "http://127.0.0.1");
+  const actorEmail = String(url.searchParams.get("actorEmail") || "").trim().toLowerCase();
+  if (!isOwnerAdmin(actorEmail)) return json(res, 403, { error: "Only the overall admin can remove lecturer course assignments." });
+  const lecturerEmail = String(url.searchParams.get("lecturerEmail") || "").trim().toLowerCase();
+  const courseCode = getCourseCode(url.searchParams.get("courseCode"));
+  await dbRun("DELETE FROM lecturer_course_assignments WHERE lecturer_email = ? COLLATE NOCASE AND course_code = ? COLLATE NOCASE", [lecturerEmail, courseCode]);
+  json(res, 200, { ok: true });
+}
+
+async function getCourses(res) {
+  json(res, 200, { ok: true, courses: await readAcademicCourses() });
+}
+
+async function saveCourse(res, body = {}) {
+  const code = String(body.code || "").trim().toUpperCase();
+  const title = String(body.title || "").trim();
+  const scope = normalizeAcademicScope(body);
+  if (!/^[A-Z0-9-]{2,20}$/.test(code)) {
+    json(res, 400, { error: "Enter a valid course code." });
+    return;
+  }
+  if (title.length < 3) {
+    json(res, 400, { error: "Enter a valid course title." });
+    return;
+  }
+  await dbRun(`INSERT INTO academic_courses (code, title, faculty_id, department_id, level_id)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(code) DO UPDATE SET
+      title = excluded.title,
+      faculty_id = excluded.faculty_id,
+      department_id = excluded.department_id,
+      level_id = excluded.level_id`, [code, title, scope.facultyId, scope.departmentId, scope.levelId]);
+  json(res, 200, { ok: true, course: { code, title, facultyId: scope.facultyId, departmentId: scope.departmentId, levelId: scope.levelId }, courses: await readAcademicCourses() });
+}
+
+async function deleteCourse(req, res) {
+  const url = new URL(req.url, "http://127.0.0.1");
+  const code = String(url.searchParams.get("code") || "").trim().toUpperCase();
+  if (!code) {
+    json(res, 400, { error: "Course code is required." });
+    return;
+  }
+  await dbRun("DELETE FROM academic_courses WHERE code = ? COLLATE NOCASE", [code]);
+  json(res, 200, { ok: true, courses: await readAcademicCourses() });
 }
 
 async function initDatabase() {
@@ -536,7 +647,8 @@ async function initDatabase() {
     saved_at TEXT NOT NULL
   )`);
   await dbRun("CREATE INDEX IF NOT EXISTS idx_biometric_profiles_email ON biometric_profiles(email)");
-
+  await dbRun("CREATE TABLE IF NOT EXISTS webauthn_credentials (id INTEGER PRIMARY KEY AUTOINCREMENT, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE, credential_id BLOB NOT NULL UNIQUE, public_key BLOB NOT NULL, sign_count INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+  await dbRun("CREATE INDEX IF NOT EXISTS idx_webauthn_credentials_student ON webauthn_credentials(student_id)");
   await dbRun(`CREATE TABLE IF NOT EXISTS live_sessions (
     id TEXT PRIMARY KEY,
     status TEXT NOT NULL DEFAULT 'active',
@@ -561,22 +673,17 @@ async function initDatabase() {
   await dbRun("CREATE INDEX IF NOT EXISTS idx_attendance_session ON attendance(session_id)");
   await dbRun("CREATE INDEX IF NOT EXISTS idx_attendance_session_reg ON attendance(session_id, reg_number)");
   await dbRun("CREATE INDEX IF NOT EXISTS idx_attendance_checked_in ON attendance(checked_in_at)");
-  await dbRun(`CREATE TABLE IF NOT EXISTS department_subscriptions (
-    id TEXT PRIMARY KEY,
-    department_name TEXT NOT NULL UNIQUE COLLATE NOCASE,
-    plan_name TEXT NOT NULL DEFAULT 'Department Plan',
-    status TEXT NOT NULL DEFAULT 'inactive',
-    student_limit INTEGER NOT NULL DEFAULT 10000,
-    amount INTEGER NOT NULL DEFAULT 0,
-    currency TEXT NOT NULL DEFAULT 'NGN',
-    starts_at TEXT,
-    expires_at TEXT,
+  await dbRun(`CREATE TABLE IF NOT EXISTS lecturer_course_assignments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lecturer_email TEXT NOT NULL COLLATE NOCASE,
+    course_code TEXT NOT NULL COLLATE NOCASE,
+    assigned_by TEXT NOT NULL,
     created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    UNIQUE(lecturer_email, course_code)
   )`);
-  await dbRun("CREATE INDEX IF NOT EXISTS idx_department_subscriptions_status ON department_subscriptions(status)");
-  await dbRun("CREATE INDEX IF NOT EXISTS idx_department_subscriptions_expires ON department_subscriptions(expires_at)");
+  await dbRun("CREATE INDEX IF NOT EXISTS idx_lecturer_course_assignments_lecturer ON lecturer_course_assignments(lecturer_email)");
   await migrateJsonDataToSqlite();
+
 }
 
 async function migrateJsonDataToSqlite() {
@@ -1187,230 +1294,139 @@ function setCorsHeaders(res) {
 }
 
 function getWebAuthnContext(req) {
-  const host = String(req.headers.host || `127.0.0.1:${PORT}`).trim();
+  // WebAuthn must use the exact origin visible in the browser address bar.
+  // Never derive an RP ID from a tunnel forwarded host.
   const originHeader = String(req.headers.origin || "").trim();
-  const fallbackProtocol = (req.socket && req.socket.encrypted) ? "https" : "http";
-  const origin = originHeader || `${fallbackProtocol}://${host}`;
-  let rpID = host.split(":")[0];
-  try {
-    rpID = new URL(origin).hostname;
-  } catch {}
-  return { rpName: "GeoAttend", rpID, origin };
+  if (originHeader) {
+    const origin = new URL(originHeader);
+    const local = origin.hostname === "localhost" || origin.hostname === "127.0.0.1";
+    if (origin.protocol !== "https:" && !local) throw new Error("WebAuthn requires the exact HTTPS page address.");
+    return { rpName: "GeoAttend", rpID: origin.hostname, origin: origin.origin };
+  }
+  const host = String(req.headers.host || ("127.0.0.1:" + PORT)).split(",")[0].trim();
+  const forwardedProtocol = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim().toLowerCase();
+  const protocol = forwardedProtocol === "https" || req.socket?.encrypted ? "https" : "http";
+  const hostname = host.replace(/^\[|\]$/g, "").split(":")[0];
+  if (protocol !== "https" && hostname !== "localhost") throw new Error("WebAuthn requires an HTTPS origin. Open the exact HTTPS tunnel address.");
+  return { rpName: "GeoAttend", rpID: hostname, origin: protocol + "://" + host };
 }
 
-function challengeKey(purpose, email) {
-  return `${purpose}:${String(email || "").trim().toLowerCase()}`;
+function getWebAuthnContextDiagnostic(req) {
+  let context = null;
+  let error = null;
+  try { context = getWebAuthnContext(req); } catch (value) { error = value.message; }
+  return { host: String(req.headers.host || ""), originHeader: String(req.headers.origin || ""), forwardedHost: String(req.headers["x-forwarded-host"] || ""), forwardedProtocol: String(req.headers["x-forwarded-proto"] || ""), rpID: context?.rpID || null, origin: context?.origin || null, error };
 }
 
-function serializeWebAuthnCredential(credential, extras = {}) {
-  if (!credential) return null;
-  return {
-    id: credential.id,
-    publicKey: Buffer.from(credential.publicKey).toString("base64url"),
-    counter: Number(credential.counter || 0),
-    transports: credential.transports || [],
-    ...extras
-  };
+function webAuthnKey(purpose, email) {
+  return purpose + ":" + String(email || "").trim().toLowerCase();
 }
 
-function deserializeWebAuthnCredential(credential) {
-  if (!credential?.id || !credential?.publicKey) return null;
-  return {
-    id: credential.id,
-    publicKey: Buffer.from(credential.publicKey, "base64url"),
-    counter: Number(credential.counter || 0),
-    transports: credential.transports || []
-  };
+async function findWebAuthnStudent(identifier) {
+  const value = String(identifier || "").trim();
+  return dbGet("SELECT * FROM students WHERE email = ? COLLATE NOCASE OR reg_number = ? COLLATE NOCASE LIMIT 1", [value.toLowerCase(), normalizeRegNumber(value)]);
 }
 
-async function findStudentRowByIdentifier(identifier) {
-  const raw = String(identifier || "").trim();
-  const email = raw.toLowerCase();
-  const regNumber = normalizeRegNumber(raw);
-  return dbGet("SELECT * FROM students WHERE email = ? COLLATE NOCASE OR reg_number = ? COLLATE NOCASE LIMIT 1", [email, regNumber]);
-}
-
-async function loadBiometricProfileByEmail(email) {
-  const normalized = String(email || "").trim().toLowerCase();
-  const profileId = crypto.createHash("sha256").update(normalized).digest("hex");
-  const row = await dbGet("SELECT profile_json FROM biometric_profiles WHERE profile_id = ? OR email = ?", [profileId, normalized]);
-  return parseJsonColumn(row?.profile_json, null);
-}
-
-async function saveBiometricProfileObject(profile) {
-  const email = String(profile.email || "").trim().toLowerCase();
-  const profileId = crypto.createHash("sha256").update(email).digest("hex");
-  const savedAt = new Date().toISOString();
-  const savedProfile = { ...profile, email, profileId, savedAt };
-  await dbRun(`INSERT INTO biometric_profiles (profile_id, email, profile_json, saved_at)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT(profile_id) DO UPDATE SET
-      email = excluded.email,
-      profile_json = excluded.profile_json,
-      saved_at = excluded.saved_at`, [profileId, email, JSON.stringify(savedProfile), savedAt]);
-  const profiles = readJsonFile(BIOMETRIC_PROFILES_FILE, {});
-  profiles[profileId] = savedProfile;
-  writeLocalJson(BIOMETRIC_PROFILES_FILE, profiles);
-  return { profileId, savedAt, savedProfile };
+function encodeCredential(credential) {
+  return { id: credential.id, publicKey: Buffer.from(credential.publicKey).toString("base64url"), counter: Number(credential.counter || 0) };
 }
 
 async function getWebAuthnRegistrationOptions(req, res, body) {
-  const row = await findStudentRowByIdentifier(body.email || body.regNumber);
-  if (!row) {
-    json(res, 404, { error: "No student account was found. Please register first." });
-    return;
-  }
-  const { rpName, rpID, origin } = getWebAuthnContext(req);
-  const email = String(row.email || "").trim().toLowerCase();
-  const existingProfile = await loadBiometricProfileByEmail(email);
-  const existingCredential = existingProfile?.webauthnCredential;
+  const row = await findWebAuthnStudent(body.email || body.regNumber);
+  if (!row) return json(res, 404, { error: "Complete student registration first." });
+  const email = String(row.email).trim().toLowerCase();
+  const context = getWebAuthnContext(req);
+  const existing = await dbAll("SELECT credential_id FROM webauthn_credentials WHERE student_id = ?", [row.id]);
   const options = await generateRegistrationOptions({
-    rpName,
-    rpID,
+    rpName: context.rpName,
+    rpID: context.rpID,
     userName: email,
     userDisplayName: row.full_name || email,
-    userID: Buffer.from(String(row.id || email)),
+    userID: Buffer.from(String(row.id)),
     attestationType: "none",
-    authenticatorSelection: {
-      authenticatorAttachment: "platform",
-      residentKey: "preferred",
-      userVerification: "required"
-    },
-    excludeCredentials: existingCredential?.id ? [{ id: existingCredential.id, transports: existingCredential.transports || [] }] : []
+    excludeCredentials: existing.map((item) => ({ id: Buffer.from(item.credential_id).toString("base64url") })),
+    authenticatorSelection: { authenticatorAttachment: "platform", residentKey: "required", userVerification: "required" }
   });
-  webAuthnChallengeStore.set(challengeKey("register", email), {
-    challenge: options.challenge,
-    rpID,
-    origin,
-    expiresAt: Date.now() + 5 * 60 * 1000
-  });
+  webAuthnChallengeStore.set(webAuthnKey("register", email), { challenge: options.challenge, rpID: context.rpID, origin: context.origin, expiresAt: Date.now() + 5 * 60 * 1000 });
   json(res, 200, { ok: true, options, email });
 }
 
 async function verifyWebAuthnRegistration(req, res, body) {
-  const row = await findStudentRowByIdentifier(body.email || body.regNumber);
-  if (!row) {
-    json(res, 404, { error: "No student account was found. Please register first." });
-    return;
+  const row = await findWebAuthnStudent(body.email || body.regNumber);
+  if (!row) return json(res, 404, { error: "Student account was not found." });
+  const email = String(row.email).trim().toLowerCase();
+  const key = webAuthnKey("register", email);
+  const saved = webAuthnChallengeStore.get(key);
+  if (!saved || saved.expiresAt < Date.now()) return json(res, 400, { error: "Device enrollment expired. Try again." });
+  try {
+    const verification = await verifyRegistrationResponse({ response: body.response, expectedChallenge: saved.challenge, expectedOrigin: saved.origin, expectedRPID: saved.rpID, requireUserVerification: true });
+    if (!verification.verified || !verification.registrationInfo?.credential) return json(res, 401, { error: "Device enrollment was not verified." });
+    const credential = verification.registrationInfo.credential;
+    await dbRun("INSERT INTO webauthn_credentials (student_id, credential_id, public_key, sign_count) VALUES (?, ?, ?, ?) ON CONFLICT(credential_id) DO UPDATE SET public_key = excluded.public_key, sign_count = excluded.sign_count", [row.id, Buffer.from(credential.id, "base64url"), Buffer.from(credential.publicKey), Number(credential.counter || 0)]);
+    webAuthnChallengeStore.delete(key);
+    json(res, 200, { ok: true, email, credential: encodeCredential(credential) });
+  } catch (error) {
+    json(res, 400, { error: error.message || "Device enrollment failed." });
   }
-  const email = String(row.email || "").trim().toLowerCase();
-  const saved = webAuthnChallengeStore.get(challengeKey("register", email));
-  if (!saved || saved.expiresAt < Date.now()) {
-    webAuthnChallengeStore.delete(challengeKey("register", email));
-    json(res, 400, { error: "Device security request expired. Try again." });
-    return;
-  }
-  const verification = await verifyRegistrationResponse({
-    response: body.response,
-    expectedChallenge: saved.challenge,
-    expectedOrigin: saved.origin,
-    expectedRPID: saved.rpID,
-    requireUserVerification: true
-  });
-  if (!verification.verified || !verification.registrationInfo?.credential) {
-    json(res, 401, { error: "Device security verification failed." });
-    return;
-  }
-  webAuthnChallengeStore.delete(challengeKey("register", email));
-  const credential = serializeWebAuthnCredential(verification.registrationInfo.credential, {
-    credentialDeviceType: verification.registrationInfo.credentialDeviceType,
-    credentialBackedUp: verification.registrationInfo.credentialBackedUp
-  });
-  const profile = {
-    ...(await loadBiometricProfileByEmail(email) || {}),
-    email,
-    userId: String(row.id),
-    biometric: { ...(await loadBiometricProfileByEmail(email) || {}).biometric, platformAuthenticator: true },
-    biometricEnabled: true,
-    checkinAuthMethod: "biometric",
-    webauthnCredential: credential
-  };
-  await saveBiometricProfileObject(profile);
-  json(res, 200, { ok: true, email, credential, method: "biometric" });
 }
 
 async function getWebAuthnStatus(res, identifier) {
-  const row = await findStudentRowByIdentifier(identifier);
+  const row = await findWebAuthnStudent(identifier);
   if (!row) return json(res, 200, { ok: true, enabled: false });
-  const profile = await loadBiometricProfileByEmail(row.email);
-  json(res, 200, { ok: true, enabled: Boolean(profile?.webauthnCredential?.id), email: row.email });
+  const credential = await dbGet("SELECT id FROM webauthn_credentials WHERE student_id = ? LIMIT 1", [row.id]);
+  json(res, 200, { ok: true, enabled: Boolean(credential), email: row.email });
 }
 
 async function removeWebAuthnCredential(res, body) {
-  const row = await findStudentRowByIdentifier(body.email || body.regNumber);
-  if (!row) return json(res, 404, { error: "No student account was found." });
-  const profile = await loadBiometricProfileByEmail(row.email);
-  if (!profile?.webauthnCredential) return json(res, 200, { ok: true, enabled: false });
-  delete profile.webauthnCredential;
-  profile.biometricEnabled = false;
-  if (profile.biometric) profile.biometric.platformAuthenticator = false;
-  await saveBiometricProfileObject(profile);
+  const row = await findWebAuthnStudent(body.email || body.regNumber);
+  if (!row) return json(res, 404, { error: "Student account was not found." });
+  await dbRun("DELETE FROM webauthn_credentials WHERE student_id = ?", [row.id]);
   json(res, 200, { ok: true, enabled: false });
 }
 
 async function getWebAuthnLoginOptions(req, res, body) {
-  const row = await findStudentRowByIdentifier(body.email || body.regNumber);
-  if (!row) {
-    json(res, 404, { error: "No student account was found. Please register first." });
-    return;
-  }
-  const email = String(row.email || "").trim().toLowerCase();
-  const profile = await loadBiometricProfileByEmail(email);
-  const credential = profile?.webauthnCredential;
-  if (!credential?.id) {
-    json(res, 409, { error: "No biometric or Face ID login is enrolled for this student. Use password or complete identity verification." });
-    return;
-  }
-  const { rpID, origin } = getWebAuthnContext(req);
+  const row = await findWebAuthnStudent(body.email || body.regNumber);
+  if (!row) return json(res, 404, { error: "Student account was not found." });
+  const credentials = await dbAll("SELECT credential_id FROM webauthn_credentials WHERE student_id = ?", [row.id]);
+  if (!credentials.length) return json(res, 409, { error: "Fingerprint enrollment is required. Complete registration first." });
+  const email = String(row.email).trim().toLowerCase();
+  const context = getWebAuthnContext(req);
   const options = await generateAuthenticationOptions({
-    rpID,
-    allowCredentials: [{ id: credential.id, transports: credential.transports || [] }],
-    userVerification: "required"
+    rpID: context.rpID,
+    userVerification: "required",
+    allowCredentials: credentials.map((item) => ({ id: Buffer.from(item.credential_id).toString("base64url"), type: "public-key" }))
   });
-  webAuthnChallengeStore.set(challengeKey("login", email), {
-    challenge: options.challenge,
-    rpID,
-    origin,
-    expiresAt: Date.now() + 5 * 60 * 1000
-  });
+  webAuthnChallengeStore.set(webAuthnKey("login", email), { challenge: options.challenge, rpID: context.rpID, origin: context.origin, purpose: body.purpose === "attendance" ? "attendance" : "login", sessionId: String(body.sessionId || ""), expiresAt: Date.now() + 5 * 60 * 1000 });
   json(res, 200, { ok: true, options, email });
 }
 
 async function verifyWebAuthnLogin(req, res, body) {
-  const row = await findStudentRowByIdentifier(body.email || body.regNumber);
-  if (!row) {
-    json(res, 404, { error: "No student account was found. Please register first." });
-    return;
+  const row = await findWebAuthnStudent(body.email || body.regNumber);
+  if (!row) return json(res, 404, { error: "Student account was not found." });
+  const email = String(row.email).trim().toLowerCase();
+  const key = webAuthnKey("login", email);
+  const saved = webAuthnChallengeStore.get(key);
+  if (!saved || saved.expiresAt < Date.now()) return json(res, 400, { error: "Fingerprint request expired. Try again." });
+  const rawId = String(body.response?.rawId || "");
+  const stored = rawId ? await dbGet("SELECT * FROM webauthn_credentials WHERE student_id = ? AND credential_id = ?", [row.id, Buffer.from(rawId, "base64url")]) : null;
+  if (!stored) return json(res, 401, { error: "This fingerprint is not enrolled for this student." });
+  try {
+    const verification = await verifyAuthenticationResponse({ response: body.response, expectedChallenge: saved.challenge, expectedOrigin: saved.origin, expectedRPID: saved.rpID, requireUserVerification: true, credential: { id: Buffer.from(stored.credential_id).toString("base64url"), publicKey: Buffer.from(stored.public_key), counter: Number(stored.sign_count || 0) } });
+    if (!verification.verified) return json(res, 401, { error: "Fingerprint verification failed." });
+    const newCounter = Number(verification.authenticationInfo?.newCounter || 0);
+    const oldCounter = Number(stored.sign_count || 0);
+    if (oldCounter > 0 && newCounter <= oldCounter) return json(res, 401, { error: "Fingerprint security counter failed. Re-enroll this device." });
+    await dbRun("UPDATE webauthn_credentials SET sign_count = ? WHERE id = ?", [newCounter, stored.id]);
+    webAuthnChallengeStore.delete(key);
+    let checkinToken = null;
+    if (saved.purpose === "attendance" && saved.sessionId) {
+      checkinToken = crypto.randomBytes(32).toString("base64url");
+      attendanceAuthorizationStore.set(checkinToken, { email, sessionId: saved.sessionId, expiresAt: Date.now() + 2 * 60 * 1000 });
+    }
+    json(res, 200, { ok: true, user: sqliteStudentFromRow(row), method: "fingerprint", checkinToken });
+  } catch (error) {
+    json(res, 400, { error: error.message || "Fingerprint verification failed." });
   }
-  const email = String(row.email || "").trim().toLowerCase();
-  const saved = webAuthnChallengeStore.get(challengeKey("login", email));
-  if (!saved || saved.expiresAt < Date.now()) {
-    webAuthnChallengeStore.delete(challengeKey("login", email));
-    json(res, 400, { error: "Login security request expired. Try again." });
-    return;
-  }
-  const profile = await loadBiometricProfileByEmail(email);
-  const storedCredential = deserializeWebAuthnCredential(profile?.webauthnCredential);
-  if (!storedCredential) {
-    json(res, 409, { error: "No biometric or Face ID login is enrolled for this student." });
-    return;
-  }
-  const verification = await verifyAuthenticationResponse({
-    response: body.response,
-    expectedChallenge: saved.challenge,
-    expectedOrigin: saved.origin,
-    expectedRPID: saved.rpID,
-    credential: storedCredential,
-    requireUserVerification: true
-  });
-  if (!verification.verified) {
-    json(res, 401, { error: "Device security login failed." });
-    return;
-  }
-  webAuthnChallengeStore.delete(challengeKey("login", email));
-  profile.webauthnCredential.counter = verification.authenticationInfo.newCounter;
-  await saveBiometricProfileObject(profile);
-  json(res, 200, { ok: true, user: sqliteStudentFromRow(row), method: profile.checkinAuthMethod || "biometric" });
 }
 async function saveBiometricProfile(res, profile) {
   if (!profile || !isEmail(profile.email)) {
@@ -1418,7 +1434,7 @@ async function saveBiometricProfile(res, profile) {
     return;
   }
 
-  const hasSecurity = Boolean(profile?.biometric?.platformAuthenticator || profile?.biometric?.pin || profile?.biometric?.face || profile?.livenessVerified);
+  const hasSecurity = Boolean(profile?.faceTemplateHash || profile?.faceCaptures);
   if (!hasSecurity) {
     json(res, 400, { error: "Complete one login security method before saving." });
     return;
@@ -1428,7 +1444,7 @@ async function saveBiometricProfile(res, profile) {
   const normalizedProfile = {
     ...profile,
     email,
-    webauthnCredential: profile.webauthnCredential || profile.platformCredential?.webauthnCredential || null
+
   };
   const { profileId, savedAt } = await saveBiometricProfileObject(normalizedProfile);
   json(res, 200, { ok: true, source: "sqlite", profileId, savedAt });
@@ -1471,6 +1487,51 @@ async function getLiveSessions(req, res) {
   });
 }
 
+function distanceBetweenCoordinatesMeters(first, second) {
+  const lat1 = Number(first?.lat);
+  const lng1 = Number(first?.lng);
+  const lat2 = Number(second?.lat);
+  const lng2 = Number(second?.lng);
+  if (![lat1, lng1, lat2, lng2].every(Number.isFinite)) return Number.NaN;
+  const radians = (value) => value * Math.PI / 180;
+  const earthRadiusMeters = 6371000;
+  const deltaLat = radians(lat2 - lat1);
+  const deltaLng = radians(lng2 - lng1);
+  const haversine = Math.sin(deltaLat / 2) ** 2
+    + Math.cos(radians(lat1)) * Math.cos(radians(lat2)) * Math.sin(deltaLng / 2) ** 2;
+  return 2 * earthRadiusMeters * Math.asin(Math.sqrt(haversine));
+}
+
+function readFreshStudentLocation(position) {
+  const lat = Number(position?.lat);
+  const lng = Number(position?.lng);
+  const accuracy = Number(position?.accuracy);
+  const timestamp = new Date(position?.timestamp || 0).getTime();
+  if (![lat, lng, accuracy, timestamp].every(Number.isFinite) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+    return { ok: false, error: "A current GPS location is required before checking in." };
+  }
+  if (accuracy <= 0 || accuracy > STUDENT_GPS_MAX_ACCURACY_METERS) {
+    return { ok: false, error: `Phone GPS accuracy must be ${STUDENT_GPS_MAX_ACCURACY_METERS}m or better. Current accuracy: ${Math.round(accuracy)}m.` };
+  }
+  const ageMs = Math.abs(Date.now() - timestamp);
+  if (ageMs > STUDENT_GPS_MAX_AGE_MS) {
+    return { ok: false, error: "Your GPS reading is older than 15 seconds. Wait for a fresh location and try again." };
+  }
+  return { ok: true, location: { lat, lng, accuracy, timestamp }, ageMs };
+}
+
+function validateSessionGeofence(geofence) {
+  const lat = Number(geofence?.lat);
+  const lng = Number(geofence?.lng);
+  const radius = Number(geofence?.radius);
+  if (![lat, lng, radius].every(Number.isFinite) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+    return { ok: false, error: "This session does not have a valid GPS geofence." };
+  }
+  if (radius < MIN_GEOFENCE_RADIUS_METERS || radius > MAX_GEOFENCE_RADIUS_METERS) {
+    return { ok: false, error: `Session radius must be between ${MIN_GEOFENCE_RADIUS_METERS}m and ${MAX_GEOFENCE_RADIUS_METERS}m.` };
+  }
+  return { ok: true, geofence: { lat, lng, radius, accuracy: Number(geofence.accuracy || 0), source: geofence.source || "manual" } };
+}
 async function saveLiveSession(res, session) {
   if (!session || typeof session !== "object") {
     json(res, 400, { error: "A valid session payload is required." });
@@ -1483,18 +1544,35 @@ async function saveLiveSession(res, session) {
     return;
   }
 
+  const geofenceCheck = validateSessionGeofence(session.geofence);
+  if (!geofenceCheck.ok) {
+    json(res, 400, { error: geofenceCheck.error });
+    return;
+  }
+  if (String(session.geofence?.source || "").includes("geolocation") && geofenceCheck.geofence.accuracy > ADMIN_GEOFENCE_MAX_ACCURACY_METERS) {
+    json(res, 400, { error: `Admin GPS accuracy must be ${ADMIN_GEOFENCE_MAX_ACCURACY_METERS}m or better before creating a live geofence.` });
+    return;
+  }
+
   const { items: sessions } = await readLiveSessionsStore();
   const actorAdmin = findAdminByIdentifier(session.actorEmail || session.createdBy || "");
   const scopedSession = applyAdminScopeToSession(session, actorAdmin);
-  const subscriptionCheck = await enforceSubscriptionForSession(scopedSession);
-  if (!subscriptionCheck.ok) {
-    json(res, 402, { error: subscriptionCheck.error });
-    return;
+  if (actorAdmin && isLecturerAdmin(actorAdmin)) {
+    const assignedCodes = await getLecturerAssignedCourseCodes(actorAdmin.email);
+    if (!assignedCodes.includes(getCourseCode(scopedSession.course))) {
+      json(res, 403, { error: "You can only create sessions for courses assigned to your Lecturer Admin account." });
+      return;
+    }
   }
   const normalizedSession = {
     ...scopedSession,
     id,
     status: "active",
+    geofence: {
+      ...scopedSession.geofence,
+      ...geofenceCheck.geofence,
+      capturedAt: scopedSession.geofence?.capturedAt || scopedSession.geofence?.timestamp || new Date().toISOString()
+    },
     updatedAt: new Date().toISOString()
   };
   const nextSessions = [
@@ -1531,9 +1609,13 @@ async function getAttendance(req, res) {
   const sessionId = String(url.searchParams.get("sessionId") || "").trim();
   const { items, source } = await readAttendanceStore();
   const principal = getRequestPrincipal(req);
+  const lecturerCourseCodes = principal.admin && isLecturerAdmin(principal.admin)
+    ? new Set(await getLecturerAssignedCourseCodes(principal.admin.email))
+    : null;
   const attendance = items
     .filter((entry) => entry && (!sessionId || entry.sessionId === sessionId))
     .filter((entry) => {
+      if (lecturerCourseCodes) return lecturerCourseCodes.has(getCourseCode(entry.course));
       if (principal.admin) return entityMatchesScope(entry, principal.admin, principal.admin.adminRole || principal.admin.role);
       if (principal.studentEmail) return String(entry.email || "").trim().toLowerCase() === principal.studentEmail;
       return true;
@@ -1577,12 +1659,12 @@ function serveAttendancePdf(req, res) {
   res.end(pdf);
 }
 
-function getAttendanceReports(req, res) {
+async function getAttendanceReports(req, res) {
   autoFinalizeExpiredSessions();
   const reports = readJsonFile(ATTENDANCE_REPORTS_INDEX_FILE, [])
     .filter((report) => report && report.id && report.filename)
     .sort((a, b) => new Date(b.createdAt || b.updatedAt || 0) - new Date(a.createdAt || a.updatedAt || 0));
-  const visibleReports = filterReportsForRequest(req, reports);
+  const visibleReports = await filterReportsForRequest(req, reports);
   json(res, 200, { ok: true, reports: visibleReports.map(publicAttendanceReport) });
 }
 
@@ -1835,53 +1917,6 @@ async function sendAttendancePdf(res, body) {
   json(res, 200, { ok: true, message: `PDF report sent to ${adminEmail}.`, sentTo: adminEmail, records: attendance.length });
 }
 
-function getAssistedApprovalStatus(req, res) {
-  const url = new URL(req.url, "http://127.0.0.1");
-  const sessionId = String(url.searchParams.get("sessionId") || "").trim();
-  if (!sessionId) {
-    json(res, 400, { error: "Session id is required." });
-    return;
-  }
-  const approval = assistedApprovalStore.get(sessionId);
-  json(res, 200, {
-    ok: true,
-    sessionId,
-    enabled: Boolean(approval?.enabled),
-    approvedBy: approval?.adminName || "",
-    updatedAt: approval?.updatedAt || ""
-  });
-}
-function toggleAssistedApproval(res, body) {
-  const sessionId = String(body.sessionId || "").trim();
-  const identifier = String(body.actorEmail || body.actorRegNumber || "").trim();
-  const password = String(body.adminPassword || body.password || "");
-  const enabled = body.enabled === true || String(body.enabled || "").toLowerCase() === "true";
-  const admin = verifyAdminCredentials(identifier, password);
-  if (!sessionId) {
-    json(res, 400, { error: "Session id is required." });
-    return;
-  }
-  if (!admin) {
-    json(res, 403, { error: "Enter a valid admin password to change assisted check-in approval." });
-    return;
-  }
-  if (enabled) {
-    assistedApprovalStore.set(sessionId, {
-      sessionId,
-      enabled: true,
-      adminEmail: admin.email || "",
-      adminName: admin.fullName || admin.email || "Admin",
-      updatedAt: new Date().toISOString()
-    });
-  } else {
-    assistedApprovalStore.delete(sessionId);
-  }
-  json(res, 200, {
-    ok: true,
-    enabled,
-    message: enabled ? "Student-assisted check-ins unlocked." : "Student-assisted check-ins locked."
-  });
-}
 async function saveAttendance(res, record) {
   if (!record || typeof record !== "object") {
     json(res, 400, { error: "A valid attendance record is required." });
@@ -1896,6 +1931,26 @@ async function saveAttendance(res, record) {
 
   const { items: liveSessionsForCheckin } = await readLiveSessionsStore();
   const session = liveSessionsForCheckin.find((item) => item && item.id === sessionId);
+  if (!session || session.status !== "active") {
+    json(res, 403, { error: "This attendance session is not active." });
+    return;
+  }
+  const geofenceCheck = validateSessionGeofence(session.geofence);
+  if (!geofenceCheck.ok) {
+    json(res, 403, { error: geofenceCheck.error });
+    return;
+  }
+  const locationCheck = readFreshStudentLocation(record.position);
+  if (!locationCheck.ok) {
+    json(res, 403, { error: locationCheck.error });
+    return;
+  }
+  const distanceMeters = distanceBetweenCoordinatesMeters(locationCheck.location, geofenceCheck.geofence);
+  if (!Number.isFinite(distanceMeters) || distanceMeters > geofenceCheck.geofence.radius) {
+    const distanceLabel = Number.isFinite(distanceMeters) ? `${Math.round(distanceMeters)}m` : "an unknown distance";
+    json(res, 403, { error: `You are ${distanceLabel} from the class location. You must be within the ${Math.round(geofenceCheck.geofence.radius)}m session radius.` });
+    return;
+  }
   const start = getSessionStartDate(session);
   if (start && Date.now() < start.getTime()) {
     json(res, 403, { error: `Check-in has not started yet. It opens at ${start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.` });
@@ -1904,70 +1959,40 @@ async function saveAttendance(res, record) {
 
   const { items: attendance } = await readAttendanceStore();
   const isAssisted = record.checkinType === "assisted-student" || record.assisted === true;
-  const targetRegNumber = normalizeRegNumber(record.targetRegNumber || record.regNumber);
+  if (isAssisted || record.assistedByRegNumber || record.targetRegNumber) {
+    json(res, 403, { error: "Student-assisted check-in is disabled. Each student must check in personally." });
+    return;
+  }
   let email = String(record.email || "").trim().toLowerCase();
   let fullName = String(record.fullName || "").trim();
   let regNumber = normalizeRegNumber(record.regNumber);
-  let studentForSignature = null;
-
-  if (isAssisted) {
-    const assistedByRegNumber = normalizeRegNumber(record.assistedByRegNumber);
-    const approval = assistedApprovalStore.get(sessionId);
-    if (!approval?.enabled) {
-      json(res, 403, { error: "Admin approval is required before assisting another student." });
-      return;
-    }
-    if (!assistedByRegNumber) {
-      json(res, 400, { error: "Your registration number is required before assisting another student." });
-      return;
-    }
-    if (!targetRegNumber) {
-      json(res, 400, { error: "Enter the student's registration number." });
-      return;
-    }
-    if (targetRegNumber === assistedByRegNumber) {
-      json(res, 400, { error: "Use the normal Check In button for your own attendance." });
-      return;
-    }
-
-    const assistedCount = new Set(attendance
-      .filter((entry) => entry && entry.sessionId === sessionId && normalizeRegNumber(entry.assistedByRegNumber) === assistedByRegNumber)
-      .map((entry) => normalizeRegNumber(entry.regNumber || entry.targetRegNumber))
-      .filter(Boolean)).size;
-    const alreadyAssistedTarget = attendance.some((entry) => (
-      entry && entry.sessionId === sessionId &&
-      normalizeRegNumber(entry.assistedByRegNumber) === assistedByRegNumber &&
-      normalizeRegNumber(entry.regNumber || entry.targetRegNumber) === targetRegNumber
-    ));
-    if (!alreadyAssistedTarget && assistedCount >= 2) {
-      json(res, 403, { error: "You have reached the limit of 2 assisted check-ins for this class session." });
-      return;
-    }
-    const targetStudent = await findRegisteredStudentByRegNumber(targetRegNumber);
-    if (!targetStudent) {
-      json(res, 404, { error: "No registered student was found for that registration number." });
-      return;
-    }
-    email = String(targetStudent.email || "").trim().toLowerCase() || `${targetRegNumber.toLowerCase()}@reg.geoattend.local`;
-    fullName = String(targetStudent.fullName || "").trim() || targetRegNumber;
-    regNumber = targetRegNumber;
-    record.adminApprovedBy = approval.adminEmail || "admin";
-    record.adminApprovedByName = approval.adminName || "Admin";
-    studentForSignature = targetStudent;
-  } else {
-    const students = await readStudentsStore();
-    studentForSignature = students.find((student) => (
-      (email && student.email === email) || (regNumber && normalizeRegNumber(student.regNumber) === regNumber)
-    )) || null;
-    if (studentForSignature) {
-      email = String(studentForSignature.email || email).trim().toLowerCase();
-      fullName = String(studentForSignature.fullName || fullName).trim();
-      regNumber = normalizeRegNumber(studentForSignature.regNumber || regNumber);
-    }
+  const students = await readStudentsStore();
+  const studentForSignature = students.find((student) => (
+    (email && student.email === email) || (regNumber && normalizeRegNumber(student.regNumber) === regNumber)
+  )) || null;
+  if (studentForSignature) {
+    email = String(studentForSignature.email || email).trim().toLowerCase();
+    fullName = String(studentForSignature.fullName || fullName).trim();
+    regNumber = normalizeRegNumber(studentForSignature.regNumber || regNumber);
   }
 
   if (!email && regNumber) email = `${regNumber.toLowerCase()}@reg.geoattend.local`;
   if (!regNumber) regNumber = normalizeRegNumber(record.regNumber) || "--";
+  const checkinToken = String(record.checkinToken || "");
+  const authorization = attendanceAuthorizationStore.get(checkinToken);
+  if (!authorization || authorization.expiresAt < Date.now() || authorization.email !== email || authorization.sessionId !== sessionId) {
+    json(res, 403, { error: "Verify your own fingerprint immediately before checking in." });
+    return;
+  }
+  const alreadyCheckedIn = attendance.some((entry) => entry && entry.sessionId === sessionId && (
+    (regNumber !== "--" && normalizeRegNumber(entry.regNumber) === regNumber)
+    || String(entry.email || "").trim().toLowerCase() === email
+  ));
+  if (alreadyCheckedIn) {
+    json(res, 409, { error: "You have already checked in for this session." });
+    return;
+  }
+
   if (!email || (!isEmail(email) && !email.endsWith("@reg.geoattend.local"))) {
     json(res, 400, { error: "Attendance requires a valid student registration number." });
     return;
@@ -1994,9 +2019,17 @@ async function saveAttendance(res, record) {
     signatureDataUrl: normalizeSignatureDataUrl(record.signatureDataUrl || studentForSignature?.signatureDataUrl || ""),
     signatureStrokes: normalizeSignatureStrokes(record.signatureStrokes || studentForSignature?.signatureStrokes || []),
     status: record.status || "present",
+    gpsVerification: {
+      distanceMeters: Math.round(distanceMeters),
+      radiusMeters: Math.round(geofenceCheck.geofence.radius),
+      accuracyMeters: Math.round(locationCheck.location.accuracy),
+      locationAgeMs: locationCheck.ageMs,
+      verifiedAt: new Date().toISOString()
+    },
     checkedInAt,
     savedAt: new Date().toISOString()
   };
+
   const nextAttendance = [
     normalizedRecord,
     ...attendance.filter((entry) => {
@@ -2009,125 +2042,17 @@ async function saveAttendance(res, record) {
   ].slice(0, 2000);
 
   const { source } = await writeAttendanceStore(nextAttendance);
+
+  attendanceAuthorizationStore.delete(checkinToken);
   json(res, 200, { ok: true, source, record: normalizedRecord, attendance: nextAttendance });
 }
 
-function publicDepartmentSubscription(row) {
-  if (!row) {
-    return {
-      id: "default-department",
-      departmentName: "Department of Electrical/Electronics Engineering",
-      planName: "Department Plan",
-      status: "inactive",
-      studentLimit: 10000,
-      amount: 0,
-      currency: "NGN",
-      startsAt: null,
-      expiresAt: null,
-      active: false,
-      daysRemaining: 0,
-      createdAt: null,
-      updatedAt: null
-    };
-  }
-  const expiresAt = row.expires_at || null;
-  const now = Date.now();
-  const expiryTime = expiresAt ? new Date(expiresAt).getTime() : 0;
-  const active = row.status === "active" && (!expiryTime || expiryTime >= now);
-  return {
-    id: row.id,
-    departmentName: row.department_name,
-    planName: row.plan_name,
-    status: active ? "active" : (row.status === "active" ? "expired" : row.status),
-    studentLimit: Number(row.student_limit || 0),
-    amount: Number(row.amount || 0),
-    currency: row.currency || "NGN",
-    startsAt: row.starts_at || null,
-    expiresAt,
-    active,
-    daysRemaining: active && expiryTime ? Math.max(0, Math.ceil((expiryTime - now) / 86400000)) : 0,
-    createdAt: row.created_at || null,
-    updatedAt: row.updated_at
-  };
-}
-
-async function getDepartmentSubscription(req, res) {
-  const url = new URL(req.url, "http://127.0.0.1");
-  const departmentName = String(url.searchParams.get("department") || "Department of Electrical/Electronics Engineering").trim();
-  const row = await dbGet("SELECT * FROM department_subscriptions WHERE department_name = ? COLLATE NOCASE ORDER BY datetime(updated_at) DESC LIMIT 1", [departmentName]);
-  json(res, 200, { ok: true, source: "sqlite", subscription: publicDepartmentSubscription(row) });
-}
-
-async function saveDepartmentSubscription(res, body) {
-  const actorEmail = String(body.actorEmail || "").trim().toLowerCase();
-  if (!isOwnerAdmin(actorEmail)) {
-    json(res, 403, { error: "Only the overall admin can update department subscription." });
-    return;
-  }
-  const departmentName = String(body.departmentName || "Department of Electrical/Electronics Engineering").trim();
-  const planName = String(body.planName || "Department Plan").trim();
-  const status = String(body.status || "active").trim().toLowerCase();
-  const studentLimit = Math.max(1, Math.min(1000000, Number(body.studentLimit || 10000)));
-  const amount = Math.max(0, Math.round(Number(body.amount || 0)));
-  const currency = String(body.currency || "NGN").trim().toUpperCase().slice(0, 8) || "NGN";
-  const startsAt = String(body.startsAt || new Date().toISOString().slice(0, 10)).trim();
-  const expiresAt = String(body.expiresAt || "").trim();
-  if (!departmentName || !planName || !expiresAt) {
-    json(res, 400, { error: "Department, plan, and expiry date are required." });
-    return;
-  }
-  if (!Number.isFinite(new Date(expiresAt).getTime())) {
-    json(res, 400, { error: "Enter a valid subscription expiry date." });
-    return;
-  }
-  const now = new Date().toISOString();
-  const existing = await dbGet("SELECT id, created_at FROM department_subscriptions WHERE department_name = ? COLLATE NOCASE", [departmentName]);
-  const id = existing?.id || crypto.createHash("sha256").update(departmentName.toLowerCase()).digest("hex");
-  await dbRun(`INSERT INTO department_subscriptions (id, department_name, plan_name, status, student_limit, amount, currency, starts_at, expires_at, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET
-      department_name = excluded.department_name,
-      plan_name = excluded.plan_name,
-      status = excluded.status,
-      student_limit = excluded.student_limit,
-      amount = excluded.amount,
-      currency = excluded.currency,
-      starts_at = excluded.starts_at,
-      expires_at = excluded.expires_at,
-      updated_at = excluded.updated_at`, [
-    id,
-    departmentName,
-    planName,
-    ["active", "inactive", "suspended"].includes(status) ? status : "active",
-    studentLimit,
-    amount,
-    currency,
-    startsAt,
-    expiresAt,
-    existing?.created_at || now,
-    now
-  ]);
-  const row = await dbGet("SELECT * FROM department_subscriptions WHERE id = ?", [id]);
-  json(res, 200, { ok: true, source: "sqlite", subscription: publicDepartmentSubscription(row) });
-}
-
-async function cancelDepartmentSubscription(res, body) {
-  const actorEmail = String(body.actorEmail || "").trim().toLowerCase();
-  if (!isOwnerAdmin(actorEmail)) {
-    json(res, 403, { error: "Only the overall admin can cancel department subscription." });
-    return;
-  }
-  const departmentName = String(body.departmentName || "Department of Electrical/Electronics Engineering").trim();
-  const now = new Date().toISOString();
-  await dbRun("UPDATE department_subscriptions SET status = 'inactive', updated_at = ? WHERE department_name = ? COLLATE NOCASE", [now, departmentName]);
-  const row = await dbGet("SELECT * FROM department_subscriptions WHERE department_name = ? COLLATE NOCASE", [departmentName]);
-  json(res, 200, { ok: true, source: "sqlite", subscription: publicDepartmentSubscription(row) });
-}
 function normalizeAdminRole(value) {
   const raw = String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
   if (["owner", "overall", "overall_admin", "super_admin"].includes(raw)) return "overall_admin";
   if (["faculty", "faculty_admin"].includes(raw)) return "faculty_admin";
   if (["level", "level_admin"].includes(raw)) return "level_admin";
+  if (["lecturer", "lecturer_admin", "lectureradmin"].includes(raw)) return "lecturer_admin";
   return "department_admin";
 }
 
@@ -2136,7 +2061,8 @@ function getRoleLabel(role) {
     overall_admin: "Overall Admin",
     faculty_admin: "Faculty Admin",
     department_admin: "Department Admin",
-    level_admin: "Level Admin"
+    level_admin: "Level Admin",
+    lecturer_admin: "Lecturer Admin"
   }[normalizeAdminRole(role)] || "Department Admin";
 }
 
@@ -2197,7 +2123,7 @@ async function getStudentByEmail(email) {
 
 function entityMatchesScope(entity = {}, scope = {}, role = "overall_admin") {
   const normalizedRole = normalizeAdminRole(role);
-  if (normalizedRole === "overall_admin") return true;
+  if (normalizedRole === "overall_admin" || normalizedRole === "lecturer_admin") return true;
   if (normalizedRole === "faculty_admin") return !scope.facultyId || entity.facultyId === scope.facultyId;
   if (normalizedRole === "department_admin") return !scope.departmentId || entity.departmentId === scope.departmentId;
   if (normalizedRole === "level_admin") {
@@ -2212,7 +2138,7 @@ function applyAdminScopeToSession(session = {}, admin = null) {
   const adminRole = normalizeAdminRole(admin.adminRole || admin.role);
   const adminScope = normalizeAcademicScope(admin);
   const next = { ...session, ...selected, createdBy: admin.email || admin.regNumber || session.createdBy || "", createdByAdminRole: adminRole };
-  if (adminRole === "overall_admin") return next;
+  if (adminRole === "overall_admin" || adminRole === "lecturer_admin") return next;
   if (adminRole === "faculty_admin") {
     return { ...next, facultyId: adminScope.facultyId, facultyName: adminScope.facultyName };
   }
@@ -2225,6 +2151,10 @@ function applyAdminScopeToSession(session = {}, admin = null) {
 async function filterSessionsForRequest(req, sessions) {
   const { admin, studentEmail } = getRequestPrincipal(req);
   if (admin) {
+    if (isLecturerAdmin(admin)) {
+      const assignedCodes = new Set(await getLecturerAssignedCourseCodes(admin.email));
+      return sessions.filter((session) => assignedCodes.has(getCourseCode(session.course)));
+    }
     return sessions.filter((session) => entityMatchesScope(session, admin, admin.adminRole || admin.role));
   }
   if (studentEmail) {
@@ -2235,21 +2165,14 @@ async function filterSessionsForRequest(req, sessions) {
   return sessions;
 }
 
-function filterReportsForRequest(req, reports) {
+async function filterReportsForRequest(req, reports) {
   const { admin } = getRequestPrincipal(req);
   if (!admin) return reports;
-  return reports.filter((report) => entityMatchesScope(report, admin, admin.adminRole || admin.role));
-}
-
-async function enforceSubscriptionForSession(session) {
-  const departmentName = String(session.departmentName || "").trim();
-  if (!departmentName) return { ok: true };
-  const row = await dbGet("SELECT * FROM department_subscriptions WHERE department_name = ? COLLATE NOCASE ORDER BY datetime(updated_at) DESC LIMIT 1", [departmentName]);
-  const subscription = publicDepartmentSubscription(row);
-  if (!subscription.active) {
-    return { ok: false, error: `${departmentName} subscription is inactive or expired. Renew subscription before creating sessions.` };
+  if (isLecturerAdmin(admin)) {
+    const assignedCodes = new Set(await getLecturerAssignedCourseCodes(admin.email));
+    return reports.filter((report) => assignedCodes.has(getCourseCode(report.course || report.title)));
   }
-  return { ok: true, subscription };
+  return reports.filter((report) => entityMatchesScope(report, admin, admin.adminRole || admin.role));
 }
 
 function copyDirectorySync(source, target) {
@@ -2372,35 +2295,6 @@ async function findRegisteredStudentByRegNumber(regNumber) {
   return students.find((student) => String(student.regNumber || "").trim().toUpperCase() === normalizedReg) || null;
 }
 
-async function lookupApprovedAssistedStudent(req, res) {
-  const url = new URL(req.url, "http://127.0.0.1");
-  const sessionId = String(url.searchParams.get("sessionId") || "").trim();
-  const regNumber = normalizeRegNumber(url.searchParams.get("regNumber") || "");
-  if (!sessionId || !regNumber) {
-    json(res, 400, { error: "Session id and registration number are required." });
-    return;
-  }
-  const approval = assistedApprovalStore.get(sessionId);
-  if (!approval?.enabled) {
-    json(res, 403, { error: "Admin must unlock student-assisted check-in before lookup." });
-    return;
-  }
-  const student = await findRegisteredStudentByRegNumber(regNumber);
-  if (!student) {
-    json(res, 404, { error: "No registered student was found for that registration number." });
-    return;
-  }
-  json(res, 200, {
-    ok: true,
-    student: {
-      fullName: student.fullName || "",
-      regNumber: student.regNumber || regNumber,
-      departmentName: student.departmentName || "",
-      levelName: student.levelName || "",
-      facultyName: student.facultyName || ""
-    }
-  });
-}
 async function saveAdminUser(res, body) {
   const actorEmail = String(body.actorEmail || "").trim().toLowerCase();
   if (!isOwnerAdmin(actorEmail)) {
@@ -2851,8 +2745,9 @@ async function writeStudentStore(student) {
   return normalized;
 }
 
-async function getStudents(res) {
-  const students = sortStudents(await readStudentsStore());
+async function getStudents(req, res) {
+  const principal = getRequestPrincipal(req);
+  const students = isLecturerAdmin(principal.admin) ? [] : sortStudents(await readStudentsStore());
   json(res, 200, {
     ok: true,
     source: "sqlite",
@@ -2891,6 +2786,8 @@ async function deleteStudentAccount(res, body) {
   const targetEmail = String(row.email || email || "").trim().toLowerCase();
   const targetReg = normalizeRegNumber(row.reg_number || regNumber);
   await dbRun("DELETE FROM biometric_profiles WHERE email = ? COLLATE NOCASE", [targetEmail]);
+  await dbRun("DELETE FROM webauthn_credentials WHERE student_id = ?", [row.id]);
+
   const result = await dbRun("DELETE FROM students WHERE id = ?", [row.id]);
 
   const students = readJsonFile(STUDENTS_FILE, []).filter((item) => {
@@ -2941,6 +2838,17 @@ async function saveStudent(res, body) {
   const password = String(body.password || "");
   const passwordHash = password ? hashPassword(password) : "";
 
+  if (body.registrationFlow === true) {
+    await dbRun("DELETE FROM biometric_profiles WHERE email = ? COLLATE NOCASE", [email]);
+    const studentRow = await dbGet("SELECT id FROM students WHERE email = ? COLLATE NOCASE", [email]);
+    if (studentRow) await dbRun("DELETE FROM webauthn_credentials WHERE student_id = ?", [studentRow.id]);
+
+    const profiles = readJsonFile(BIOMETRIC_PROFILES_FILE, {});
+    Object.keys(profiles && typeof profiles === "object" ? profiles : {}).forEach((profileId) => {
+      if (String(profiles[profileId]?.email || "").trim().toLowerCase() === email) delete profiles[profileId];
+    });
+    writeLocalJson(BIOMETRIC_PROFILES_FILE, profiles);
+  }
   await writeStudentStore({
     ...existingStudent,
     fullName,
@@ -3232,37 +3140,3 @@ function escapeHtml(value) {
     "'": "&#039;"
   }[char]));
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

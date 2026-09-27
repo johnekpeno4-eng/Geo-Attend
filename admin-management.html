@@ -38,6 +38,7 @@
   </style>
   <script src="role-access.js?v=20260924-loginfix" defer></script>
   <link rel="stylesheet" href="mobile-admin.css?v=20260924-fixed1200" />
+  <link rel="stylesheet" href="form-controls.css?v=20260924-dropdowns" />
 </head>
 <body class="bg-background text-on-surface font-body-md overflow-x-hidden" data-role-required="admin">
   <aside class="w-[280px] h-screen fixed left-0 top-0 bg-surface-container-lowest border-r border-outline-variant shadow-sm flex flex-col py-lg px-md z-50">
@@ -54,6 +55,10 @@
     <nav class="flex-1 space-y-xs">
       <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="dashboard.html"><span class="material-symbols-outlined">dashboard</span><span>Dashboard</span></a>
       <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="create-session.html"><span class="material-symbols-outlined">add_circle</span><span>Create Session</span></a>
+      <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200" href="courses.html">
+        <span class="material-symbols-outlined">menu_book</span>
+        <span class="font-body-md">Courses</span>
+      </a>
       <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="live-monitor.html"><span class="material-symbols-outlined">security</span><span>Live Monitor</span></a>
       <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="students.html"><span class="material-symbols-outlined">groups</span><span>Students</span></a>
       <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="records.html"><span class="material-symbols-outlined">description</span><span>Records</span></a>
@@ -87,6 +92,7 @@
             <select class="rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base normal-case font-normal text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="admin-role-select">
               <option value="department_admin">Department Admin</option>
               <option value="level_admin">Level Admin</option>
+              <option value="lecturer_admin">Lecturer Admin</option>
               <option value="faculty_admin">Faculty Admin</option>
               <option value="overall_admin">Overall Admin</option>
             </select>
@@ -111,10 +117,29 @@
 
       <section class="bg-surface-container-lowest p-lg rounded-xl border border-outline-variant/30 shadow-sm">
         <div class="flex items-center gap-sm mb-lg">
+          <span class="material-symbols-outlined text-secondary">school</span>
+          <div>
+            <h3 class="text-xl font-bold text-on-surface">Lecturer Course Assignments</h3>
+            <p class="text-on-surface-variant">Assign courses to Lecturer Admin accounts. They can create and view sessions only for assigned courses.</p>
+          </div>
+        </div>
+        <form class="grid gap-md md:grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)_auto] items-end" id="lecturer-assignment-form">
+          <label class="grid gap-xs text-xs font-bold uppercase tracking-widest text-on-surface-variant">Lecturer Admin<select class="rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base normal-case font-normal text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="lecturer-assignment-email"></select></label>
+          <label class="grid gap-xs text-xs font-bold uppercase tracking-widest text-on-surface-variant">Course<select class="rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base normal-case font-normal text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="lecturer-assignment-course"></select></label>
+          <button class="rounded-xl bg-secondary px-lg py-sm font-bold text-on-primary min-h-[48px]" type="submit">Assign Course</button>
+        </form>
+        <p class="hidden mt-md rounded-xl px-md py-sm font-bold" id="lecturer-assignment-message"></p>
+        <div class="mt-lg overflow-x-auto rounded-xl border border-outline-variant/30">
+          <table class="w-full min-w-[620px] text-left"><thead class="bg-surface-container-low text-xs uppercase tracking-widest text-on-surface-variant"><tr><th class="p-md">Lecturer</th><th class="p-md">Course</th><th class="p-md">Assigned</th><th class="p-md text-right">Action</th></tr></thead><tbody id="lecturer-assignment-body"></tbody></table>
+        </div>
+      </section>
+
+      <section class="bg-surface-container-lowest p-lg rounded-xl border border-outline-variant/30 shadow-sm">
+        <div class="flex items-center gap-sm mb-lg">
           <span class="material-symbols-outlined text-[#ba1a1a]">person_remove</span>
           <div>
             <h3 class="text-xl font-bold text-on-surface">Remove Admin</h3>
-            <p class="text-on-surface-variant">Enter only the admin registration number to remove access.</p>
+            <p class="text-on-surface-variant">This removes admin access only. The student account and attendance records remain.</p>
           </div>
         </div>
         <form class="grid gap-md md:grid-cols-[1fr_auto]" id="remove-admin-form">
@@ -122,56 +147,6 @@
           <button class="rounded-xl bg-[#ba1a1a] px-lg py-sm font-bold text-white disabled:opacity-60" type="submit">Remove Admin</button>
         </form>
         <div class="mt-md rounded-xl border border-outline-variant/30 bg-surface-container-low px-md py-sm text-sm text-on-surface-variant" id="remove-admin-preview">Enter a registration number to fetch the linked admin.</div>
-      </section>
-
-
-      <section class="bg-surface-container-lowest p-lg rounded-xl border border-outline-variant/30 shadow-sm">
-        <div class="flex items-center justify-between gap-md mb-lg">
-          <div class="flex items-center gap-sm">
-            <span class="material-symbols-outlined text-secondary">workspace_premium</span>
-            <div>
-              <h3 class="text-xl font-bold text-on-surface">Department Subscription</h3>
-              <p class="text-on-surface-variant">Store and manage the department plan in your SQLite database.</p>
-            </div>
-          </div>
-          <span class="rounded-full bg-surface-container-low px-md py-xs text-sm font-bold text-secondary" id="subscription-status">Loading</span>
-        </div>
-        <form class="grid gap-md md:grid-cols-2" id="subscription-form">
-          <label class="grid gap-xs text-sm font-bold text-on-surface-variant">
-            Department
-            <input class="rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="subscription-department" type="text" value="Department of Electrical/Electronics Engineering" required />
-          </label>
-          <label class="grid gap-xs text-sm font-bold text-on-surface-variant">
-            Plan
-            <select class="rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="subscription-plan">
-              <option>Department Plan</option>
-              <option>Faculty Plan</option>
-              <option>Institution Plan</option>
-            </select>
-          </label>
-          <label class="grid gap-xs text-sm font-bold text-on-surface-variant">
-            Student Limit
-            <input class="rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="subscription-limit" min="1" type="number" value="10000" required />
-          </label>
-          <label class="grid gap-xs text-sm font-bold text-on-surface-variant">
-            Amount (NGN)
-            <input class="rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="subscription-amount" min="0" step="100" type="number" value="0" required />
-          </label>
-          <label class="grid gap-xs text-sm font-bold text-on-surface-variant">
-            Start Date
-            <input class="rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="subscription-start" type="date" required />
-          </label>
-          <label class="grid gap-xs text-sm font-bold text-on-surface-variant">
-            Expiry Date
-            <input class="rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-base text-on-surface outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="subscription-expiry" type="date" required />
-          </label>
-          <div class="md:col-span-2 flex flex-wrap gap-sm">
-            <button class="rounded-xl bg-secondary px-lg py-sm font-bold text-on-primary disabled:opacity-60" type="submit">Save Subscription</button>
-            <button class="rounded-xl border border-outline-variant px-lg py-sm font-bold text-on-surface" id="subscription-refresh" type="button">Refresh</button>
-            <button class="rounded-xl border border-red-200 px-lg py-sm font-bold text-red-700" id="subscription-cancel" type="button">Cancel Subscription</button>
-          </div>
-        </form>
-        <div class="mt-md rounded-xl border border-outline-variant/30 bg-surface-container-low px-md py-sm text-sm text-on-surface-variant" id="subscription-summary">No subscription loaded yet.</div>
       </section>
             <section class="bg-surface-container-lowest p-lg rounded-xl border border-outline-variant/30 shadow-sm">
         <div class="flex flex-wrap items-center justify-between gap-md">
@@ -370,6 +345,7 @@
         `).join("");
         renderPreview("admin-reg-number", "admin-student-preview", admins);
         renderPreview("remove-admin-reg-number", "remove-admin-preview", admins);
+        refreshLecturerAssignmentOptions();
       } catch (error) {
         if (body) body.innerHTML = `<tr><td class="py-lg text-center text-on-surface-variant" colspan="6">${escapeHtml(error.message)}</td></tr>`;
         showMessage(error.message, true);
@@ -377,114 +353,64 @@
     }
 
 
-    function todayInputValue(offsetDays = 0) {
-      const date = new Date();
-      date.setDate(date.getDate() + offsetDays);
-      return date.toISOString().slice(0, 10);
+
+    function showLecturerAssignmentMessage(text, isError = false) {
+      const node = document.getElementById("lecturer-assignment-message");
+      if (!node) return;
+      node.textContent = text;
+      node.className = `mt-md rounded-xl px-md py-sm font-bold ${isError ? "bg-[#ffdad6] text-[#93000a]" : "bg-surface-container-low text-secondary"}`;
     }
 
-    function formatCurrency(amount, currency = "NGN") {
+    function refreshLecturerAssignmentOptions() {
+      const lecturerSelect = document.getElementById("lecturer-assignment-email");
+      const courseSelect = document.getElementById("lecturer-assignment-course");
+      if (lecturerSelect) {
+        const lecturers = currentAdmins.filter((admin) => admin.adminRole === "lecturer_admin");
+        lecturerSelect.innerHTML = lecturers.length ? lecturers.map((admin) => `<option value="${escapeHtml(admin.email)}">${escapeHtml(admin.fullName || admin.email)} (${escapeHtml(admin.regNumber || "--")})</option>`).join("") : '<option value="">Add a Lecturer Admin first</option>';
+      }
+      if (courseSelect) {
+        const courses = academicScope.courses || [];
+        courseSelect.innerHTML = courses.length ? courses.map((course) => `<option value="${escapeHtml(course.code)}">${escapeHtml(course.code)}: ${escapeHtml(course.title)}</option>`).join("") : '<option value="">No courses available</option>';
+      }
+    }
+
+    async function loadLecturerAssignments() {
+      const body = document.getElementById("lecturer-assignment-body");
+      if (!body) return;
       try {
-        return new Intl.NumberFormat("en-NG", { style: "currency", currency, maximumFractionDigits: 0 }).format(Number(amount || 0));
-      } catch {
-        return `${currency} ${Number(amount || 0).toLocaleString()}`;
-      }
-    }
-
-    function renderSubscription(subscription) {
-      const status = document.getElementById("subscription-status");
-      const summary = document.getElementById("subscription-summary");
-      const department = document.getElementById("subscription-department");
-      const plan = document.getElementById("subscription-plan");
-      const limit = document.getElementById("subscription-limit");
-      const amount = document.getElementById("subscription-amount");
-      const starts = document.getElementById("subscription-start");
-      const expiry = document.getElementById("subscription-expiry");
-      if (!subscription) return;
-
-      if (department) department.value = subscription.departmentName || department.value;
-      if (plan) plan.value = subscription.planName || "Department Plan";
-      if (limit) limit.value = subscription.studentLimit || 10000;
-      if (amount) amount.value = subscription.amount || 0;
-      if (starts) starts.value = String(subscription.startsAt || todayInputValue()).slice(0, 10);
-      if (expiry) expiry.value = String(subscription.expiresAt || todayInputValue(180)).slice(0, 10);
-
-      const active = subscription.active === true;
-      if (status) {
-        status.textContent = active ? `Active | ${subscription.daysRemaining} days left` : String(subscription.status || "inactive").toUpperCase();
-        status.classList.toggle("text-[#0f7b2f]", active);
-        status.classList.toggle("text-[#93000a]", !active);
-      }
-      if (summary) {
-        summary.innerHTML = `
-          <div class="grid gap-xs">
-            <p><span class="font-bold text-on-surface">Department:</span> ${escapeHtml(subscription.departmentName || "--")}</p>
-            <p><span class="font-bold text-on-surface">Plan:</span> ${escapeHtml(subscription.planName || "--")} | <span class="font-bold text-on-surface">Limit:</span> ${Number(subscription.studentLimit || 0).toLocaleString()} students</p>
-            <p><span class="font-bold text-on-surface">Amount:</span> ${escapeHtml(formatCurrency(subscription.amount, subscription.currency))}</p>
-            <p><span class="font-bold text-on-surface">Valid:</span> ${escapeHtml(String(subscription.startsAt || "--").slice(0, 10))} to ${escapeHtml(String(subscription.expiresAt || "--").slice(0, 10))}</p>
-          </div>
-        `;
-      }
-    }
-
-    async function loadSubscription() {
-      const department = document.getElementById("subscription-department")?.value || "Department of Electrical/Electronics Engineering";
-      try {
-        const response = await fetch(`/api/subscription?department=${encodeURIComponent(department)}`, { cache: "no-store" });
+        const response = await fetch(`/api/lecturer-assignments?actorEmail=${encodeURIComponent(actorEmail)}`, { cache: "no-store" });
         const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || "Unable to load subscription.");
-        renderSubscription(data.subscription);
-      } catch (error) {
-        showMessage(error.message, true);
-      }
-    }
+        if (!response.ok) throw new Error(data.error || "Unable to load lecturer assignments.");
+        const assignments = data.assignments || [];
+        body.innerHTML = assignments.length ? assignments.map((item) => `<tr class="border-t border-outline-variant/30"><td class="p-md font-bold">${escapeHtml(item.lecturerName)}</td><td class="p-md">${escapeHtml(item.courseCode)}: ${escapeHtml(item.courseTitle)}</td><td class="p-md text-on-surface-variant">${escapeHtml(item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "--")}</td><td class="p-md text-right"><button class="rounded-lg border border-red-200 px-md py-sm font-bold text-red-700" data-remove-lecturer-course="${escapeHtml(item.lecturerEmail)}|${escapeHtml(item.courseCode)}" type="button">Remove</button></td></tr>`).join("") : '<tr><td class="p-lg text-on-surface-variant" colspan="4">No lecturer course assignments yet.</td></tr>';
+      } catch (error) { body.innerHTML = `<tr><td class="p-lg text-[#93000a]" colspan="4">${escapeHtml(error.message)}</td></tr>`; }
 
-    async function saveSubscription(event) {
+    document.getElementById("lecturer-assignment-form")?.addEventListener("submit", async (event) => {
       event.preventDefault();
-      const payload = {
-        actorEmail,
-        departmentName: document.getElementById("subscription-department")?.value,
-        planName: document.getElementById("subscription-plan")?.value,
-        studentLimit: Number(document.getElementById("subscription-limit")?.value || 10000),
-        amount: Number(document.getElementById("subscription-amount")?.value || 0),
-        currency: "NGN",
-        startsAt: document.getElementById("subscription-start")?.value,
-        expiresAt: document.getElementById("subscription-expiry")?.value,
-        status: "active"
-      };
       try {
-        const response = await fetch("/api/subscription", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
+        const lecturerEmail = document.getElementById("lecturer-assignment-email")?.value || "";
+        const courseCode = document.getElementById("lecturer-assignment-course")?.value || "";
+        const response = await fetch("/api/lecturer-assignments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ actorEmail, lecturerEmail, courseCode }) });
         const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || "Unable to save subscription.");
-        renderSubscription(data.subscription);
-        showMessage("Department subscription saved successfully.");
-      } catch (error) {
-        showMessage(error.message, true);
-      }
-    }
+        if (!response.ok) throw new Error(data.error || "Unable to assign course.");
+        showLecturerAssignmentMessage(data.message || "Course assigned.");
+        await loadLecturerAssignments();
+      } catch (error) { showLecturerAssignmentMessage(error.message, true); }
+    });
 
-    async function cancelSubscription() {
-      const departmentName = document.getElementById("subscription-department")?.value || "Department of Electrical/Electronics Engineering";
-      if (!window.confirm(`Cancel subscription for ${departmentName}?`)) return;
+    document.getElementById("lecturer-assignment-body")?.addEventListener("click", async (event) => {
+      const button = event.target.closest("[data-remove-lecturer-course]");
+      if (!button) return;
+      const [lecturerEmail, courseCode] = String(button.dataset.removeLecturerCourse || "").split("|");
+      if (!lecturerEmail || !courseCode || !window.confirm(`Remove ${courseCode} from this lecturer?`)) return;
       try {
-        const response = await fetch("/api/subscription/cancel", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ actorEmail, departmentName })
-        });
+        const response = await fetch(`/api/lecturer-assignments?actorEmail=${encodeURIComponent(actorEmail)}&lecturerEmail=${encodeURIComponent(lecturerEmail)}&courseCode=${encodeURIComponent(courseCode)}`, { method: "DELETE" });
         const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || "Unable to cancel subscription.");
-        renderSubscription(data.subscription);
-        showMessage("Department subscription cancelled.");
-      } catch (error) {
-        showMessage(error.message, true);
-      }
-    }
-    document.getElementById("admin-form")?.addEventListener("submit", async (event) => {
+        if (!response.ok) throw new Error(data.error || "Unable to remove assignment.");
+        showLecturerAssignmentMessage("Course assignment removed.");
+        await loadLecturerAssignments();
+      } catch (error) { showLecturerAssignmentMessage(error.message, true); }
+    });    document.getElementById("admin-form")?.addEventListener("submit", async (event) => {
       event.preventDefault();
       const regNumber = normalizeRegNumber(document.getElementById("admin-reg-number").value);
       const student = findStudentByRegNumber(regNumber);
@@ -551,9 +477,6 @@
 
     document.getElementById("admin-reg-number")?.addEventListener("input", () => renderPreview("admin-reg-number", "admin-student-preview", currentAdmins));
     document.getElementById("remove-admin-reg-number")?.addEventListener("input", () => renderPreview("remove-admin-reg-number", "remove-admin-preview", currentAdmins));
-    document.getElementById("subscription-form")?.addEventListener("submit", saveSubscription);
-    document.getElementById("subscription-refresh")?.addEventListener("click", loadSubscription);
-    document.getElementById("subscription-cancel")?.addEventListener("click", cancelSubscription);
     document.getElementById("admin-faculty-select")?.addEventListener("change", fillDepartmentOptions);
     document.getElementById("backup-now")?.addEventListener("click", async () => {
       const summary = document.getElementById("backup-summary");
@@ -569,27 +492,12 @@
       }
     });
 
-    const startInput = document.getElementById("subscription-start");
-    const expiryInput = document.getElementById("subscription-expiry");
-    if (startInput && !startInput.value) startInput.value = todayInputValue();
-    if (expiryInput && !expiryInput.value) expiryInput.value = todayInputValue(180);
-
     (async () => {
       await loadAcademicScope();
       await loadStudents();
       await loadAdmins();
-      await loadSubscription();
+      await loadLecturerAssignments();
     })();
   </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-

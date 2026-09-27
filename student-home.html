@@ -208,11 +208,8 @@
           <p class="text-xs uppercase tracking-wider text-on-surface-variant font-semibold">Identity</p>
           <span class="material-symbols-outlined text-secondary" id="identity-icon">verified_user</span>
         </div>
-        <p class="font-bold text-on-surface mt-2" id="identity-status">Checking...</p>
-        <a class="text-sm font-semibold text-secondary mt-2 inline-flex items-center gap-1" href="identity-verification.html" id="identity-link">
-          <span class="material-symbols-outlined text-[18px]">badge</span>
-          Setup
-        </a>
+        <p class="font-bold text-on-surface mt-2" id="identity-status">Password verified</p>
+        <p class="text-sm text-on-surface-variant mt-2">Account verified with your password.</p>
       </article>
       <article class="bg-surface-container-lowest border border-outline-variant rounded-xl p-3 shadow-sm">
         <div class="flex items-center justify-between gap-3">
@@ -229,7 +226,7 @@
         <div class="min-w-0">
           <p class="text-xs uppercase tracking-wider text-on-surface-variant font-semibold">Active Classes</p>
           <h2 class="text-xl font-bold text-on-surface mt-1">Live attendance sessions</h2>
-          <p class="text-sm text-on-surface-variant mt-1">Choose a live class. Your saved device security prompt opens automatically.</p>
+          <p class="text-sm text-on-surface-variant mt-1">Choose a live class and check in while you are inside the session area.</p>
         </div>
         <div class="flex items-center gap-xs bg-secondary-container/20 text-secondary px-3 py-1 rounded-full h-fit">
           <span class="material-symbols-outlined text-[18px] orb-pulse" style="font-variation-settings: 'FILL' 1;">sensors</span>
@@ -247,7 +244,7 @@
           <div class="min-w-0">
             <p class="text-xs uppercase tracking-wider text-on-surface-variant font-semibold">Check In</p>
             <h3 class="text-xl font-bold text-on-surface mt-1" id="checkin-modal-session-name">Select a class</h3>
-            <p class="text-sm text-on-surface-variant mt-1" id="checkin-modal-session-meta">Choose a verification method to continue.</p>
+            <p class="text-sm text-on-surface-variant mt-1" id="checkin-modal-session-meta">Confirm your fingerprint to continue.</p>
           </div>
           <button class="p-2 rounded-full hover:bg-surface-container-low" type="button" data-dismiss-checkin aria-label="Close check-in dialog">
             <span class="material-symbols-outlined">close</span>
@@ -255,49 +252,11 @@
         </div>
 
         <div class="p-4 space-y-4">
-          <div id="checkin-method-choice">
-            <p class="text-sm text-on-surface-variant" id="checkin-security-copy">Detecting this device security method...</p>
+                    <div id="checkin-method-choice">
+            <p class="text-sm text-on-surface-variant" id="checkin-security-copy">Use your enrolled fingerprint and remain inside the GPS session area.</p>
             <div class="grid gap-3 mt-3">
-              <button class="rounded-xl border border-outline-variant bg-surface-container-low p-4 flex items-center gap-3 text-left hover:border-secondary transition-colors" data-checkin-method="password" type="button" id="checkin-pin-option">
-                <span class="material-symbols-outlined text-secondary text-3xl">pin</span>
-                <span class="min-w-0">
-                  <strong class="block text-on-surface">Attendance PIN</strong>
-                  <span class="block text-sm text-on-surface-variant">Use the PIN you set during registration.</span>
-                </span>
-              </button>
-              <button class="rounded-xl border border-outline-variant bg-surface-container-low p-4 flex items-center gap-3 text-left hover:border-secondary transition-colors" data-checkin-method="assist" type="button" id="checkin-assist-option">
-                <span class="material-symbols-outlined text-secondary text-3xl">group_add</span>
-                <span class="min-w-0">
-                  <strong class="block text-on-surface">Check in another student</strong>
-                  <span class="block text-sm text-on-surface-variant">Enter only their registration number. Admin must unlock this session first. Limit: 2 per session.</span>
-                </span>
-              </button>
+              <button class="w-full rounded-xl bg-secondary text-on-primary p-4 font-bold" type="button" id="checkin-option"><span class="material-symbols-outlined align-middle">fingerprint</span> Check in with fingerprint</button>
             </div>
-          </div>          <div class="hidden space-y-3" id="checkin-password-panel">
-            <div class="rounded-2xl bg-surface-container-low p-4 border border-outline-variant">
-              <label class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2" for="checkin-password-input">Attendance PIN</label>
-              <div class="relative"><input class="w-full rounded-xl border border-outline-variant bg-white px-4 py-3 pr-14 text-base outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="checkin-password-input" inputmode="numeric" maxlength="4" placeholder="Enter 4-digit PIN" type="password" /><button class="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-secondary" type="button" data-toggle-password="#checkin-password-input" aria-label="Show attendance PIN"><span class="material-symbols-outlined">visibility</span></button></div>
-            </div>
-            <button class="w-full rounded-2xl bg-primary text-white px-4 py-3 font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform" id="checkin-password-submit" type="button">
-              Verify and Check in
-              <span class="material-symbols-outlined">arrow_forward</span>
-            </button>
-          </div>          <div class="hidden space-y-3" id="checkin-assist-panel">
-            <div class="rounded-2xl bg-surface-container-low p-4 border border-outline-variant">
-              <label class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2" for="assist-reg-number-input">Student Reg No</label>
-              <input class="w-full rounded-xl border border-outline-variant bg-white px-4 py-3 text-base uppercase outline-none focus:border-secondary focus:ring-4 focus:ring-secondary/10" id="assist-reg-number-input" inputmode="numeric" placeholder="25/EG/EE/001" type="text" autocomplete="off" />
-              <p class="text-xs text-on-surface-variant mt-2" id="assist-limit-copy">You can assist up to 2 students in this class session after admin unlocks it.</p>
-              <div class="hidden mt-4 rounded-xl border border-secondary/30 bg-white p-3" id="assist-student-confirmation">
-                <p class="text-xs font-bold uppercase tracking-widest text-secondary">Confirm Student</p>
-                <p class="mt-2 font-bold text-on-surface" id="assist-confirm-name">--</p>
-                <p class="text-sm text-on-surface-variant" id="assist-confirm-reg">--</p>
-                <p class="text-sm text-on-surface-variant" id="assist-confirm-department">--</p>
-              </div>
-            </div>
-            <button class="w-full rounded-2xl bg-primary text-white px-4 py-3 font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform" id="assist-checkin-submit" type="button">
-              Check In Student
-              <span class="material-symbols-outlined">arrow_forward</span>
-            </button>
           </div>
 
           <div class="hidden rounded-2xl px-4 py-3 text-sm" id="checkin-modal-message"></div>
@@ -354,16 +313,9 @@
     let faceCameraStream = null;
     let faceCaptureImage = null;
     let checkinInProgress = false;
-    let checkinQrTimer = null;
-    let assistedApprovalEnabled = false;
-    let assistedLookupTimer = null;
-    let confirmedAssistStudent = null;
-    let sessionCountdownInterval = null;
+    let checkinQrTimer = null;    let sessionCountdownInterval = null;
     let attendanceLogs = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]")
       .filter((item) => !email || item.email === email);
-    const profiles = JSON.parse(localStorage.getItem("geoAttendBiometricProfiles") || "{}");
-    let biometricProfileCache = profiles[email] || null;
-    let biometricProfileLoadPromise = null;
     let isWithinGeofence = false;
     let latestPosition = null;
     let locationWatchId = null;
@@ -377,10 +329,174 @@
     function getStudentSettings() {
       return JSON.parse(localStorage.getItem(`geoAttendStudentSettings:${email}`) || "{}");
     }
-`nasync function startAutomaticDeviceSecurityCheckin() {
-      showCheckinPanel("password");
-      setCheckinMessage("Enter your 4-digit attendance PIN to check in.");
-      document.getElementById("checkin-password-input")?.focus();
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[char]));
+    }
+    function formatMeters(value) {
+      const meters = Number(value || 0);
+      return meters >= 1000 ? `${(meters / 1000).toFixed(2)}km` : `${Math.round(meters)}m`;
+    }
+    function formatDateTime(value) {
+      const date = new Date(value || Date.now());
+      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+    function formatSessionWindow(session) {
+      const start = session?.attendanceStart || session?.startTime || "--";
+      const end = session?.attendanceEnd || session?.endTime || "--";
+      return `${start} - ${end}`;
+    }
+    function getSessionStartDate(session) {
+      const startValue = session?.attendanceStart || session?.startTime || "";
+      if (!startValue || !/^\d{2}:\d{2}$/.test(startValue)) return null;
+      const [hour, minute] = startValue.split(":").map(Number);
+      const date = new Date();
+      date.setHours(hour, minute, 0, 0);
+      return date;
+    }
+    function isSessionStarted(session) {
+      const start = getSessionStartDate(session);
+      return !start || Date.now() >= start.getTime();
+    }
+    function getSessionStartMessage(session) {
+      const start = getSessionStartDate(session);
+      return start ? `Check-in has not started yet. It opens at ${start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.` : "Check-in has not started yet.";
+    }
+    function isWeakAdminGeofence(geofence = {}) {
+      const accuracy = Number(geofence.accuracy || geofence.adminAccuracy || 0);
+      return accuracy > TRUSTED_ADMIN_LOCATION_ACCURACY_METERS;
+    }
+    function getAdminGeofenceWarning(geofence = {}) {
+      const accuracy = Math.round(Number(geofence.accuracy || geofence.adminAccuracy || 0)) || "unknown";
+      return `Admin GPS accuracy is too weak (${accuracy}m). The lecturer/admin should recreate the session with better GPS.`;
+    }
+    function normalizeBrowserLocation(position) {
+      const coords = position?.coords || position || {};
+      return { lat: Number(coords.latitude ?? coords.lat), lng: Number(coords.longitude ?? coords.lng), accuracy: Number(coords.accuracy || 9999), timestamp: Date.now() };
+    }
+    function getBestRecentStudentLocation(sample) {
+      if (Number.isFinite(sample.lat) && Number.isFinite(sample.lng)) studentLocationSamples.push(sample);
+      const cutoff = Date.now() - STUDENT_LOCATION_SAMPLE_MAX_AGE_MS;
+      studentLocationSamples = studentLocationSamples.filter((item) => item.timestamp >= cutoff).slice(-STUDENT_LOCATION_MAX_SAMPLES);
+      return studentLocationSamples.slice().sort((a, b) => Number(a.accuracy || 9999) - Number(b.accuracy || 9999))[0] || sample;
+    }
+    function isStudentGpsUsable(position) {
+      return Boolean(position && Number.isFinite(position.lat) && Number.isFinite(position.lng) && Number(position.accuracy || 9999) <= TRUSTED_STUDENT_LOCATION_ACCURACY_METERS);
+    }
+    function syncActiveSession(preferred) {
+      if (preferred) activeSession = preferred;
+      else activeSession = getLiveSessions()[0] || null;
+      return activeSession;
+    }
+    function getExistingCheckin(sessionId) {
+      return attendanceLogs.find((item) => item.sessionId === sessionId);
+    }
+    function updateSummary() {
+      const total = attendanceLogs.length;
+      document.getElementById("total-checkins").textContent = String(total);
+      document.getElementById("present-count").textContent = String(attendanceLogs.filter((item) => item.status !== "absent").length);
+      document.getElementById("missed-count").textContent = "0";
+      document.getElementById("attendance-rate").textContent = total ? "100%" : "0%";
+    }
+    function updateTodayStatus() {
+      const latest = attendanceLogs[0];
+      document.getElementById("today-status-title").textContent = latest ? "Checked in" : "Not checked in";
+      document.getElementById("today-status-helper").textContent = latest ? `Last check-in: ${formatDateTime(latest.checkedInAt)}` : "No attendance submitted yet today.";
+      document.getElementById("today-status-icon").textContent = latest ? "task_alt" : "pending_actions";
+    }
+    function updateSession() {
+      syncActiveSession();
+      document.getElementById("current-session-title").textContent = activeSession?.course || "No active session";
+      document.getElementById("current-session-location").textContent = activeSession ? (activeSession.locationName || activeSession.geofence?.name || "Selected location") : "Tap a live class below to check in.";
+      document.getElementById("session-countdown").textContent = activeSession ? formatSessionWindow(activeSession) : "Waiting for session";
+    }
+    function updateGpsReadiness() {
+      document.getElementById("gps-status").textContent = navigator.geolocation ? "Supported" : "Unsupported";
+      document.getElementById("gps-helper").textContent = navigator.geolocation ? "Location support ready" : "Use a browser with GPS support";
+    }
+    function renderRecentCheckins() {}
+    function flashButtonFeedback(button, text) {
+      const old = button.textContent;
+      button.textContent = text;
+      window.setTimeout(() => { button.textContent = old; }, 700);
+    }
+    async function postJson(url, payload) {
+      const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Unable to complete request.");
+      return data;
+    }
+    function setCheckinMessage(text, isError = false) {
+      const node = document.getElementById("checkin-modal-message");
+      if (!node) return;
+      node.textContent = text;
+      node.className = `rounded-2xl px-4 py-3 text-sm ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-blue-50 text-secondary border border-blue-100"}`;
+    }
+    function clearCheckinMessage() {
+      const node = document.getElementById("checkin-modal-message");
+      if (!node) return;
+      node.textContent = "";
+      node.className = "hidden rounded-2xl px-4 py-3 text-sm";
+    }
+    function resetCheckinModal() {
+      clearCheckinMessage();
+      checkinInProgress = false;
+    }
+    function decodeBase64Url(value) {
+      const text = String(value || "");
+      const padded = text.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(text.length / 4) * 4, "=");
+      const binary = atob(padded);
+      return Uint8Array.from(binary, (character) => character.charCodeAt(0)).buffer;
+    }
+    function encodeBase64Url(value) {
+      const bytes = new Uint8Array(value);
+      let binary = "";
+      bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+      return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+    }
+    function prepareAuthenticationOptions(options) {
+      return {
+        ...options,
+        challenge: decodeBase64Url(options.challenge),
+        allowCredentials: (options.allowCredentials || []).map((item) => ({ ...item, id: decodeBase64Url(item.id) }))
+      };
+    }
+    function serializeAuthenticationResponse(credential) {
+      return {
+        id: credential.id,
+        rawId: encodeBase64Url(credential.rawId),
+        type: credential.type,
+        response: {
+          authenticatorData: encodeBase64Url(credential.response.authenticatorData),
+          clientDataJSON: encodeBase64Url(credential.response.clientDataJSON),
+          signature: encodeBase64Url(credential.response.signature),
+          userHandle: credential.response.userHandle ? encodeBase64Url(credential.response.userHandle) : null
+        }
+      };
+    }
+    async function verifyFingerprintAndCheckIn() {
+      if (checkinInProgress || !selectedCheckinSession) return;
+      if (!window.isSecureContext || !navigator.credentials?.get) {
+        setCheckinMessage("Fingerprint check-in requires the HTTPS GeoAttend address.", true);
+        return;
+      }
+      checkinInProgress = true;
+      setCheckinMessage("Waiting for your fingerprint...");
+      try {
+        const optionsData = await postJson("/api/webauthn/login-options", { email, purpose: "attendance", sessionId: selectedCheckinSession.id });
+        const credential = await navigator.credentials.get({ publicKey: prepareAuthenticationOptions(optionsData.options) });
+        if (!credential) throw new Error("Fingerprint verification was cancelled.");
+        const verified = await postJson("/api/webauthn/login-verify", { email, response: serializeAuthenticationResponse(credential) });
+        await showSuccess(verified.checkinToken);
+        closeCheckinModal();
+      } catch (error) {
+        setCheckinMessage(error?.name === "NotAllowedError" ? "Fingerprint verification was cancelled or timed out." : (error.message || "Fingerprint check-in failed."), true);
+      } finally {
+        checkinInProgress = false;
+      }
+    }
+    function setupCheckinModal() {
+      document.querySelectorAll("[data-dismiss-checkin]").forEach((button) => button.addEventListener("click", closeCheckinModal));
+      document.getElementById("checkin-option")?.addEventListener("click", verifyFingerprintAndCheckIn);
     }
 
     function openCheckinModal(sessionId) {
@@ -427,12 +543,6 @@
       modal?.classList.remove("hidden");
       modal?.classList.add("flex");
       modal?.setAttribute("aria-hidden", "false");
-      refreshAssistedApprovalStatus(session);
-      if (!isWeakAdminGeofence(session.geofence || {})) {
-        window.requestAnimationFrame(() => {
-          window.setTimeout(startAutomaticDeviceSecurityCheckin, 0);
-        });
-      }
     }
 
     function closeCheckinModal() {
@@ -721,7 +831,7 @@
       transition(currentStep, nextStep);
     }
 
-    function showSuccess() {
+    async function showSuccess(checkinToken) {
       if (!isWithinGeofence) {
         alert("You are outside the geofence. Move within the session area and try again.");
         return;
@@ -768,9 +878,11 @@
         position: latestPosition,
         geofence,
         checkedInAt: checkedInAt.toISOString(),
-        status: "present"
+        checkinToken,
+        status: "present",
       };
 
+      try { await postJson("/api/attendance", record); } catch (error) { throw error; }
       allAttendance.push(record);
       localStorage.setItem("geoAttendAttendanceLog", JSON.stringify(allAttendance));
       attendanceLogs.push(record);
@@ -815,11 +927,9 @@
     }
 
     document.getElementById("student-email").textContent = email;
-    loadSavedBiometricProfile();
     updateSummary();
     updateTodayStatus();
     updateSession();
-    updateVerification();
     updateGpsReadiness();
     renderActiveClasses();
     renderRecentCheckins();
@@ -844,6 +954,3 @@
   </script>
 </body>
 </html>
-
-
-

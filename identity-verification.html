@@ -1,142 +1,40 @@
 <!DOCTYPE html>
-<html class="light" lang="en">
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-  <title>GeoAttend - Attendance PIN</title>
-  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: { surface: "#ffffff", panel: "#eff4ff", ink: "#0b1c30", muted: "#45464d", outline: "#c6c6cd", primary: "#000000", secondary: "#0058be", accent: "#4cd7f6" },
-          fontFamily: { sans: ["Inter", "sans-serif"] }
-        }
-      }
-    };
-  </script>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GeoAttend | Device Enrollment</title>
+<link rel="stylesheet" href="mobile-student.css?v=device-enrollment-1">
+<style>
+body{margin:0;min-height:100vh;background:#f8f9ff;color:#0b1c30;font-family:Inter,Arial,sans-serif;display:grid;place-items:center;padding:24px;box-sizing:border-box}
+main{width:min(620px,100%);background:#fff;border:1px solid #c6c6cd;border-radius:22px;padding:28px;box-shadow:0 18px 44px #0b1c3020}
+h1{margin:0 0 10px;font-size:clamp(28px,7vw,42px)}p{line-height:1.5}.eyebrow{color:#0058be;font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+.account{padding:14px;border-radius:12px;background:#eff4ff;overflow-wrap:anywhere}
+button{width:100%;margin-top:18px;border:0;border-radius:14px;padding:16px;background:#000;color:#fff;font:inherit;font-weight:800;cursor:pointer}button:disabled{opacity:.6;cursor:wait}
+.message{margin-top:16px;padding:14px;border-radius:12px;white-space:pre-wrap;overflow-wrap:anywhere;font-weight:700}.error{color:#93000a;background:#ffdad6;border:1px solid #ffb4ab}.success{color:#0f6b31;background:#dcfce7;border:1px solid #86efac}
+.secure{color:#0058be;background:#eff4ff;padding:12px;border-radius:12px;display:none;margin-top:16px}
+</style>
 </head>
-<body class="min-h-screen bg-[#f8f9ff] text-ink font-sans" data-role-required="student">
-  <script src="role-access.js?v=20260924-loginfix"></script>
-  <main class="mx-auto grid min-h-screen w-full max-w-6xl items-center gap-6 p-6 lg:grid-cols-[0.9fr_1.1fr]">
-    <section class="relative overflow-hidden rounded-3xl bg-[#131b2e] p-8 text-white shadow-2xl lg:min-h-[620px] lg:p-12">
-      <div class="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_right,#4cd7f6,transparent_40%)]"></div>
-      <div class="relative">
-        <p class="text-xs font-bold uppercase tracking-widest text-accent">Step 2 of 2</p>
-        <h1 class="mt-3 text-3xl font-extrabold leading-tight md:text-5xl">Set your attendance PIN</h1>
-        <p class="mt-4 text-white/75">Create a private 4-digit PIN. This PIN is required every time you check in for attendance.</p>
-      </div>
-      <div class="relative mt-8 grid gap-3 text-sm text-white/80">
-        <p class="flex gap-2"><span class="material-symbols-outlined text-accent">pin</span> Your PIN confirms attendance check-in.</p>
-        <p class="flex gap-2"><span class="material-symbols-outlined text-accent">lock</span> Use exactly 4 digits and keep it private.</p>
-      </div>
-    </section>
-
-    <section class="rounded-3xl border border-outline bg-surface p-6 shadow-xl md:p-8">
-      <p class="text-xs font-bold uppercase tracking-widest text-secondary">Attendance Security</p>
-      <h2 class="mt-2 text-3xl font-extrabold">Create 4-digit PIN</h2>
-      <p class="mt-2 text-muted">Attendance check-in will request this PIN only.</p>
-      <p class="mt-3 rounded-2xl bg-panel px-4 py-3 text-sm font-mono text-muted" id="profile-owner">Loading...</p>
-
-      <form class="mt-6 grid gap-4" id="pin-form">
-        <label class="block">
-          <span class="text-xs font-bold uppercase tracking-widest text-muted">Attendance PIN</span>
-          <div class="relative mt-2">
-            <input class="w-full rounded-2xl border border-outline bg-white px-4 py-4 pr-14 text-lg tracking-widest outline-none focus:border-secondary focus:ring-4 focus:ring-blue-100" id="attendance-pin" inputmode="numeric" maxlength="4" minlength="4" placeholder="0000" type="password" autocomplete="off" />
-            <button class="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl text-muted hover:bg-blue-50 hover:text-secondary" type="button" data-toggle-password="#attendance-pin" aria-label="Show attendance PIN"><span class="material-symbols-outlined">visibility</span></button>
-          </div>
-        </label>
-        <label class="block">
-          <span class="text-xs font-bold uppercase tracking-widest text-muted">Confirm PIN</span>
-          <div class="relative mt-2">
-            <input class="w-full rounded-2xl border border-outline bg-white px-4 py-4 pr-14 text-lg tracking-widest outline-none focus:border-secondary focus:ring-4 focus:ring-blue-100" id="attendance-pin-confirm" inputmode="numeric" maxlength="4" minlength="4" placeholder="0000" type="password" autocomplete="off" />
-            <button class="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl text-muted hover:bg-blue-50 hover:text-secondary" type="button" data-toggle-password="#attendance-pin-confirm" aria-label="Show confirm PIN"><span class="material-symbols-outlined">visibility</span></button>
-          </div>
-        </label>
-        <button class="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-4 font-extrabold text-white active:scale-[0.98]" type="submit" id="save-pin-button">
-          Save PIN and Continue
-          <span class="material-symbols-outlined">arrow_forward</span>
-        </button>
-      </form>
-      <p class="mt-4 hidden rounded-2xl px-4 py-3 text-sm font-bold" id="pin-message"></p>
-    </section>
-  </main>
-
-  <script>
-    const currentUser = localStorage.getItem("geoAttendCurrentUser");
-    const message = document.getElementById("pin-message");
-    const owner = document.getElementById("profile-owner");
-    if (!currentUser) window.location.href = "register.html";
-    if (owner) owner.textContent = currentUser || "No user";
-
-    function showMessage(text, isError = false) {
-      message.textContent = text;
-      message.className = `mt-4 rounded-2xl px-4 py-3 text-sm font-bold ${isError ? "bg-red-50 text-red-700 border border-red-200" : "bg-green-50 text-green-700 border border-green-200"}`;
-    }
-    function bufferToBase64Url(buffer) {
-      const bytes = new Uint8Array(buffer);
-      let binary = "";
-      bytes.forEach((byte) => binary += String.fromCharCode(byte));
-      return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-    }
-    async function hashAttendancePin(pin) {
-      const bytes = new TextEncoder().encode(`${currentUser}:${pin}`);
-      const hash = await crypto.subtle.digest("SHA-256", bytes);
-      return bufferToBase64Url(hash);
-    }
-    async function postJson(url, payload) {
-      const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "Unable to complete request.");
-      return data;
-    }
-    document.querySelectorAll("[data-toggle-password]").forEach((button) => {
-      button.addEventListener("click", () => {
-        const input = document.querySelector(button.dataset.togglePassword);
-        if (!input) return;
-        const show = input.type === "password";
-        input.type = show ? "text" : "password";
-        button.querySelector(".material-symbols-outlined").textContent = show ? "visibility_off" : "visibility";
-      });
-    });
-    document.getElementById("pin-form")?.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const pinInput = document.getElementById("attendance-pin");
-      const confirmInput = document.getElementById("attendance-pin-confirm");
-      const pin = (pinInput.value || "").trim();
-      const confirmPin = (confirmInput.value || "").trim();
-      if (!/^\d{4}$/.test(pin)) {
-        showMessage("PIN must be exactly 4 digits.", true);
-        pinInput.focus();
-        return;
-      }
-      if (pin !== confirmPin) {
-        showMessage("PIN confirmation does not match.", true);
-        confirmInput.focus();
-        return;
-      }
-      const button = document.getElementById("save-pin-button");
-      button.disabled = true;
-      button.textContent = "Saving PIN...";
-      try {
-        const attendancePinHash = await hashAttendancePin(pin);
-        const profile = { email: currentUser, security: { pin: true }, biometric: { pin: true }, checkinAuthMethod: "pin", attendancePinHash, livenessVerified: false, pinVerified: true, biometricVerified: true, identityVerified: true, storedAt: new Date().toISOString(), storageMode: "pin-only" };
-        const profiles = JSON.parse(localStorage.getItem("geoAttendBiometricProfiles") || "{}");
-        profiles[currentUser] = profile;
-        localStorage.setItem("geoAttendBiometricProfiles", JSON.stringify(profiles));
-        const accounts = JSON.parse(localStorage.getItem("geoAttendAccounts") || "[]");
-        localStorage.setItem("geoAttendAccounts", JSON.stringify(accounts.map((account) => account.email === currentUser ? { ...account, attendancePinHash, checkinAuthMethod: "pin", identityVerified: true, pinVerified: true, biometricVerified: true, biometricProfileStoredAt: profile.storedAt, pinProfileStoredAt: profile.storedAt } : account)));
-        try { await postJson("/api/save-biometric-profile", { ...profile, storageMode: "server-pin-only" }); } catch {}
-        showMessage("Attendance PIN saved. Opening student dashboard...");
-        setTimeout(() => { window.location.href = "student-home.html#active-classes"; }, 700);
-      } catch (error) {
-        showMessage(error.message || "Unable to save attendance PIN.", true);
-        button.disabled = false;
-        button.innerHTML = 'Save PIN and Continue <span class="material-symbols-outlined">arrow_forward</span>';
-      }
-    });
-  </script>
-</body>
-</html>
+<body data-role-required="student">
+<main>
+<p class="eyebrow">Required registration step</p><h1>Set up device security</h1>
+<p>Use the fingerprint, Face ID, or screen-lock security already registered on this device. The browser opens the standard device prompt; GeoAttend stores only a cryptographic public key.</p>
+<p class="account" id="account">Loading student account...</p><p class="account" id="device-status">Checking this browser for platform device security...</p>
+<button id="enroll" type="button">Continue with device security</button>
+<a class="secure" id="secure-link" target="_blank" rel="noopener">Open the HTTPS enrollment address</a>
+<div class="message" id="message" role="alert">Registration cannot finish until this device is enrolled.</div>
+</main>
+<script src="role-access.js?v=device-enrollment-1"></script>
+<script>
+(()=>{const email=String(localStorage.getItem("geoAttendCurrentUser")||"").trim().toLowerCase(),account=document.getElementById("account"),button=document.getElementById("enroll"),message=document.getElementById("message"),secureLink=document.getElementById("secure-link");account.textContent=email||"No student account selected.";secureLink.href=window.location.origin+"/identity-verification.html";
+function show(text,type="error"){message.textContent=text;message.className="message "+type}
+function buffer(value){const text=String(value||""),padded=text.replace(/-/g,"+").replace(/_/g,"/").padEnd(Math.ceil(text.length/4)*4,"="),binary=atob(padded);return Uint8Array.from(binary,c=>c.charCodeAt(0)).buffer}
+function base64(value){const bytes=new Uint8Array(value);let binary="";bytes.forEach(byte=>binary+=String.fromCharCode(byte));return btoa(binary).replace(/\+/g,"-").replace(/\/\//g,"_").replace(/=+$/g,"")}
+function prepare(options){return{...options,challenge:buffer(options.challenge),user:{...options.user,id:buffer(options.user.id)},excludeCredentials:(options.excludeCredentials||[]).map(item=>({...item,id:buffer(item.id)}))}}
+function serialize(credential){return{id:credential.id,rawId:base64(credential.rawId),type:credential.type,response:{attestationObject:base64(credential.response.attestationObject),clientDataJSON:base64(credential.response.clientDataJSON)}}}
+function checkRp(options){const serverRp=String(options?.rp?.id||window.location.hostname).toLowerCase(),pageHost=window.location.hostname.toLowerCase();if(serverRp!==pageHost)throw new Error("WebAuthn address mismatch. This page is "+pageHost+" but the server is using "+serverRp+". Open the same HTTPS tunnel address that serves GeoAttend.")}
+async function post(url,payload){const response=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload),cache:"no-store"}),data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||"Request failed.");return data}
+if(!email){show("Your registration session is missing. Start registration again.");button.disabled=true;return}
+if(window.PublicKeyCredential?.isUserVerifyingPlatformAuthenticatorAvailable){PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(available=>{document.getElementById("device-status").textContent=available?"Platform device security detected. The operating system will choose the available biometric or screen-lock prompt.":"No platform device security detected on this device."}).catch(()=>{document.getElementById("device-status").textContent="Unable to detect platform device security in this browser."})}
+button.addEventListener("click",async()=>{if(!window.isSecureContext||!navigator.credentials?.create){secureLink.style.display="block";show("Device security enrollment requires HTTPS. Open the secure address below.");return}if(!window.PublicKeyCredential){show("This browser does not support standard device security enrollment. Use current Chrome, Edge, Safari, or Android browser software.");return}button.disabled=true;button.textContent="Waiting for the standard device security prompt...";try{const available=await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();if(!available)throw new Error("No supported platform device security is available. Add a fingerprint, Face ID, or screen lock in the device settings first.");const result=await post("/api/webauthn/register-options",{email});checkRp(result.options);const credential=await navigator.credentials.create({publicKey:prepare(result.options)});if(!credential)throw new Error("Enrollment was cancelled.");const verified=await post("/api/webauthn/register-verify",{email,response:serialize(credential)}),profiles=JSON.parse(localStorage.getItem("geoAttendBiometricProfiles")||"{}");profiles[email]={email,identityVerified:true,biometricVerified:true,webauthnCredential:verified.credential,enrolledAt:new Date().toISOString()};localStorage.setItem("geoAttendBiometricProfiles",JSON.stringify(profiles));const accounts=JSON.parse(localStorage.getItem("geoAttendAccounts")||"[]");localStorage.setItem("geoAttendAccounts",JSON.stringify(accounts.map(item=>item.email===email?{...item,identityVerified:true,biometricVerified:true}:item)));show("Device security enrolled. Opening student portal...","success");setTimeout(()=>window.location.replace("student-home.html"),500)}catch(error){show(error?.name==="NotAllowedError"?"Enrollment was cancelled or timed out. Try again.":(error.message||"Device enrollment failed."));button.disabled=false;button.textContent="Continue with device security"}})})()
+</script>
+</body></html>

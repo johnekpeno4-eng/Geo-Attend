@@ -126,6 +126,7 @@
   </style>
   <script src="role-access.js?v=20260924-loginfix" defer></script>
   <link rel="stylesheet" href="mobile-student.css?v=20260924-mobilefix" />
+  <link rel="stylesheet" href="form-controls.css?v=20260924-dropdowns" />
 </head>
 <body class="bg-surface text-on-surface overflow-x-hidden" data-role-required="public">
   <div class="flex min-h-screen w-full">
@@ -497,12 +498,6 @@
           regNumberInput.focus();
           return;
         }
-
-        if (accounts.some((account) => account.email === email || account.regNumber.toLowerCase() === regNumber.toLowerCase())) {
-          showMessage("An account with this email or reg number already exists. Please login.", true);
-          return;
-        }
-
         if (password.length < 6) {
           showMessage("Password must be at least 6 characters.", true);
           return;
@@ -558,7 +553,9 @@
           departmentName: pendingAccount.departmentName,
           levelId: pendingAccount.levelId,
           levelName: pendingAccount.levelName,
-          totpEnabled: false,
+          totpSecret: pendingAccount.totpSecret,
+          totpEnabled: pendingAccount.totpEnabled,
+          registrationFlow: true,
           verified: true,
           createdAt: pendingAccount.createdAt
         });
@@ -567,12 +564,14 @@
         showMessage(error.message, true);
         return;
       }
-      accounts.push(pendingAccount);
+      const savedAccountIndex = accounts.findIndex((account) => account.email === pendingAccount.email || String(account.regNumber || "").toLowerCase() === pendingAccount.regNumber.toLowerCase());
+      if (savedAccountIndex >= 0) accounts[savedAccountIndex] = pendingAccount;
+      else accounts.push(pendingAccount);
       saveAccounts(accounts);
       localStorage.setItem("geoAttendCurrentUser", pendingAccount.email);
       localStorage.setItem("geoAttendRole", pendingAccount.role);
       localStorage.setItem("geoAttendView", "student");
-      showMessage("Email verified and account created. Opening identity verification...");
+      showMessage("Authenticator verified. Complete device fingerprint enrollment to continue.");
 
       setTimeout(() => {
         window.location.href = "security.html?onboarding=1";
@@ -581,15 +580,3 @@
   </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-

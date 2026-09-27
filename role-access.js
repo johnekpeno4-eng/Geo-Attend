@@ -3,7 +3,7 @@
   document.documentElement.classList.toggle("dark", savedTheme === "dark");
   document.documentElement.classList.toggle("light", savedTheme !== "dark");
 
-  const ADMIN_PAGES = new Set(["dashboard.html", "create-session.html", "live-monitor.html", "students.html", "records.html", "session-report.html", "admin-management.html"]);
+  const ADMIN_PAGES = new Set(["dashboard.html", "create-session.html", "live-monitor.html", "students.html", "records.html", "session-report.html", "admin-management.html", "courses.html"]);
   const STUDENT_PAGES = new Set(["student-home.html", "student-history.html", "student-profile.html", "identity-verification.html"]);
   const PUBLIC_PAGES = new Set(["login.html", "register.html", ""]);
 
@@ -56,11 +56,9 @@
   const isAdminSession = role === "admin" && currentUserEmail && adminEmail && currentUserEmail === adminEmail;
 
 
-  function studentIdentityComplete(email, account) {
-    if (!email) return false;
+  function studentIdentityComplete(email) {
     const profiles = JSON.parse(localStorage.getItem("geoAttendBiometricProfiles") || "{}");
-    const profile = profiles[email];
-    return Boolean(profile?.identityVerified || profile?.attendancePinHash || account?.identityVerified || account?.pinProfileStoredAt || account?.biometricProfileStoredAt);
+    return Boolean(profiles[email]?.webauthnCredential?.id && profiles[email]?.identityVerified === true);
   }
   function firstTwoNames(value) {
     const text = String(value || "").trim();
@@ -96,10 +94,11 @@
   }
 
 
-  if (role === "student" && isStudentPage && page !== "identity-verification.html" && !studentIdentityComplete(currentUserEmail, currentAccount)) {
+  if (role === "student" && isStudentPage && page !== "identity-verification.html" && !studentIdentityComplete(currentUserEmail)) {
     go("identity-verification.html");
     return;
   }
+
   if (!role && !isPublicPage) {
     go("login.html");
     return;
@@ -110,6 +109,12 @@
     return;
   }
 
+  const adminRole = localStorage.getItem("geoAttendAdminRole") || "";
+  const lecturerRestrictedPages = new Set(["admin-management.html", "courses.html", "students.html", "records.html"]);
+  if (role === "admin" && adminRole === "lecturer_admin" && lecturerRestrictedPages.has(page)) {
+    go("dashboard.html");
+    return;
+  }
   if (role === "admin" && isStudentPage) {
     localStorage.setItem("geoAttendView", "student");
   }
@@ -120,17 +125,6 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     updateHeaderIdentity();
-
-    if (role === "student" && page === "student-checkin.html") {
-      const currentUser = localStorage.getItem("geoAttendCurrentUser");
-      const profiles = JSON.parse(localStorage.getItem("geoAttendBiometricProfiles") || "{}");
-      if (currentUser && !profiles[currentUser]) {
-        window.location.replace("identity-verification.html");
-        return;
-      }
-      window.location.replace("student-home.html#active-classes");
-      return;
-    }
 
     const loginForm = document.querySelector("[data-login-form]");
     if (loginForm) {
@@ -328,9 +322,10 @@
     });
     function getApiTargets(url) {
       const targets = [url];
-      const shouldUseLocalBackend = window.location.protocol === "file:" || window.location.port !== "5502";
+      const configuredPort = "4600";
+      const shouldUseLocalBackend = window.location.protocol === "file:";
       if (shouldUseLocalBackend && url.startsWith("/")) {
-        targets.push(`http://127.0.0.1:4100${url}`);
+        targets.push(`http://127.0.0.1:${configuredPort}${url}`);
       }
       return [...new Set(targets)];
     }
@@ -357,7 +352,7 @@
         }
       }
 
-      const error = new Error("Could not reach the GeoAttend backend. Open http://127.0.0.1:4100/login.html and make sure the server is running.");
+      const error = new Error(`Could not reach the GeoAttend backend. Open ${window.location.origin}/login.html and make sure the server is running.`);
       error.cause = networkError;
       throw error;
     }
@@ -603,7 +598,7 @@
       switchLink.href = "student-home.html#active-classes";
       switchLink.className = "admin-view-switch bg-secondary text-on-primary rounded-xl px-4 py-2 shadow-lg font-bold inline-flex items-center gap-2 shrink-0";
       switchLink.innerHTML = '<span class="material-symbols-outlined text-[20px]">visibility</span><span>Student View</span>';
-      const header = document.querySelector("main > header");
+      const header = document.querySelector("main > header, main > div > header");
       if (header) {
         header.insertBefore(switchLink, header.firstChild);
       } else {
@@ -613,7 +608,7 @@
       setupAdminProfileMenu();
     }
 
-    if (role === "admin" && isStudentPage) {
+  if (role === "admin" && isStudentPage) {
       const adminSwitch = document.createElement("a");
       adminSwitch.href = "dashboard.html";
       adminSwitch.className = "admin-view-switch bg-secondary text-on-primary rounded-xl px-4 py-2 shadow-lg font-bold inline-flex items-center gap-2 shrink-0";
@@ -628,7 +623,7 @@
     }
 
     function setupAdminProfileMenu() {
-      const header = document.querySelector("main > header");
+      const header = document.querySelector("main > header, main > div > header");
       if (!header || document.getElementById("admin-profile-menu-root")) return;
       const currentEmail = localStorage.getItem("geoAttendCurrentUser") || "Admin";
       const currentName = getDisplayName();
@@ -721,15 +716,3 @@
     }
   });
 })();
-
-
-
-
-
-
-
-
-
-
-
-

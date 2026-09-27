@@ -214,6 +214,7 @@
   </style>
   <script src="role-access.js?v=20260924-loginfix" defer></script>
   <link rel="stylesheet" href="mobile-admin.css?v=20260924-fixed1200" />
+  <link rel="stylesheet" href="form-controls.css?v=20260924-dropdowns" />
 </head>
 <body class="bg-surface font-body-md text-on-surface overflow-x-hidden" data-role-required="admin">
   <aside class="w-[280px] h-screen fixed left-0 top-0 bg-surface-container-lowest border-r border-outline-variant shadow-sm flex flex-col py-lg px-md z-50">
@@ -235,6 +236,10 @@
       <a class="flex items-center gap-md p-md rounded-lg text-secondary font-bold border-l-4 border-secondary bg-surface-container-low transition-colors duration-200" href="create-session.html">
         <span class="material-symbols-outlined">add_circle</span>
         <span class="font-body-md">Create Session</span>
+      </a>
+      <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200" href="courses.html">
+        <span class="material-symbols-outlined">menu_book</span>
+        <span class="font-body-md">Courses</span>
       </a>
       <a class="flex items-center gap-md p-md rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors duration-200" href="live-monitor.html">
         <span class="material-symbols-outlined">security</span>
@@ -589,7 +594,7 @@
     let weakAdminLocationSamples = 0;
     const ADMIN_LOCATION_PUBLISH_INTERVAL = 5000;
     const PC_LOCATION_WEAK_ACCURACY_METERS = 100;
-    const TRUSTED_ADMIN_LOCATION_ACCURACY_METERS = 100;
+    const TRUSTED_ADMIN_LOCATION_ACCURACY_METERS = 20;
     const LOCATION_SAMPLE_WINDOW_MS = 25000;
     const LOCATION_TARGET_ACCURACY_METERS = 20;
     let academicScope = null;
@@ -642,13 +647,14 @@
       ));
       const courseSelect = document.getElementById("course");
       if (!courseSelect) return;
-      const list = courses.length ? courses : academicScope.courses;
-      courseSelect.innerHTML = list.map((course) => `<option>${course.code}: ${course.title}</option>`).join("");
+      const isLecturer = localStorage.getItem("geoAttendAdminRole") === "lecturer_admin";
+      const list = courses.length ? courses : (isLecturer ? [] : academicScope.courses);
+      courseSelect.innerHTML = list.length ? list.map((course) => `<option>${course.code}: ${course.title}</option>`).join("") : "<option value=\"\">No course assigned to this lecturer</option>";
     }
 
     async function loadAcademicScope() {
       try {
-        const response = await fetch("/api/academic-scope", { cache: "no-store" });
+        const response = await fetch(`/api/academic-scope?actorEmail=${encodeURIComponent(localStorage.getItem("geoAttendCurrentUser") || "")}`, { cache: "no-store" });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error || "Unable to load academic scope.");
         academicScope = data;
@@ -739,7 +745,7 @@
 
     function isTrustedPcLocationAccuracy(accuracy) {
       const meters = Number(accuracy || 0);
-      return meters > 0 && meters <= LOCATION_DEVICE_PROFILE.trustedAccuracy;
+      return meters > 0 && meters <= TRUSTED_ADMIN_LOCATION_ACCURACY_METERS;
     }
 
     function isWeakPcGeofence(geofence = selectedGeofence) {
@@ -864,7 +870,8 @@
           radius: getRadiusValue(),
           name: selectedPlaceName,
           accuracy: selectedGeofence.accuracy || null,
-          source: selectedGeofence.source || "manual"
+          source: selectedGeofence.source || "manual",
+          capturedAt: selectedGeofence.timestamp || new Date().toISOString()
         },
         adminLocationTracking: {
           enabled: adminLiveTrackingEnabled,
@@ -1142,8 +1149,8 @@
       const session = persistDraftGeofence();
       if (isWeakPcGeofence(session.geofence)) {
         const accuracy = Number(session.geofence.accuracy || 0);
-        setActionFeedback(`Cannot generate session because PC accuracy is ${accuracy || "unknown"}m and the radius is smaller than that accuracy. Increase the radius or select the exact class location on the map/search.`, "error");
-        updateMapStatus(`Weak PC location rejected. Accuracy: ${accuracy || "unknown"}m. Increase radius or use map search/click for fixed class geofence.`, true);
+        setActionFeedback(`Cannot generate session because device GPS accuracy is ${accuracy || "unknown"}m. A live device geofence requires 20m accuracy or better. Improve precise location, Wi-Fi, and mobile data, or select the exact class point on the map.`, "error");
+        updateMapStatus(`Weak device GPS rejected. Accuracy: ${accuracy || "unknown"}m. A live device geofence requires 20m accuracy or better; use map search/click for a fixed class geofence.`, true);
         return null;
       }
       session.id = `session-${Date.now()}`;
@@ -1525,8 +1532,3 @@
   </script>
 </body>
 </html>
-
-
-
-
-
