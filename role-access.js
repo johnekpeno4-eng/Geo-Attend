@@ -739,7 +739,7 @@
         notificationItems = items;
         const read = readIds();
         const unread = items.filter((item) => !read.has(item.id));
-        badge.textContent = unread.length > 9 ? "9+" : String(unread.length);
+        badge.textContent = String(unread.length);
         badge.classList.toggle("hidden", unread.length === 0);
         list.innerHTML = items.length ? items.map((item) => `
           <a href="${item.href}" class="flex items-start gap-3 rounded-lg px-3 py-3 hover:bg-surface-container-low ${read.has(item.id) ? "" : "bg-secondary/5"}">
@@ -774,7 +774,7 @@
             href: "live-monitor.html"
           }));
           const newReports = (Array.isArray(reportsData.reports) ? reportsData.reports : []).filter((report) => report.status === "new");
-          newReports.slice(0, 5).forEach((report) => items.push({
+          newReports.forEach((report) => items.push({
             id: `report:${report.id}`,
             icon: "report_problem",
             title: "Student report",
