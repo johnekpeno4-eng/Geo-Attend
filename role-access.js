@@ -596,6 +596,7 @@
         switchLink.classList.add("fixed", "top-4", "left-4", "z-[999]");
         document.body.appendChild(switchLink);
       }
+      ensureAdminHeaderTools();
       setupAdminProfileMenu();
       setupAdminNotifications();
     }
