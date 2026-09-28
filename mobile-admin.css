@@ -2204,3 +2204,18 @@ body[data-admin-page="courses"] .admin-profile-menu-root,
 body[data-admin-page="courses"] [data-notification-root] {
   display: none !important;
 }
+@media (max-width: 900px) {
+  body[data-role-required="admin"] main > header .admin-header-tools {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin-left: auto !important;
+    flex: 0 0 auto !important;
+  }
+
+  body[data-role-required="admin"] main > header .admin-header-identity {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+  }
+}

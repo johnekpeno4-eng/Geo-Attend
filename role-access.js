@@ -614,6 +614,27 @@
       }
     }
 
+    function ensureAdminHeaderTools() {
+      const header = document.querySelector("main > header, main > div > header");
+      if (!header || document.body.dataset.adminPage === "courses" || header.querySelector("[data-current-user-name]")) return;
+
+      const tools = document.createElement("div");
+      tools.className = "admin-header-tools flex items-center gap-lg ml-auto shrink-0";
+      tools.dataset.adminHeaderTools = "true";
+      tools.innerHTML = `
+        <button class="inline-flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-secondary" type="button" aria-label="Notifications">
+          <span class="material-symbols-outlined">notifications</span>
+        </button>
+        <button class="inline-flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-secondary" type="button" aria-label="Help">
+          <span class="material-symbols-outlined">help</span>
+        </button>
+        <div class="admin-header-identity flex items-center gap-sm">
+          <div class="text-right hidden sm:block"><p class="font-label-md text-on-surface" data-current-user-name>Admin User</p><p class="text-[10px] text-on-surface-variant uppercase tracking-wider">Administrator</p></div>
+          <div class="admin-avatar flex h-8 w-8 items-center justify-center rounded-full bg-secondary-fixed text-secondary" data-admin-avatar aria-label="Admin profile"><span class="material-symbols-outlined text-[18px]">person</span></div>
+        </div>
+      `;
+      header.appendChild(tools);
+    }
     function setupAdminProfileMenu() {
       const header = document.querySelector("main > header, main > div > header");
       if (!header || document.getElementById("admin-profile-menu-root")) return;
