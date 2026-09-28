@@ -747,7 +747,12 @@
           <div class="admin-notification-list max-h-80 overflow-y-auto p-2"><p class="px-3 py-5 text-sm text-on-surface-variant">Loading notifications...</p></div>
         </div>
       `;
-      host.appendChild(root);
+      if (iconButton) {
+        host.insertBefore(root, bell);
+      } else {
+        host.appendChild(root);
+      }
+      root.insertBefore(bell, root.firstChild);
       header.dataset.notificationsReady = "true";
 
       const badge = root.querySelector(".admin-notification-badge");
