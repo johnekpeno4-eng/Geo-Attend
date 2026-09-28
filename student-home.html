@@ -275,7 +275,6 @@
   <script>
     const email = localStorage.getItem("geoAttendCurrentUser") || "Student";
     const isAdminUser = localStorage.getItem("geoAttendRole") === "admin";
-    const selectedAcademicSession = localStorage.getItem("geoAttendAcademicSession") || "";
     function getLiveSessions() {
       const sessions = JSON.parse(localStorage.getItem("geoAttendLiveSessions") || "[]");
       const active = JSON.parse(localStorage.getItem("geoAttendActiveSession") || "null");
@@ -283,12 +282,12 @@
       if (active?.id && !merged.some((session) => session.id === active.id)) {
         merged.unshift(active);
       }
-      return merged.filter((session) => session?.status === "active" && (!selectedAcademicSession || session.academicSession === selectedAcademicSession));
+      return merged.filter((session) => session?.status === "active");
     }
 
     async function refreshLiveSessionsFromServer() {
       try {
-        const email = localStorage.getItem("geoAttendCurrentUser") || ""; const response = await fetch(`/api/live-sessions?email=${encodeURIComponent(email)}&academicSession=${encodeURIComponent(selectedAcademicSession)}`, { cache: "no-store" });
+        const email = localStorage.getItem("geoAttendCurrentUser") || ""; const response = await fetch(`/api/live-sessions?email=${encodeURIComponent(email)}`, { cache: "no-store" });
         if (!response.ok) return;
         const data = await response.json();
         const sessions = Array.isArray(data.sessions) ? data.sessions : [];
@@ -316,7 +315,7 @@
     let checkinInProgress = false;
     let checkinQrTimer = null;    let sessionCountdownInterval = null;
     let attendanceLogs = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]")
-      .filter((item) => (!email || item.email === email) && (!selectedAcademicSession || item.academicSession === selectedAcademicSession));
+      .filter((item) => !email || item.email === email);
     let isWithinGeofence = false;
     let latestPosition = null;
     let locationWatchId = null;
