@@ -2164,3 +2164,28 @@ body[data-role-required="admin"] aside.w-\[280px\] nav a {
     grid-template-columns: minmax(0, 1fr) auto !important;
   }
 }
+
+@media (max-width: 900px) {
+  /* Keep the admin avatar anchored at the far right of every mobile header. */
+  body[data-role-required="admin"] main > header .admin-avatar,
+  body[data-role-required="admin"] main > header .admin-profile-trigger {
+    position: relative !important;
+    right: auto !important;
+    display: inline-flex !important;
+    flex: 0 0 32px !important;
+    width: 32px !important;
+    height: 32px !important;
+    margin: 0 0 0 4px !important;
+    transform: none !important;
+  }
+
+  body[data-role-required="admin"] main > header .admin-profile-menu-root {
+    display: inline-flex !important;
+    flex: 0 0 32px !important;
+    width: 32px !important;
+    height: 32px !important;
+    margin-left: 4px !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+}
