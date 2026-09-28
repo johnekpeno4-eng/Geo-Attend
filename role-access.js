@@ -623,8 +623,8 @@
       root.id = "admin-profile-menu-root";
       root.className = "admin-profile-menu-root relative";
       root.innerHTML = `
-        <button class="admin-profile-trigger w-10 h-10 rounded-full bg-secondary-fixed text-secondary border border-outline-variant flex items-center justify-center" type="button" aria-expanded="false" aria-label="Admin profile menu">
-          <img alt="Administrator avatar" class="h-10 w-10 rounded-full border-2 border-secondary object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAR4GZlERHztkmaJEaWoCbfvKvJXp1RIOEXQLgj6C0i2jgRb_PZzR-Wo0UlgzxpaCHTWTM69juPiC2ozhIhz20S5WpBtkIsdyhjuyIPhbBgQbuUWKWYms_P931VGQYuk9jIIIAE-Gogav_0wBaXx3oDtXIXez_eX8Bdk8BHom_8gzqk4ZwKBSjBb0kobXt01LqQsf7HOctKS9oWdQdiLPFqT5lKQOrwVZ_xOdzshZNTRYi1haEY7NvfeSjxNigp1MWV0p6_qd2wkzg" />
+        <button class="admin-profile-trigger w-8 h-8 rounded-full bg-secondary-fixed text-secondary border border-outline-variant flex items-center justify-center" type="button" aria-expanded="false" aria-label="Admin profile menu">
+          <span class="material-symbols-outlined text-[18px]">person</span>
         </button>
         <div class="admin-profile-menu hidden absolute right-0 top-12 w-72 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-2xl z-[999] p-3">
           <div class="border-b border-outline-variant pb-3 mb-3">
