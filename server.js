@@ -473,7 +473,7 @@ async function seedAcademicScope() {
     await dbRun("INSERT OR IGNORE INTO academic_levels (id, name) VALUES (?, ?)", [level.id, level.name]);
   }
   for (const course of ACADEMIC_SCOPE.courses) {
-    await dbRun("INSERT OR IGNORE INTO academic_courses (code, title, faculty_id, department_id, level_id) VALUES (?, ?, ?, ?, ?)", [course.code, course.title, course.facultyId, course.departmentId, course.levelId]);
+    await dbRun("INSERT OR IGNORE INTO academic_courses_by_session (code, academic_session, title, faculty_id, department_id, level_id) VALUES (?, ?, ?, ?, ?, ?)", [course.code, DEFAULT_ACADEMIC_SESSION, course.title, course.facultyId, course.departmentId, course.levelId]);
   }
 }
 
@@ -518,7 +518,7 @@ function normalizeAcademicScope(input = {}) {
 
 async function readAcademicCourses() {
   try {
-    const rows = await dbAll("SELECT code, title, faculty_id, department_id, level_id, academic_session FROM academic_courses ORDER BY code COLLATE NOCASE");
+    const rows = await dbAll("SELECT code, title, faculty_id, department_id, level_id, academic_session FROM academic_courses_by_session ORDER BY academic_session DESC, code COLLATE NOCASE");
     return rows.map((row) => ({ code: row.code, title: row.title, facultyId: row.faculty_id, departmentId: row.department_id, levelId: row.level_id, academicSession: row.academic_session || DEFAULT_ACADEMIC_SESSION }));
   } catch {
     return ACADEMIC_SCOPE.courses;
@@ -556,13 +556,15 @@ async function setAcademicSession(res, body = {}) {
 
 async function getAcademicScope(req, res) {
   let courses = await readAcademicCourses();
+  const requestedAcademicSession = normalizeAcademicSession(new URL(req.url, "http://127.0.0.1").searchParams.get("academicSession")) || await getCurrentAcademicSession();
+  courses = courses.filter((course) => course.academicSession === requestedAcademicSession);
   const principal = getRequestPrincipal(req);
   if (principal.admin && isLecturerAdmin(principal.admin)) {
     const assignedCodes = new Set(await getLecturerAssignedCourseCodes(principal.admin.email));
     courses = courses.filter((course) => assignedCodes.has(course.code));
   }
   const scope = { ...ACADEMIC_SCOPE, courses };
-  json(res, 200, { ok: true, scope, ...scope, defaults: getAcademicDefaults() });
+  json(res, 200, { ok: true, scope, ...scope, academicSession: requestedAcademicSession, defaults: getAcademicDefaults() });
 }
 
 function getCourseCode(value) {
@@ -633,15 +635,16 @@ async function saveCourse(res, body = {}) {
     return;
   }
   const academicSession = normalizeAcademicSession(body.academicSession) || await getCurrentAcademicSession();
-  await dbRun(`INSERT INTO academic_courses (code, title, faculty_id, department_id, level_id, academic_session)
+  await dbRun(`INSERT INTO academic_courses_by_session (code, title, faculty_id, department_id, level_id, academic_session)
     VALUES (?, ?, ?, ?, ?, ?)
-    ON CONFLICT(code) DO UPDATE SET
+    ON CONFLICT(code, academic_session) DO UPDATE SET
       title = excluded.title,
       faculty_id = excluded.faculty_id,
       department_id = excluded.department_id,
       level_id = excluded.level_id,
       academic_session = excluded.academic_session`, [code, title, scope.facultyId, scope.departmentId, scope.levelId, academicSession]);
-  json(res, 200, { ok: true, course: { code, title, facultyId: scope.facultyId, departmentId: scope.departmentId, levelId: scope.levelId, academicSession }, courses: await readAcademicCourses() });
+  const courses = (await readAcademicCourses()).filter((course) => course.academicSession === academicSession);
+  json(res, 200, { ok: true, course: { code, title, facultyId: scope.facultyId, departmentId: scope.departmentId, levelId: scope.levelId, academicSession }, courses });
 }
 
 async function deleteCourse(req, res) {
@@ -651,8 +654,9 @@ async function deleteCourse(req, res) {
     json(res, 400, { error: "Course code is required." });
     return;
   }
-  await dbRun("DELETE FROM academic_courses WHERE code = ? COLLATE NOCASE", [code]);
-  json(res, 200, { ok: true, courses: await readAcademicCourses() });
+  const academicSession = normalizeAcademicSession(url.searchParams.get("academicSession")) || await getCurrentAcademicSession();
+  await dbRun("DELETE FROM academic_courses_by_session WHERE code = ? COLLATE NOCASE AND academic_session = ?", [code, academicSession]);
+  json(res, 200, { ok: true, courses: (await readAcademicCourses()).filter((course) => course.academicSession === academicSession) });
 }
 
 async function initDatabase() {
@@ -714,6 +718,17 @@ async function initDatabase() {
     level_id TEXT NOT NULL
   )`);
   await ensureColumn("academic_courses", "academic_session", "TEXT DEFAULT ''");
+  await dbRun(`CREATE TABLE IF NOT EXISTS academic_courses_by_session (
+    code TEXT NOT NULL COLLATE NOCASE,
+    academic_session TEXT NOT NULL,
+    title TEXT NOT NULL,
+    faculty_id TEXT NOT NULL,
+    department_id TEXT NOT NULL,
+    level_id TEXT NOT NULL,
+    PRIMARY KEY (code, academic_session)
+  )`);
+  await dbRun(`INSERT OR IGNORE INTO academic_courses_by_session (code, academic_session, title, faculty_id, department_id, level_id)
+    SELECT code, COALESCE(NULLIF(academic_session, ''), ?), title, faculty_id, department_id, level_id FROM academic_courses`, [DEFAULT_ACADEMIC_SESSION]);
   await dbRun(`CREATE TABLE IF NOT EXISTS academic_settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL,
@@ -767,6 +782,7 @@ async function initDatabase() {
   await dbRun("UPDATE academic_courses SET academic_session = ? WHERE academic_session IS NULL OR academic_session = ''", [DEFAULT_ACADEMIC_SESSION]);
   await dbRun("UPDATE live_sessions SET academic_session = ? WHERE academic_session IS NULL OR academic_session = ''", [DEFAULT_ACADEMIC_SESSION]);
   await dbRun("UPDATE attendance SET academic_session = ? WHERE academic_session IS NULL OR academic_session = ''", [DEFAULT_ACADEMIC_SESSION]);
+  await backfillAcademicSessionJson();
   await dbRun(`CREATE TABLE IF NOT EXISTS lecturer_course_assignments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     lecturer_email TEXT NOT NULL COLLATE NOCASE,
@@ -804,25 +820,42 @@ async function migrateJsonDataToSqlite() {
   }
 
   const sessions = readJsonFile(LIVE_SESSIONS_FILE, []);
-  for (const session of Array.isArray(sessions) ? sessions : []) {
+  const normalizedSessions = (Array.isArray(sessions) ? sessions : []).map((session) => ({ ...session, academicSession: normalizeAcademicSession(session?.academicSession) || DEFAULT_ACADEMIC_SESSION }));
+  for (const session of normalizedSessions) {
     if (!session?.id) continue;
     await upsertSqliteSession(session);
   }
+  if (JSON.stringify(sessions) !== JSON.stringify(normalizedSessions)) writeLocalJson(LIVE_SESSIONS_FILE, normalizedSessions);
 
   const attendance = readJsonFile(ATTENDANCE_LOG_FILE, []);
-  for (const record of Array.isArray(attendance) ? attendance : []) {
+  const normalizedAttendance = (Array.isArray(attendance) ? attendance : []).map((record) => ({ ...record, academicSession: normalizeAcademicSession(record?.academicSession) || DEFAULT_ACADEMIC_SESSION }));
+  for (const record of normalizedAttendance) {
     if (!record?.id || !record?.sessionId) continue;
     await upsertSqliteAttendance(record);
   }
+  if (JSON.stringify(attendance) !== JSON.stringify(normalizedAttendance)) writeLocalJson(ATTENDANCE_LOG_FILE, normalizedAttendance);
 
   const reports = readJsonFile(ATTENDANCE_REPORTS_INDEX_FILE, []);
-  for (const report of Array.isArray(reports) ? reports : []) {
-    if (!report?.id) continue;
-    const normalized = { ...report, academicSession: normalizeAcademicSession(report.academicSession) || DEFAULT_ACADEMIC_SESSION };
+  const normalizedReports = (Array.isArray(reports) ? reports : []).map((report) => ({ ...report, academicSession: normalizeAcademicSession(report?.academicSession) || DEFAULT_ACADEMIC_SESSION }));
+  for (const normalized of normalizedReports) {
+    if (!normalized?.id) continue;
     await dbRun(`INSERT INTO attendance_reports (id, session_id, academic_session, report_json, updated_at) VALUES (?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET session_id = excluded.session_id, academic_session = excluded.academic_session, report_json = excluded.report_json, updated_at = excluded.updated_at`,
     [normalized.id, normalized.sessionId || "", normalized.academicSession, JSON.stringify(normalized), normalized.updatedAt || normalized.createdAt || new Date().toISOString()]);
   }
+}
+
+async function backfillAcademicSessionJson() {
+  for (const [table, jsonColumn] of [["live_sessions", "session_json"], ["attendance", "attendance_json"]]) {
+    const rows = await dbAll(`SELECT id, ${jsonColumn} FROM ${table}`);
+    for (const row of rows) {
+      const record = parseJsonColumn(row[jsonColumn], null);
+      if (!record || normalizeAcademicSession(record.academicSession)) continue;
+      const normalized = { ...record, academicSession: DEFAULT_ACADEMIC_SESSION };
+      await dbRun(`UPDATE ${table} SET ${jsonColumn} = ?, academic_session = ? WHERE id = ?`, [JSON.stringify(normalized), DEFAULT_ACADEMIC_SESSION, row.id]);
+    }
+  }
+  if (JSON.stringify(reports) !== JSON.stringify(normalizedReports)) writeAttendanceReports(normalizedReports);
 }
 
 function parseJsonColumn(value, fallback) {
@@ -1750,7 +1783,7 @@ function getAttendancePdfPayload(sessionId, academicSession = "") {
     .sort((a, b) => new Date(a.checkedInAt || 0) - new Date(b.checkedInAt || 0));
   const title = session?.course || attendance[0]?.course || (sessionId ? "Session Attendance Report" : "Attendance Report");
   const fileSafeTitle = title.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase() || "attendance-report";
-  const pdf = createAttendancePdf({ title, session, sessionId, attendance });
+  const pdf = createAttendancePdf({ title, session: { ...session, academicSession: academicSession || session?.academicSession || DEFAULT_ACADEMIC_SESSION }, sessionId, attendance });
 
   return {
     attendance,
@@ -1947,7 +1980,7 @@ function writeSavedReportPdf(report, payload = null) {
   ].sort((a, b) => new Date(a.checkedInAt || 0) - new Date(b.checkedInAt || 0));
   const pdf = createAttendancePdf({
     title: report.title || data.title,
-    session: data.session,
+    session: { ...data.session, academicSession: report.academicSession || data.session?.academicSession || DEFAULT_ACADEMIC_SESSION },
     sessionId: report.sessionId || data.sessionId,
     attendance
   });
@@ -3126,6 +3159,7 @@ function readJsonFile(filePath, fallback) {
 function createAttendancePdf({ title, session, attendance }) {
   const course = session?.course || title || attendance[0]?.course || "................................";
   const date = formatAttendanceSheetDate(session);
+  const academicSession = session?.academicSession || attendance[0]?.academicSession || DEFAULT_ACADEMIC_SESSION;
   const rows = attendance.length ? attendance : [];
   const rowsPerPage = 31;
   const pages = [];
@@ -3147,6 +3181,7 @@ function createAttendancePdf({ title, session, attendance }) {
     const content = createAttendanceTemplatePage({
       course,
       date,
+      academicSession,
       pageIndex,
       pageRows,
       startIndex: pageIndex * rowsPerPage
@@ -3176,7 +3211,7 @@ function createAttendancePdf({ title, session, attendance }) {
   return Buffer.from(chunks.join(""), "utf8");
 }
 
-function createAttendanceTemplatePage({ course, date, pageRows, startIndex, pageIndex }) {
+function createAttendanceTemplatePage({ course, date, academicSession, pageRows, startIndex, pageIndex }) {
   const tableX = 54;
   const tableY = 520;
   const tableWidth = 487;
@@ -3189,7 +3224,7 @@ function createAttendanceTemplatePage({ course, date, pageRows, startIndex, page
 
   pdfText(commands, "UNIVERSITY OF UYO", 297, 780, 15, "F2", "center");
   pdfText(commands, "FACULTY OF ENGINEERING", 297, 750, 15, "F2", "center");
-  pdfText(commands, "DEPARTMENT OF ELECTRICAL/ELECTRONICS ENGINEERING 2025/2026", 297, 720, 13, "F2", "center");
+  pdfText(commands, `DEPARTMENT OF ELECTRICAL/ELECTRONICS ENGINEERING ${academicSession}`, 297, 720, 13, "F2", "center");
   pdfText(commands, "CLASS ATTENDANCE", 297, 690, 15, "F2", "center");
   pdfTextBox(commands, `COURSE: ${course}`, tableX, 640, 330, 12, "F2", "left");
   pdfTextBox(commands, `DATE: ${date}`, tableX + tableWidth - 150, 640, 150, 12, "F2", "right");

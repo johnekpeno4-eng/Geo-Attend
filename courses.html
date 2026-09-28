@@ -116,14 +116,16 @@
       table.innerHTML = courses.map((course) => `<tr><td class="py-4 pr-4 font-bold">${course.code}</td><td class="py-4 pr-4">${course.title}</td><td class="py-4 pr-4 text-sm text-on-surface-variant">${departmentById[course.departmentId] || course.departmentId || "--"}</td><td class="py-4 pr-4 text-sm">${levelById[course.levelId] || course.levelId || "--"}</td><td class="py-4 text-right"><button class="rounded-lg border border-red-200 px-3 py-2 text-sm font-bold text-red-700" data-delete-course="${course.code}">Remove</button></td></tr>`).join("");
       table.querySelectorAll("[data-delete-course]").forEach((button) => button.addEventListener("click", async () => {
         if (!confirm(`Remove ${button.dataset.deleteCourse}?`)) return;
-        const data = await requestJson(`/api/courses?code=${encodeURIComponent(button.dataset.deleteCourse)}`, { method: "DELETE" });
+        const academicSession = localStorage.getItem("geoAttendAcademicSession") || "";
+        const data = await requestJson(`/api/courses?code=${encodeURIComponent(button.dataset.deleteCourse)}&academicSession=${encodeURIComponent(academicSession)}`, { method: "DELETE" });
         courses = data.courses || [];
         renderCourses();
         showMessage("Course removed.");
       }));
     }
     async function loadPage() {
-      const scopeData = await requestJson("/api/academic-scope");
+      const academicSession = localStorage.getItem("geoAttendAcademicSession") || "";
+      const scopeData = await requestJson(`/api/academic-scope?academicSession=${encodeURIComponent(academicSession)}`);
       academicScope = scopeData.scope || scopeData;
       fillSelect("course-faculty", academicScope.faculties || []);
       fillSelect("course-level", academicScope.levels || []);

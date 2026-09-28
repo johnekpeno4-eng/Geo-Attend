@@ -195,7 +195,7 @@
       if (meta) {
         const location = session?.locationName || session?.geofence?.name || "Selected location";
         const windowText = session ? `${session.startTime || "--"} - ${session.endTime || "--"}` : "Session details unavailable";
-        meta.textContent = `${location} | ${windowText}`;
+        meta.textContent = `${location} | ${windowText} | ${session?.academicSession || records[0]?.academicSession || ""}`;
       }
       if (count) count.textContent = `${records.length} ${records.length === 1 ? "student" : "students"}`;
       if (!body) return;
@@ -270,7 +270,8 @@
         button.innerHTML = '<span class="material-symbols-outlined text-[18px]">hourglass_top</span> Preparing...';
       }
       try {
-        const response = await fetch(`/api/attendance-pdf?sessionId=${encodeURIComponent(sessionId)}`, { cache: "no-store" });
+        const academicSession = localStorage.getItem("geoAttendAcademicSession") || "";
+        const response = await fetch(`/api/attendance-pdf?sessionId=${encodeURIComponent(sessionId)}&academicSession=${encodeURIComponent(academicSession)}`, { cache: "no-store" });
         if (!response.ok) throw new Error("Unable to generate PDF report.");
         const blob = await response.blob();
         const filename = getPdfFilename(response, "geoattend-session-report.pdf");

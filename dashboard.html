@@ -1086,7 +1086,7 @@
         <div class="pdf-report-item rounded-lg border border-outline-variant/40 bg-surface-container-low p-sm flex items-center justify-between gap-sm">
           <div class="pdf-report-copy min-w-0">
             <p class="pdf-report-title font-bold text-on-surface break-words">${escapeHtml(getReportCourseCode(report))}</p>
-            <p class="pdf-report-meta text-xs font-mono-data text-on-surface-variant">${escapeHtml(report.createdAt || "")} | ${Number(report.attendanceCount || 0)} names</p>
+            <p class="pdf-report-meta text-xs font-mono-data text-on-surface-variant">${escapeHtml(report.academicSession || "")} | ${escapeHtml(report.createdAt || "")} | ${Number(report.attendanceCount || 0)} names</p>
           </div>
           <div class="pdf-report-actions flex shrink-0 flex-wrap justify-end gap-xs">
             <button class="pdf-report-action rounded-lg bg-surface-container-lowest px-sm py-xs text-sm font-bold text-secondary border border-outline-variant/40" type="button" data-download-pdf="${report.id}">Download to Device</button>

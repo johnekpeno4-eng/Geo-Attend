@@ -229,7 +229,8 @@
 
     async function loadAcademicScope() {
       try {
-        const response = await fetch("/api/academic-scope", { cache: "no-store" });
+        const academicSession = localStorage.getItem("geoAttendAcademicSession") || "";
+        const response = await fetch(`/api/academic-scope?actorEmail=${encodeURIComponent(actorEmail)}&academicSession=${encodeURIComponent(academicSession)}`, { cache: "no-store" });
         const data = await response.json().catch(() => ({}));
         if (response.ok) {
           const loadedScope = data.scope || data;
