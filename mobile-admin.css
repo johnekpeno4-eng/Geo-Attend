@@ -2189,3 +2189,9 @@ body[data-role-required="admin"] aside.w-\[280px\] nav a {
     justify-content: center !important;
   }
 }
+@media (max-width: 900px) {
+  body[data-admin-page="courses"] main > header .admin-profile-menu-root,
+  body[data-admin-page="courses"] main > header [data-notification-root] {
+    display: none !important;
+  }
+}

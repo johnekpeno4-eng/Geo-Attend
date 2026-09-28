@@ -714,6 +714,7 @@
 
       const root = document.createElement("div");
       root.className = "relative";
+      root.dataset.notificationRoot = "true";
       root.innerHTML = `
         <span class="admin-notification-badge hidden absolute -right-0.5 -top-0.5 min-w-4 h-4 px-1 rounded-full bg-error text-white text-[10px] font-bold leading-4 text-center border-2 border-surface" aria-hidden="true"></span>
         <div class="admin-notification-menu hidden absolute right-0 top-12 z-[1000] w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-2xl">
