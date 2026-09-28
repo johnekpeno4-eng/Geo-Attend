@@ -2199,3 +2199,8 @@ body[data-admin-page="courses"] main > header .admin-profile-menu-root,
 body[data-admin-page="courses"] main > header [data-notification-root] {
   display: none !important;
 }
+/* Courses intentionally has no profile avatar or notification control. */
+body[data-admin-page="courses"] .admin-profile-menu-root,
+body[data-admin-page="courses"] [data-notification-root] {
+  display: none !important;
+}
