@@ -2219,23 +2219,14 @@ body[data-admin-page="courses"] [data-notification-root] {
     gap: 4px !important;
   }
 }
-@media (max-width: 900px) {
+@media (min-width: 901px) {
   body[data-role-required="admin"] main > header > .admin-view-switch {
     flex: 0 0 auto !important;
-    width: 130px !important;
-    max-width: 130px !important;
-    margin-right: 4px !important;
+    margin-right: 16px !important;
   }
 
   body[data-role-required="admin"] main > header > .admin-view-switch + div {
-    flex: 1 1 180px !important;
     min-width: 0 !important;
-    width: auto !important;
-  }
-
-  body[data-role-required="admin"] main > header > .admin-view-switch + div h2,
-  body[data-role-required="admin"] main > header > .admin-view-switch + div h1 {
-    min-width: 0 !important;
-    overflow-wrap: anywhere !important;
+    flex: 1 1 auto !important;
   }
 }
