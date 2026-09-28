@@ -302,7 +302,6 @@
             <span class="text-secondary">Create Session</span>
           </nav>
           <h2 class="font-headline-lg text-headline-lg text-on-surface">Create New Attendance Session</h2>
-          <p class="text-on-surface-variant font-body-lg">Configure geofencing and AI verification parameters.</p>
         </div>
 
         <div class="flex gap-md">
@@ -446,29 +445,6 @@
                   </div>
                 </div>
 
-                <div class="space-y-md">
-                  <div class="flex items-center justify-between p-sm px-md rounded-lg border border-outline-variant hover:border-secondary transition-all group">
-                    <div class="flex items-center gap-sm">
-                      <span class="material-symbols-outlined text-on-surface-variant group-hover:text-secondary">face</span>
-                      <span class="font-body-md">Require Face Recognition</span>
-                    </div>
-                    <label class="relative inline-flex items-center cursor-pointer">
-                      <input checked class="sr-only peer" type="checkbox" />
-                      <div class="w-11 h-6 bg-outline-variant rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-secondary"></div>
-                    </label>
-                  </div>
-
-                  <div class="flex items-center justify-between p-sm px-md rounded-lg border border-outline-variant hover:border-secondary transition-all group">
-                    <div class="flex items-center gap-sm">
-                      <span class="material-symbols-outlined text-on-surface-variant group-hover:text-secondary">location_disabled</span>
-                      <span class="font-body-md">Enable Anti-Fake GPS</span>
-                    </div>
-                    <label class="relative inline-flex items-center cursor-pointer">
-                      <input checked class="sr-only peer" type="checkbox" />
-                      <div class="w-11 h-6 bg-outline-variant rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-secondary"></div>
-                    </label>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
@@ -820,16 +796,16 @@
     }
 
     function readVerificationSettings() {
-      const toggles = document.querySelectorAll('input[type="checkbox"]');
       return {
-        requireFaceRecognition: Boolean(toggles[0]?.checked),
-        antiFakeGps: Boolean(toggles[1]?.checked)
+        requireFaceRecognition: true,
+        antiFakeGps: true
       };
     }
 
     function buildSessionPayload(status = "draft") {
       const session = {
         ...getSelectedSessionScope(),
+        academicSession: localStorage.getItem("geoAttendAcademicSession") || "",
         course: document.getElementById("course")?.value || "CHM121: General Chemistry II",
         duration: Number(document.getElementById("duration")?.value || 90),
         startTime: document.getElementById("start-time")?.value || "09:00",

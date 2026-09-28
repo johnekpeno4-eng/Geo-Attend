@@ -45,7 +45,8 @@
   </nav>
   <script>
     const email = localStorage.getItem("geoAttendCurrentUser");
-    const logs = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]").filter((item) => !email || item.email === email);
+    const selectedAcademicSession = localStorage.getItem("geoAttendAcademicSession") || "";
+    const logs = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]").filter((item) => (!email || item.email === email) && (!selectedAcademicSession || item.academicSession === selectedAcademicSession));
     const list = document.getElementById("history-list");
     if (!logs.length) {
       list.innerHTML = '<div class="rounded-xl border border-dashed border-[#c6c6cd] bg-white p-6 text-center"><span class="material-symbols-outlined text-4xl text-[#45464d]">history</span><p class="font-bold mt-2">No attendance yet</p><p class="text-sm text-[#45464d] mt-1">Your successful check-ins will appear here.</p></div>';

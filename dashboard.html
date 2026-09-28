@@ -181,7 +181,7 @@
         <div class="flex flex-wrap items-center gap-md">
           <label class="flex items-center bg-surface-container-lowest border border-outline-variant rounded-lg px-md py-sm">
             <span class="material-symbols-outlined text-[18px] text-on-surface-variant mr-sm">calendar_today</span>
-            <select class="bg-transparent border-none text-label-md focus:ring-0 cursor-pointer">
+            <select class="bg-transparent border-none text-label-md focus:ring-0 cursor-pointer" id="academic-session-select" aria-label="Current Academic Session">
               <option>Current Academic Session</option>
             </select>
           </label>
@@ -207,7 +207,6 @@
           <div class="col-span-full rounded-xl border border-dashed border-outline-variant bg-surface-container-low p-lg text-center">
             <span class="material-symbols-outlined text-on-surface-variant text-[40px] mb-sm">event_busy</span>
             <p class="font-title-md text-on-surface">No live sessions yet</p>
-            <p class="text-body-md text-on-surface-variant mt-xs">Generate a session from Create Session to see it here.</p>
           </div>
         </div>
       </section>
@@ -407,6 +406,33 @@
     let pendingPdfShareReport = null;
     let assistedCheckinSession = null;
     let assistedFaceStream = null;
+    let selectedAcademicSession = localStorage.getItem("geoAttendAcademicSession") || "";
+
+    function academicSessionQuery() {
+      return `academicSession=${encodeURIComponent(selectedAcademicSession)}`;
+    }
+
+    async function loadAcademicSessionSelector() {
+      const select = document.getElementById("academic-session-select");
+      if (!select) return;
+      const actorEmail = localStorage.getItem("geoAttendCurrentUser") || "";
+      const response = await fetch(`/api/academic-session?actorEmail=${encodeURIComponent(actorEmail)}`, { cache: "no-store" });
+      if (!response.ok) return;
+      const data = await response.json();
+      selectedAcademicSession = (data.sessions || []).includes(selectedAcademicSession) ? selectedAcademicSession : data.currentSession;
+      localStorage.setItem("geoAttendAcademicSession", selectedAcademicSession);
+      select.innerHTML = (data.sessions || []).map((value) => `<option value="${value}">${value}${value === data.currentSession ? " (Current)" : ""}</option>`).join("");
+      select.value = selectedAcademicSession;
+      select.addEventListener("change", async () => {
+        const next = select.value;
+        if (data.canChangeCurrent && next !== data.currentSession) {
+          const result = await fetch("/api/academic-session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ actorEmail, academicSession: next }) });
+          if (!result.ok) { select.value = selectedAcademicSession; return; }
+        }
+        localStorage.setItem("geoAttendAcademicSession", next);
+        window.location.reload();
+      });
+    }
 
     function getLiveSessions() {
       const sessions = JSON.parse(localStorage.getItem("geoAttendLiveSessions") || "[]");
@@ -421,7 +447,7 @@
     async function refreshLiveSessionsFromServer() {
       try {
         const localSessions = getLiveSessions();
-        const actorEmail = localStorage.getItem("geoAttendCurrentUser") || ""; const response = await fetch(`/api/live-sessions?actorEmail=${encodeURIComponent(actorEmail)}`, { cache: "no-store" });
+        const actorEmail = localStorage.getItem("geoAttendCurrentUser") || ""; const response = await fetch(`/api/live-sessions?actorEmail=${encodeURIComponent(actorEmail)}&${academicSessionQuery()}`, { cache: "no-store" });
         if (!response.ok) return;
         const data = await response.json();
         const sessions = Array.isArray(data.sessions) ? data.sessions : [];
@@ -451,7 +477,7 @@
     async function refreshAttendanceFromServer() {
       try {
         const localAttendance = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]");
-        const actorEmail = localStorage.getItem("geoAttendCurrentUser") || ""; const response = await fetch(`/api/attendance?actorEmail=${encodeURIComponent(actorEmail)}`, { cache: "no-store" });
+        const actorEmail = localStorage.getItem("geoAttendCurrentUser") || ""; const response = await fetch(`/api/attendance?actorEmail=${encodeURIComponent(actorEmail)}&${academicSessionQuery()}`, { cache: "no-store" });
         if (!response.ok) throw new Error("Attendance unavailable");
         const data = await response.json();
         realtimeAttendance = Array.isArray(data.attendance) ? data.attendance : [];
@@ -1022,7 +1048,7 @@
 
     async function loadSavedPdfReports() {
       try {
-        const actorEmail = localStorage.getItem("geoAttendCurrentUser") || ""; const response = await fetch(`/api/attendance-reports?actorEmail=${encodeURIComponent(actorEmail)}`, { cache: "no-store" });
+        const actorEmail = localStorage.getItem("geoAttendCurrentUser") || ""; const response = await fetch(`/api/attendance-reports?actorEmail=${encodeURIComponent(actorEmail)}&${academicSessionQuery()}`, { cache: "no-store" });
         if (!response.ok) throw new Error("Unable to load saved PDF reports.");
         const data = await response.json();
         generatedPdfReports.splice(0, generatedPdfReports.length, ...(Array.isArray(data.reports) ? data.reports : []));
@@ -1079,7 +1105,7 @@
         button.innerHTML = '<span class="material-symbols-outlined text-[20px]">hourglass_top</span> Generating...';
       }
       try {
-        const response = await fetch("/api/attendance-pdf", { cache: "no-store" });
+        const response = await fetch(`/api/attendance-pdf?${academicSessionQuery()}`, { cache: "no-store" });
         if (!response.ok) throw new Error("Unable to generate PDF report.");
         const blob = await response.blob();
         const filename = getPdfFilename(response, "geoattend-attendance-report.pdf");
@@ -1182,7 +1208,6 @@
           <div class="col-span-full rounded-xl border border-dashed border-outline-variant bg-surface-container-low p-lg text-center">
             <span class="material-symbols-outlined text-on-surface-variant text-[40px] mb-sm">event_busy</span>
             <p class="font-title-md text-on-surface">No live sessions yet</p>
-            <p class="text-body-md text-on-surface-variant mt-xs">Generate a session from Create Session to see it here.</p>
           </div>
         `;
         return;
@@ -1308,9 +1333,13 @@
       }
     }, 1500);
 
-    refreshLiveSessionsFromServer();
-    refreshAttendanceFromServer();
-    refreshStudentsFromServer();
+    (async () => {
+      await loadAcademicSessionSelector();
+      refreshLiveSessionsFromServer();
+      refreshAttendanceFromServer();
+      refreshStudentsFromServer();
+      loadSavedPdfReports();
+    })();
     setInterval(refreshLiveSessionsFromServer, 5000);
     setInterval(refreshAttendanceFromServer, 3000);
     setInterval(refreshStudentsFromServer, 10000);
@@ -1396,7 +1425,6 @@
       button.addEventListener("click", closeAssistedCheckinModal);
     });
     document.getElementById("assist-face-button")?.addEventListener("click", () => runAssistedCheckin("face"));
-    loadSavedPdfReports();
     window.addEventListener("storage", () => {
       realtimeAttendance = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]");
       renderRecentCheckins();

@@ -45,6 +45,11 @@ const STUDENT_GPS_MAX_ACCURACY_METERS = 30;
 const STUDENT_GPS_MAX_AGE_MS = 15 * 1000;
 const MIN_GEOFENCE_RADIUS_METERS = 20;
 const MAX_GEOFENCE_RADIUS_METERS = 5000;
+function getDefaultAcademicSession(date = new Date()) {
+  const year = date.getFullYear() - (date.getMonth() < 7 ? 1 : 0);
+  return `${year}/${year + 1}`;
+}
+const DEFAULT_ACADEMIC_SESSION = getDefaultAcademicSession();
 let mailTransporter = null;
 let sqliteDb = null;
 
@@ -151,6 +156,15 @@ const server = http.createServer(async (req, res) => {
       await getAcademicScope(req, res);
       return;
     }
+    if (req.method === "GET" && req.url.startsWith("/api/academic-session")) {
+      await getAcademicSession(req, res);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/academic-session") {
+      const body = await readJson(req);
+      await setAcademicSession(res, body);
+      return;
+    }
     if (req.method === "GET" && req.url.startsWith("/api/lecturer-assignments")) {
       await getLecturerAssignments(req, res);
       return;
@@ -166,7 +180,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "GET" && req.url === "/api/courses") {
-      await getCourses(res);
+      await getCourses(req, res);
       return;
     }
     if (req.method === "POST" && req.url === "/api/courses") {
@@ -493,11 +507,40 @@ function normalizeAcademicScope(input = {}) {
 
 async function readAcademicCourses() {
   try {
-    const rows = await dbAll("SELECT code, title, faculty_id, department_id, level_id FROM academic_courses ORDER BY code COLLATE NOCASE");
-    return rows.map((row) => ({ code: row.code, title: row.title, facultyId: row.faculty_id, departmentId: row.department_id, levelId: row.level_id }));
+    const rows = await dbAll("SELECT code, title, faculty_id, department_id, level_id, academic_session FROM academic_courses ORDER BY code COLLATE NOCASE");
+    return rows.map((row) => ({ code: row.code, title: row.title, facultyId: row.faculty_id, departmentId: row.department_id, levelId: row.level_id, academicSession: row.academic_session || DEFAULT_ACADEMIC_SESSION }));
   } catch {
     return ACADEMIC_SCOPE.courses;
   }
+}
+
+function normalizeAcademicSession(value) {
+  const match = String(value || "").trim().match(/^(\d{4})\/(\d{4})$/);
+  return match && Number(match[2]) === Number(match[1]) + 1 ? match[0] : "";
+}
+
+async function getCurrentAcademicSession() {
+  const row = await dbGet("SELECT value FROM academic_settings WHERE key = 'current_academic_session'");
+  return normalizeAcademicSession(row?.value) || DEFAULT_ACADEMIC_SESSION;
+}
+
+async function getAcademicSession(req, res) {
+  const currentSession = await getCurrentAcademicSession();
+  const startYear = Number(currentSession.slice(0, 4));
+  const sessions = Array.from({ length: 6 }, (_, index) => {
+    const year = startYear - index;
+    return `${year}/${year + 1}`;
+  });
+  json(res, 200, { ok: true, currentSession, sessions, canChangeCurrent: isOwnerAdmin(getRequestPrincipal(req).admin?.email) });
+}
+
+async function setAcademicSession(res, body = {}) {
+  const actorEmail = String(body.actorEmail || "").trim().toLowerCase();
+  const academicSession = normalizeAcademicSession(body.academicSession);
+  if (!isOwnerAdmin(actorEmail)) return json(res, 403, { error: "Only the overall admin can change the current academic session." });
+  if (!academicSession) return json(res, 400, { error: "Use an academic session in the format YYYY/YYYY." });
+  await dbRun("INSERT INTO academic_settings (key, value, updated_at) VALUES ('current_academic_session', ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at", [academicSession, new Date().toISOString()]);
+  json(res, 200, { ok: true, currentSession: academicSession });
 }
 
 async function getAcademicScope(req, res) {
@@ -560,8 +603,10 @@ async function deleteLecturerCourseAssignment(req, res) {
   json(res, 200, { ok: true });
 }
 
-async function getCourses(res) {
-  json(res, 200, { ok: true, courses: await readAcademicCourses() });
+async function getCourses(req, res) {
+  const requested = normalizeAcademicSession(new URL(req.url, "http://127.0.0.1").searchParams.get("academicSession"));
+  const current = await getCurrentAcademicSession();
+  json(res, 200, { ok: true, courses: (await readAcademicCourses()).filter((course) => course.academicSession === (requested || current)) });
 }
 
 async function saveCourse(res, body = {}) {
@@ -576,14 +621,16 @@ async function saveCourse(res, body = {}) {
     json(res, 400, { error: "Enter a valid course title." });
     return;
   }
-  await dbRun(`INSERT INTO academic_courses (code, title, faculty_id, department_id, level_id)
-    VALUES (?, ?, ?, ?, ?)
+  const academicSession = normalizeAcademicSession(body.academicSession) || await getCurrentAcademicSession();
+  await dbRun(`INSERT INTO academic_courses (code, title, faculty_id, department_id, level_id, academic_session)
+    VALUES (?, ?, ?, ?, ?, ?)
     ON CONFLICT(code) DO UPDATE SET
       title = excluded.title,
       faculty_id = excluded.faculty_id,
       department_id = excluded.department_id,
-      level_id = excluded.level_id`, [code, title, scope.facultyId, scope.departmentId, scope.levelId]);
-  json(res, 200, { ok: true, course: { code, title, facultyId: scope.facultyId, departmentId: scope.departmentId, levelId: scope.levelId }, courses: await readAcademicCourses() });
+      level_id = excluded.level_id,
+      academic_session = excluded.academic_session`, [code, title, scope.facultyId, scope.departmentId, scope.levelId, academicSession]);
+  json(res, 200, { ok: true, course: { code, title, facultyId: scope.facultyId, departmentId: scope.departmentId, levelId: scope.levelId, academicSession }, courses: await readAcademicCourses() });
 }
 
 async function deleteCourse(req, res) {
@@ -655,6 +702,12 @@ async function initDatabase() {
     department_id TEXT NOT NULL,
     level_id TEXT NOT NULL
   )`);
+  await ensureColumn("academic_courses", "academic_session", "TEXT DEFAULT ''");
+  await dbRun(`CREATE TABLE IF NOT EXISTS academic_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`);
   await seedAcademicScope();
 
   await dbRun(`CREATE TABLE IF NOT EXISTS biometric_profiles (
@@ -675,6 +728,7 @@ async function initDatabase() {
     ended_at TEXT
   )`);
   await dbRun("CREATE INDEX IF NOT EXISTS idx_live_sessions_status_updated ON live_sessions(status, updated_at)");
+  await ensureColumn("live_sessions", "academic_session", "TEXT DEFAULT ''");
 
   await dbRun(`CREATE TABLE IF NOT EXISTS attendance (
     id TEXT PRIMARY KEY,
@@ -690,6 +744,18 @@ async function initDatabase() {
   await dbRun("CREATE INDEX IF NOT EXISTS idx_attendance_session ON attendance(session_id)");
   await dbRun("CREATE INDEX IF NOT EXISTS idx_attendance_session_reg ON attendance(session_id, reg_number)");
   await dbRun("CREATE INDEX IF NOT EXISTS idx_attendance_checked_in ON attendance(checked_in_at)");
+  await ensureColumn("attendance", "academic_session", "TEXT DEFAULT ''");
+  await dbRun(`CREATE TABLE IF NOT EXISTS attendance_reports (
+    id TEXT PRIMARY KEY,
+    session_id TEXT,
+    academic_session TEXT NOT NULL DEFAULT '',
+    report_json TEXT NOT NULL,
+    updated_at TEXT
+  )`);
+  await dbRun("CREATE INDEX IF NOT EXISTS idx_attendance_reports_academic_session ON attendance_reports(academic_session)");
+  await dbRun("UPDATE academic_courses SET academic_session = ? WHERE academic_session IS NULL OR academic_session = ''", [DEFAULT_ACADEMIC_SESSION]);
+  await dbRun("UPDATE live_sessions SET academic_session = ? WHERE academic_session IS NULL OR academic_session = ''", [DEFAULT_ACADEMIC_SESSION]);
+  await dbRun("UPDATE attendance SET academic_session = ? WHERE academic_session IS NULL OR academic_session = ''", [DEFAULT_ACADEMIC_SESSION]);
   await dbRun(`CREATE TABLE IF NOT EXISTS lecturer_course_assignments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     lecturer_email TEXT NOT NULL COLLATE NOCASE,
@@ -736,6 +802,15 @@ async function migrateJsonDataToSqlite() {
   for (const record of Array.isArray(attendance) ? attendance : []) {
     if (!record?.id || !record?.sessionId) continue;
     await upsertSqliteAttendance(record);
+  }
+
+  const reports = readJsonFile(ATTENDANCE_REPORTS_INDEX_FILE, []);
+  for (const report of Array.isArray(reports) ? reports : []) {
+    if (!report?.id) continue;
+    const normalized = { ...report, academicSession: normalizeAcademicSession(report.academicSession) || DEFAULT_ACADEMIC_SESSION };
+    await dbRun(`INSERT INTO attendance_reports (id, session_id, academic_session, report_json, updated_at) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET session_id = excluded.session_id, academic_session = excluded.academic_session, report_json = excluded.report_json, updated_at = excluded.updated_at`,
+    [normalized.id, normalized.sessionId || "", normalized.academicSession, JSON.stringify(normalized), normalized.updatedAt || normalized.createdAt || new Date().toISOString()]);
   }
 }
 
@@ -827,17 +902,21 @@ async function readSqliteStudents() {
 }
 
 async function upsertSqliteSession(session) {
-  await dbRun(`INSERT INTO live_sessions (id, status, session_json, created_at, updated_at, ended_at)
-    VALUES (?, ?, ?, ?, ?, ?)
+  const academicSession = normalizeAcademicSession(session.academicSession) || await getCurrentAcademicSession();
+  const normalized = { ...session, academicSession };
+  await dbRun(`INSERT INTO live_sessions (id, status, session_json, academic_session, created_at, updated_at, ended_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       status = excluded.status,
       session_json = excluded.session_json,
+      academic_session = excluded.academic_session,
       created_at = COALESCE(live_sessions.created_at, excluded.created_at),
       updated_at = excluded.updated_at,
       ended_at = excluded.ended_at`, [
     session.id,
     session.status || "active",
-    JSON.stringify(session),
+    JSON.stringify(normalized),
+    academicSession,
     session.createdAt || session.created_at || null,
     session.updatedAt || session.updated_at || new Date().toISOString(),
     session.endedAt || session.ended_at || null
@@ -857,8 +936,10 @@ async function writeSqliteSessions(sessions) {
 }
 
 async function upsertSqliteAttendance(record) {
-  await dbRun(`INSERT INTO attendance (id, session_id, email, reg_number, full_name, status, checked_in_at, saved_at, attendance_json)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  const academicSession = normalizeAcademicSession(record.academicSession) || await getCurrentAcademicSession();
+  const normalized = { ...record, academicSession };
+  await dbRun(`INSERT INTO attendance (id, session_id, email, reg_number, full_name, status, checked_in_at, saved_at, academic_session, attendance_json)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       session_id = excluded.session_id,
       email = excluded.email,
@@ -867,6 +948,7 @@ async function upsertSqliteAttendance(record) {
       status = excluded.status,
       checked_in_at = excluded.checked_in_at,
       saved_at = excluded.saved_at,
+      academic_session = excluded.academic_session,
       attendance_json = excluded.attendance_json`, [
     record.id,
     record.sessionId,
@@ -876,7 +958,8 @@ async function upsertSqliteAttendance(record) {
     record.status || "present",
     record.checkedInAt || null,
     record.savedAt || new Date().toISOString(),
-    JSON.stringify(record)
+    academicSession,
+    JSON.stringify(normalized)
   ]);
 }
 
@@ -1496,7 +1579,8 @@ async function getLiveSessions(req, res) {
   const activeSessions = sessions
     .filter((session) => session && session.status === "active")
     .sort((a, b) => new Date(b.createdAt || b.updatedAt || 0) - new Date(a.createdAt || a.updatedAt || 0));
-  const visibleSessions = await filterSessionsForRequest(req, activeSessions);
+  const requestedSession = normalizeAcademicSession(new URL(req.url, "http://127.0.0.1").searchParams.get("academicSession")) || await getCurrentAcademicSession();
+  const visibleSessions = (await filterSessionsForRequest(req, activeSessions)).filter((session) => (session.academicSession || DEFAULT_ACADEMIC_SESSION) === requestedSession);
 
   json(res, 200, {
     ok: true,
@@ -1575,7 +1659,7 @@ async function saveLiveSession(res, session) {
 
   const { items: sessions } = await readLiveSessionsStore();
   const actorAdmin = findAdminByIdentifier(session.actorEmail || session.createdBy || "");
-  const scopedSession = applyAdminScopeToSession(session, actorAdmin);
+  const scopedSession = { ...applyAdminScopeToSession(session, actorAdmin), academicSession: await getCurrentAcademicSession() };
   if (actorAdmin && isLecturerAdmin(actorAdmin)) {
     const assignedCodes = await getLecturerAssignedCourseCodes(actorAdmin.email);
     if (!assignedCodes.includes(getCourseCode(scopedSession.course))) {
@@ -1631,8 +1715,10 @@ async function getAttendance(req, res) {
   const lecturerCourseCodes = principal.admin && isLecturerAdmin(principal.admin)
     ? new Set(await getLecturerAssignedCourseCodes(principal.admin.email))
     : null;
+  const requestedAcademicSession = normalizeAcademicSession(url.searchParams.get("academicSession")) || await getCurrentAcademicSession();
   const attendance = items
     .filter((entry) => entry && (!sessionId || entry.sessionId === sessionId))
+    .filter((entry) => (entry.academicSession || DEFAULT_ACADEMIC_SESSION) === requestedAcademicSession)
     .filter((entry) => {
       if (lecturerCourseCodes) return lecturerCourseCodes.has(getCourseCode(entry.course));
       if (principal.admin) return entityMatchesScope(entry, principal.admin, principal.admin.adminRole || principal.admin.role);
@@ -1644,11 +1730,12 @@ async function getAttendance(req, res) {
   json(res, 200, { ok: true, source, attendance });
 }
 
-function getAttendancePdfPayload(sessionId) {
+function getAttendancePdfPayload(sessionId, academicSession = "") {
   const sessions = readJsonFile(LIVE_SESSIONS_FILE, []);
   const session = sessions.find((item) => item && item.id === sessionId) || null;
   const attendance = readJsonFile(ATTENDANCE_LOG_FILE, [])
     .filter((entry) => entry && (!sessionId || entry.sessionId === sessionId))
+    .filter((entry) => !academicSession || (entry.academicSession || DEFAULT_ACADEMIC_SESSION) === academicSession)
     .sort((a, b) => new Date(a.checkedInAt || 0) - new Date(b.checkedInAt || 0));
   const title = session?.course || attendance[0]?.course || (sessionId ? "Session Attendance Report" : "Attendance Report");
   const fileSafeTitle = title.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase() || "attendance-report";
@@ -1667,7 +1754,8 @@ function getAttendancePdfPayload(sessionId) {
 function serveAttendancePdf(req, res) {
   const url = new URL(req.url, "http://127.0.0.1");
   const sessionId = String(url.searchParams.get("sessionId") || "").trim();
-  const { pdf, filename } = getAttendancePdfPayload(sessionId);
+  const academicSession = normalizeAcademicSession(url.searchParams.get("academicSession"));
+  const { pdf, filename } = getAttendancePdfPayload(sessionId, academicSession);
 
   res.writeHead(200, {
     ...getCorsHeaders(),
@@ -1683,7 +1771,8 @@ async function getAttendanceReports(req, res) {
   const reports = readJsonFile(ATTENDANCE_REPORTS_INDEX_FILE, [])
     .filter((report) => report && report.id && report.filename)
     .sort((a, b) => new Date(b.createdAt || b.updatedAt || 0) - new Date(a.createdAt || a.updatedAt || 0));
-  const visibleReports = await filterReportsForRequest(req, reports);
+  const requestedAcademicSession = normalizeAcademicSession(new URL(req.url, "http://127.0.0.1").searchParams.get("academicSession")) || await getCurrentAcademicSession();
+  const visibleReports = (await filterReportsForRequest(req, reports)).filter((report) => (report.academicSession || DEFAULT_ACADEMIC_SESSION) === requestedAcademicSession);
   json(res, 200, { ok: true, reports: visibleReports.map(publicAttendanceReport) });
 }
 
@@ -1825,11 +1914,15 @@ function saveAttendanceReportFile(session, reason = "generated") {
     departmentName: session.departmentName || payload.session?.departmentName || existing?.departmentName || "",
     levelId: session.levelId || payload.session?.levelId || existing?.levelId || "",
     levelName: session.levelName || payload.session?.levelName || existing?.levelName || "",
+    academicSession: session.academicSession || existing?.academicSession || DEFAULT_ACADEMIC_SESSION,
     sessionId: session.id,
     title: payload.title,
     updatedAt: now
   };
   writeSavedReportPdf(report, payload);
+  dbRun(`INSERT INTO attendance_reports (id, session_id, academic_session, report_json, updated_at) VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET session_id = excluded.session_id, academic_session = excluded.academic_session, report_json = excluded.report_json, updated_at = excluded.updated_at`,
+  [report.id, report.sessionId, report.academicSession, JSON.stringify(report), report.updatedAt]).catch(() => {});
   const nextReports = [report, ...reports.filter((item) => item && item.id !== report.id)].slice(0, 200);
   writeAttendanceReports(nextReports);
   return report;
@@ -1866,6 +1959,7 @@ function publicAttendanceReport(report) {
     id: report.id,
     manualCount: Array.isArray(report.manualRecords) ? report.manualRecords.length : 0,
     sessionId: report.sessionId,
+    academicSession: report.academicSession || DEFAULT_ACADEMIC_SESSION,
     institutionId: report.institutionId || "",
     facultyId: report.facultyId || "",
     facultyName: report.facultyName || "",
@@ -2025,6 +2119,7 @@ async function saveAttendance(res, record) {
     id,
     email,
     sessionId,
+    academicSession: session.academicSession || DEFAULT_ACADEMIC_SESSION,
     fullName: fullName || email || "Unknown Student",
     regNumber,
     institutionId: record.institutionId || studentForSignature?.institutionId || session?.institutionId || "",

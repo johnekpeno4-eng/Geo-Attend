@@ -53,7 +53,6 @@
           <span class="material-symbols-outlined text-secondary">menu_book</span>
           <div>
             <h2 class="text-xl font-bold">Add Course</h2>
-            <p class="text-sm text-on-surface-variant">Add a course that can be selected when creating attendance sessions.</p>
           </div>
         </div>
         <form class="course-form-grid grid gap-4 items-end" id="course-form">
@@ -138,7 +137,7 @@
     document.getElementById("course-form").addEventListener("submit", async (event) => {
       event.preventDefault();
       try {
-        const payload = { code: document.getElementById("course-code").value, title: document.getElementById("course-title").value, facultyId: document.getElementById("course-faculty").value, departmentId: document.getElementById("course-department").value, levelId: document.getElementById("course-level").value };
+        const payload = { code: document.getElementById("course-code").value, title: document.getElementById("course-title").value, facultyId: document.getElementById("course-faculty").value, departmentId: document.getElementById("course-department").value, levelId: document.getElementById("course-level").value, academicSession: localStorage.getItem("geoAttendAcademicSession") || "" };
         const data = await requestJson("/api/courses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         courses = data.courses || [];
         event.target.reset();

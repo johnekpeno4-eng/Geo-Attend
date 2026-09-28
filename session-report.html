@@ -169,7 +169,7 @@
 
     async function refreshAttendance() {
       try {
-        const actorEmail = localStorage.getItem("geoAttendCurrentUser") || ""; const url = sessionId ? `/api/attendance?sessionId=${encodeURIComponent(sessionId)}&actorEmail=${encodeURIComponent(actorEmail)}` : `/api/attendance?actorEmail=${encodeURIComponent(actorEmail)}`;
+        const actorEmail = localStorage.getItem("geoAttendCurrentUser") || ""; const academicSession = localStorage.getItem("geoAttendAcademicSession") || ""; const url = sessionId ? `/api/attendance?sessionId=${encodeURIComponent(sessionId)}&actorEmail=${encodeURIComponent(actorEmail)}&academicSession=${encodeURIComponent(academicSession)}` : `/api/attendance?actorEmail=${encodeURIComponent(actorEmail)}&academicSession=${encodeURIComponent(academicSession)}`;
         const response = await fetch(url, { cache: "no-store" });
         if (!response.ok) throw new Error("Attendance unavailable");
         const data = await response.json();

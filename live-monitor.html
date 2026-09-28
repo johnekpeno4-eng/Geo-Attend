@@ -258,7 +258,7 @@
 
     async function refreshActiveSessionFromServer() {
       try {
-        const actorEmail = localStorage.getItem("geoAttendCurrentUser") || ""; const response = await fetch(`/api/live-sessions?actorEmail=${encodeURIComponent(actorEmail)}`, { cache: "no-store" });
+        const actorEmail = localStorage.getItem("geoAttendCurrentUser") || ""; const academicSession = localStorage.getItem("geoAttendAcademicSession") || ""; const response = await fetch(`/api/live-sessions?actorEmail=${encodeURIComponent(actorEmail)}&academicSession=${encodeURIComponent(academicSession)}`, { cache: "no-store" });
         if (!response.ok) throw new Error("Live sessions unavailable");
         const data = await response.json();
         const sessions = Array.isArray(data.sessions) ? data.sessions : [];
@@ -281,7 +281,7 @@
           renderAttendanceResults();
           return;
         }
-        const actorEmail = localStorage.getItem("geoAttendCurrentUser") || ""; const attendanceUrl = `/api/attendance?sessionId=${encodeURIComponent(activeSession.id)}&actorEmail=${encodeURIComponent(actorEmail)}`;
+        const actorEmail = localStorage.getItem("geoAttendCurrentUser") || ""; const academicSession = localStorage.getItem("geoAttendAcademicSession") || ""; const attendanceUrl = `/api/attendance?sessionId=${encodeURIComponent(activeSession.id)}&actorEmail=${encodeURIComponent(actorEmail)}&academicSession=${encodeURIComponent(academicSession)}`;
         const response = await fetch(attendanceUrl, { cache: "no-store" });
         if (!response.ok) throw new Error("Attendance unavailable");
         const data = await response.json();
