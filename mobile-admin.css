@@ -2230,3 +2230,8 @@ body[data-admin-page="courses"] [data-notification-root] {
     flex: 1 1 auto !important;
   }
 }
+/* Keep the page label and heading fully inside headers beside Student View. */
+body[data-role-required="admin"] main > header > .admin-view-switch + div {
+  position: relative !important;
+  top: 5px !important;
+}
