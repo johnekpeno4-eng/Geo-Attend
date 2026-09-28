@@ -562,7 +562,7 @@
       localStorage.setItem("geoAttendCurrentUser", pendingAccount.email);
       localStorage.setItem("geoAttendRole", pendingAccount.role);
       localStorage.setItem("geoAttendView", "student");
-      showMessage("Authenticator verified. Complete device fingerprint enrollment to continue.");
+      showMessage("Email verified. You can optionally configure extra security next.");
 
       setTimeout(() => {
         window.location.href = "security/security.html?onboarding=1";
