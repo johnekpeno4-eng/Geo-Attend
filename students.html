@@ -123,7 +123,7 @@
 
   <script>
     let students = [];
-    let sessions = [];
+    let sessions = [];\n    let studentPresence = {};
 
     function escapeHtml(value) {
       return String(value || "")
@@ -148,6 +148,22 @@
       return matches ? Number(matches[matches.length - 1]) : Number.MAX_SAFE_INTEGER;
     }
 
+    async function loadStudentPresence() {
+      try {
+        const response = await fetch(`/api/student-presence?actorEmail=${encodeURIComponent(localStorage.getItem("geoAttendCurrentUser") || "")}`, { cache: "no-store" });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Unable to load student presence.");
+        studentPresence = Object.fromEntries((Array.isArray(data.presence) ? data.presence : []).map((item) => [String(item.email || "").toLowerCase(), item]));
+        renderStudents();
+      } catch {
+        studentPresence = {};
+      }
+    }
+
+    function isStudentOnline(email) {
+      const lastSeen = new Date(studentPresence[String(email || "").toLowerCase()]?.lastSeen || 0).getTime();
+      return Number.isFinite(lastSeen) && Date.now() - lastSeen <= 90000;
+    }
     async function loadStudents() {
       try {
         const response = await fetch(`/api/students?actorEmail=${encodeURIComponent(localStorage.getItem("geoAttendCurrentUser") || "")}`, { cache: "no-store" });
@@ -205,7 +221,7 @@
       body.innerHTML = filtered.map((student, index) => `
         <tr>
           <td class="py-md pr-md font-mono-data text-on-surface-variant">${index + 1}</td>
-          <td class="py-md pr-md font-bold text-on-surface">${escapeHtml(student.fullName || "Unknown Student")}</td>
+          <td class="py-md pr-md font-bold text-on-surface"><span class="mr-2 inline-block h-2.5 w-2.5 rounded-full ${isStudentOnline(student.email) ? "bg-green-500" : "bg-slate-300"}" title="${isStudentOnline(student.email) ? "Online now" : "Offline"}"></span>${escapeHtml(student.fullName || "Unknown Student")}</td>
           <td class="py-md pr-md font-mono-data text-on-surface">${escapeHtml(student.regNumber || "--")}</td>
           <td class="py-md pr-md text-on-surface-variant">${escapeHtml(student.email || "--")}</td>
           <td class="py-md pr-md text-on-surface-variant">${escapeHtml(student.departmentName || "Department of Electrical/Electronics Engineering")}</td>
