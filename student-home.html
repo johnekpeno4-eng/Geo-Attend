@@ -170,6 +170,28 @@
       </div>
     </section>
 
+    <section class="mt-3 rounded-xl border border-outline-variant bg-surface-container-low p-4 shadow-sm" id="student-checkin-card" aria-live="polite">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2 text-green-600 text-xs font-bold uppercase tracking-wider">
+            <span class="material-symbols-outlined text-sm" style="font-variation-settings:'FILL' 1">sensors</span> Live
+          </div>
+          <h2 class="font-medium text-on-surface mt-1 break-words" id="student-checkin-title">No live class yet</h2>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-2 mt-4 text-sm">
+        <div class="rounded-lg bg-surface-container-lowest p-2 border border-outline-variant/30">
+          <p class="text-on-surface-variant uppercase">Starts</p>
+          <p class="font-mono-data text-on-surface" id="student-checkin-start">--:--</p>
+        </div>
+        <div class="rounded-lg bg-surface-container-lowest p-2 border border-outline-variant/30">
+          <p class="text-on-surface-variant uppercase">Ends</p>
+          <p class="font-mono-data text-on-surface" id="student-checkin-end">--:--</p>
+        </div>
+      </div>
+      <button class="w-full mt-4 rounded-xl bg-secondary text-on-primary p-3 font-bold disabled:bg-surface-container-high disabled:text-on-surface-variant" id="student-checkin-button" type="button" disabled>Waiting for a live class</button>
+    </section>
+
     <section class="mt-3">
       <a class="bg-secondary text-white rounded-xl p-4 shadow-sm flex items-center justify-between gap-4 active:scale-[0.99] transition-transform" href="#active-classes" id="primary-action-link">
         <div>
@@ -390,6 +412,13 @@
     function getExistingCheckin(sessionId) {
       return attendanceLogs.find((item) => item.sessionId === sessionId);
     }
+    function getAttendanceForSession(sessionId) {
+      const records = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]");
+      return records.filter((item) => item && item.sessionId === sessionId && item.status !== "absent");
+    }
+    function getAttendanceCountForSession(sessionId) {
+      return getAttendanceForSession(sessionId).length;
+    }
     function updateSummary() {
       const total = attendanceLogs.length;
       document.getElementById("total-checkins").textContent = String(total);
@@ -408,6 +437,24 @@
       document.getElementById("current-session-title").textContent = activeSession?.course || "No active session";
       document.getElementById("current-session-location").textContent = activeSession ? (activeSession.locationName || activeSession.geofence?.name || "Selected location") : "Tap a live class below to check in.";
       document.getElementById("session-countdown").textContent = activeSession ? formatSessionWindow(activeSession) : "Waiting for session";
+      const actionTitle = document.getElementById("primary-action-title");
+      const actionHelper = document.getElementById("primary-action-helper");
+      const actionIcon = document.getElementById("primary-action-icon");
+      const ready = activeSession && isSessionStarted(activeSession) && !isWeakAdminGeofence(activeSession.geofence || {});
+      const checkinTitle = document.getElementById("student-checkin-title");
+      const checkinButton = document.getElementById("student-checkin-button");
+      const checkinStart = document.getElementById("student-checkin-start");
+      const checkinEnd = document.getElementById("student-checkin-end");
+      if (checkinTitle) checkinTitle.textContent = activeSession?.courseTitle || activeSession?.course || "No live class yet";
+      if (checkinStart) checkinStart.textContent = activeSession?.startTime || activeSession?.attendanceStart || "--:--";
+      if (checkinEnd) checkinEnd.textContent = activeSession?.endTime || activeSession?.attendanceEnd || "--:--";
+      if (checkinButton) {
+        checkinButton.disabled = !ready;
+        checkinButton.textContent = ready ? "Check In" : activeSession ? "Check-in unavailable" : "Waiting for a live class";
+      }
+      if (actionTitle) actionTitle.textContent = ready ? "Check in now" : "View active classes";
+      if (actionHelper) actionHelper.textContent = ready ? "Confirm your fingerprint to check in" : "Fingerprint verification is required for check-in";
+      if (actionIcon) actionIcon.textContent = ready ? "fingerprint" : "event_available";
     }
     function updateGpsReadiness() {
       document.getElementById("gps-status").textContent = navigator.geolocation ? "Supported" : "Unsupported";
@@ -636,30 +683,9 @@
       }).join("");
 
       grid.querySelectorAll("[data-open-checkin]").forEach((button) => {
-        let openedFromPointer = false;
-        let openQueued = false;
-        const openSelectedSession = () => {
-          if (openQueued) return;
-          openQueued = true;
-          flashButtonFeedback(button, "Opening...");
+        button.addEventListener("click", () => {
           const session = liveSessions.find((item) => item.id === button.dataset.openCheckin);
           if (session) openCheckinModal(session.id);
-          window.setTimeout(() => {
-            openQueued = false;
-          }, 500);
-        };
-        button.addEventListener("pointerdown", (event) => {
-          if (event.pointerType === "mouse" && event.button !== 0) return;
-          event.preventDefault();
-          openedFromPointer = true;
-          openSelectedSession();
-        });
-        button.addEventListener("click", () => {
-          if (openedFromPointer) {
-            openedFromPointer = false;
-            return;
-          }
-          openSelectedSession();
         });
       });
     }
@@ -947,6 +973,18 @@
     renderRecentCheckins();
     hydrateSessionDetails();
     setupCheckinModal();
+    document.getElementById("student-checkin-button")?.addEventListener("click", () => {
+      const session = syncActiveSession();
+      if (session && isSessionStarted(session) && !isWeakAdminGeofence(session.geofence || {})) {
+        openCheckinModal(session.id);
+      }
+    });
+    document.getElementById("primary-action-link")?.addEventListener("click", (event) => {
+      const session = getLiveSessions()[0];
+      if (!session || !isSessionStarted(session) || isWeakAdminGeofence(session.geofence || {})) return;
+      event.preventDefault();
+      openCheckinModal(session.id);
+    });
     startRealtimeGps();
     refreshLiveSessionsFromServer();
     setInterval(refreshLiveSessionsFromServer, 5000);

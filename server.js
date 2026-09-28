@@ -855,7 +855,6 @@ async function backfillAcademicSessionJson() {
       await dbRun(`UPDATE ${table} SET ${jsonColumn} = ?, academic_session = ? WHERE id = ?`, [JSON.stringify(normalized), DEFAULT_ACADEMIC_SESSION, row.id]);
     }
   }
-
 }
 
 function parseJsonColumn(value, fallback) {
