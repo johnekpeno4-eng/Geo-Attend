@@ -659,7 +659,7 @@
         existingTarget.setAttribute("aria-label", "Admin profile menu");
         existingTarget.style.cursor = "pointer";
       }
-      const menuHost = existingTarget?.parentElement || headerRight || header;
+      const menuHost = existingTarget?.parentElement || header;
       menuHost.appendChild(root);
 
       const menu = root.querySelector(".admin-profile-menu");
