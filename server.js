@@ -21,6 +21,7 @@ const BIOMETRIC_PROFILES_FILE = path.join(DATA_DIR, "biometric-profiles.json");
 const LIVE_SESSIONS_FILE = path.join(DATA_DIR, "live-sessions.json");
 const ADMIN_LOGIN_AUDIT_FILE = path.join(DATA_DIR, "admin-login-audit.json");
 const STUDENT_REPORTS_FILE = path.join(DATA_DIR, "student-reports.json");
+const STUDENT_PRESENCE_FILE = path.join(DATA_DIR, "student-presence.json");
 const ATTENDANCE_LOG_FILE = path.join(DATA_DIR, "attendance-log.json");
 const STUDENTS_FILE = path.join(DATA_DIR, "students.json");
 const REGISTRATION_RESET_FILE = path.join(DATA_DIR, "registration-reset.json");
@@ -302,6 +303,16 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "GET" && req.url.startsWith("/api/student-presence")) {
+      await getStudentPresence(req, res);
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/api/student-presence") {
+      const body = await readJson(req);
+      await updateStudentPresence(res, body);
+      return;
+    }
     if (req.method === "GET" && req.url.startsWith("/api/student-reports")) {
       await getStudentReports(req, res);
       return;
@@ -2859,6 +2870,41 @@ async function writeStudentStore(student) {
   return normalized;
 }
 
+function normalizeStudentPresence(item = {}) {
+  return {
+    email: String(item.email || "").trim().toLowerCase(),
+    fullName: String(item.fullName || "").trim(),
+    regNumber: String(item.regNumber || "").trim().toUpperCase(),
+    lastSeen: item.lastSeen || null
+  };
+}
+
+async function updateStudentPresence(res, body) {
+  const email = String(body?.email || "").trim().toLowerCase();
+  if (!email) {
+    json(res, 400, { error: "Student email is required." });
+    return;
+  }
+  const student = (await readStudentsStore()).find((item) => String(item.email || "").trim().toLowerCase() === email);
+  if (!student) {
+    json(res, 403, { error: "Only a registered student can publish presence." });
+    return;
+  }
+  const entries = readJsonFile(STUDENT_PRESENCE_FILE, []).map(normalizeStudentPresence).filter((item) => item.email);
+  const next = normalizeStudentPresence({ email, fullName: student.fullName, regNumber: student.regNumber, lastSeen: new Date().toISOString() });
+  writeLocalJson(STUDENT_PRESENCE_FILE, [next, ...entries.filter((item) => item.email !== email)].slice(0, 1000));
+  json(res, 200, { ok: true, presence: next });
+}
+
+async function getStudentPresence(req, res) {
+  const principal = getRequestPrincipal(req);
+  if (!principal.admin) {
+    json(res, 403, { error: "Admin access is required." });
+    return;
+  }
+  const entries = readJsonFile(STUDENT_PRESENCE_FILE, []).map(normalizeStudentPresence).filter((item) => item.email);
+  json(res, 200, { ok: true, presence: entries });
+}
 function normalizeStudentReport(item = {}) {
   return {
     id: String(item.id || ""),

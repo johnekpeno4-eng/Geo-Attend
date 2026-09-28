@@ -116,6 +116,7 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     updateHeaderIdentity();
+    if (role === "student" && isStudentPage) startStudentPresence();
 
     const loginForm = document.querySelector("[data-login-form]");
     if (loginForm) {
@@ -615,6 +616,17 @@
       }
     }
 
+    function startStudentPresence() {
+      const email = String(currentUserEmail || "").trim().toLowerCase();
+      if (!email) return;
+      const sendPresence = () => fetch("/api/student-presence", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email })
+      }).catch(() => {});
+      sendPresence();
+      window.setInterval(sendPresence, 30000);
+    }
     function ensureAdminHeaderTools() {
       const header = document.querySelector("main > header, main > div > header");
       if (!header || document.body.dataset.adminPage === "courses" || header.querySelector("[data-current-user-name]")) return;
