@@ -17,8 +17,9 @@
         <label class="block text-sm font-semibold">Saved building<select id="building-list" class="mt-1 w-full rounded-lg border p-3"><option value="">New building</option></select></label>
         <label class="block text-sm font-semibold">Building name<input id="building-name" class="mt-1 w-full rounded-lg border p-3" placeholder="Engineering Block A" /></label>
         <label class="block text-sm font-semibold">Default room / venue note<input id="room-note" class="mt-1 w-full rounded-lg border p-3" placeholder="Room 204" /></label>
-        <label class="block text-sm font-semibold">Boundary shape<select id="shape" class="mt-1 w-full rounded-lg border p-3"><option value="circle">Circle</option><option value="polygon">Polygon</option></select></label>
+        <label class="block text-sm font-semibold">Boundary shape<select id="shape" class="mt-1 w-full rounded-lg border p-3"><option value="circle">Circle</option><option value="square">Square</option><option value="polygon">Polygon</option></select></label>
         <div id="circle-fields" class="grid grid-cols-2 gap-3"><label class="text-sm font-semibold">Latitude<input id="latitude" type="number" step="any" class="mt-1 w-full rounded-lg border p-3" /></label><label class="text-sm font-semibold">Longitude<input id="longitude" type="number" step="any" class="mt-1 w-full rounded-lg border p-3" /></label><label class="col-span-2 text-sm font-semibold">Radius (meters)<input id="radius" type="number" min="20" max="5000" value="100" class="mt-1 w-full rounded-lg border p-3" /></label></div>
+        <div id="square-fields" class="hidden grid grid-cols-2 gap-3"><label class="text-sm font-semibold">Center latitude<input id="square-latitude" type="number" step="any" class="mt-1 w-full rounded-lg border p-3" /></label><label class="text-sm font-semibold">Center longitude<input id="square-longitude" type="number" step="any" class="mt-1 w-full rounded-lg border p-3" /></label><label class="col-span-2 text-sm font-semibold">Side length (meters)<input id="square-side" type="number" min="20" max="5000" value="100" class="mt-1 w-full rounded-lg border p-3" /></label></div>
         <label id="polygon-field" class="hidden block text-sm font-semibold">Polygon points, JSON [latitude, longitude] pairs<textarea id="coordinates" rows="4" class="mt-1 w-full rounded-lg border p-3 font-mono text-xs" placeholder="Click the map to add at least 3 boundary points"></textarea></label>
         <p id="map-hint" class="rounded-lg bg-blue-50 p-3 text-sm text-blue-900">Click the map to set the circle center.</p>
         <div class="flex gap-2"><button id="save-building" class="rounded-lg bg-blue-700 px-4 py-3 font-bold text-white">Save building</button><button id="delete-building" class="rounded-lg border border-red-300 px-4 py-3 font-bold text-red-700" type="button">Delete</button><button id="clear-map" class="rounded-lg border px-4 py-3 font-bold" type="button">Clear points</button></div>
@@ -51,8 +52,11 @@
           if (currentLocationMarker) map.removeLayer(currentLocationMarker);
           currentLocationMarker = L.circleMarker(location, { radius: 9, color: "#fff", weight: 3, fillColor: "#dc2626", fillOpacity: 1 }).addTo(map).bindPopup("Your current location");
           map.setView(location, 17); currentLocationMarker.openPopup();
-          if (byId("shape").value === "circle") {
+          if (byId("shape").value === "circle" || byId("shape").value === "square") {
             byId("latitude").value = location.lat.toFixed(7); byId("longitude").value = location.lng.toFixed(7); draw(geofenceFromForm(), false);
+            if (byId("shape").value === "square") {
+              byId("square-latitude").value = location.lat.toFixed(7); byId("square-longitude").value = location.lng.toFixed(7); draw(geofenceFromForm(), false);
+            }
           }
           byId("message").textContent = "Your current location is shown on the map.";
         }
@@ -64,6 +68,11 @@
     });
     function geofenceFromForm() {
       if (byId("shape").value === "polygon") return { type: "polygon", coordinates: vertices.length ? vertices : JSON.parse(byId("coordinates").value || "[]") };
+      if (byId("shape").value === "square") {
+        const lat = Number(byId("square-latitude").value), lng = Number(byId("square-longitude").value), sideMeters = Number(byId("square-side").value);
+        const halfLat = sideMeters / 2 / 111320, halfLng = sideMeters / 2 / (111320 * Math.cos(lat * Math.PI / 180));
+        return { type: "polygon", shape: "square", lat, lng, sideMeters, coordinates: [[lat - halfLat, lng - halfLng], [lat - halfLat, lng + halfLng], [lat + halfLat, lng + halfLng], [lat + halfLat, lng - halfLng]] };
+      }
       return { type: "circle", lat: Number(byId("latitude").value), lng: Number(byId("longitude").value), radius: Number(byId("radius").value) };
     }
     function draw(geofence, fit = true) {
@@ -89,19 +98,22 @@
     function fillBuilding(building) {
       selectedId = building?.id || ""; vertices = building?.geofence?.coordinates || [];
       byId("building-list").value = selectedId; byId("building-name").value = building?.name || ""; byId("room-note").value = building?.roomNote || "";
-      byId("shape").value = building?.geofence?.type || "circle"; byId("latitude").value = building?.geofence?.lat ?? ""; byId("longitude").value = building?.geofence?.lng ?? "";
+      byId("shape").value = building?.geofence?.shape === "square" ? "square" : building?.geofence?.type || "circle"; byId("latitude").value = building?.geofence?.lat ?? ""; byId("longitude").value = building?.geofence?.lng ?? "";
+      byId("square-latitude").value = building?.geofence?.lat ?? ""; byId("square-longitude").value = building?.geofence?.lng ?? ""; byId("square-side").value = building?.geofence?.sideMeters || 100;
       byId("radius").value = building?.geofence?.radius || 100; byId("coordinates").value = JSON.stringify(vertices); updateShape(); draw(building?.geofence);
     }
     function updateShape() {
       const polygon = byId("shape").value === "polygon";
-      byId("circle-fields").classList.toggle("hidden", polygon); byId("polygon-field").classList.toggle("hidden", !polygon);
-      byId("map-hint").textContent = polygon ? "Click the map to add polygon corners. Add at least three points." : "Click the map to set the circle center.";
+      const square = byId("shape").value === "square";
+      byId("circle-fields").classList.toggle("hidden", polygon || square); byId("square-fields").classList.toggle("hidden", !square); byId("polygon-field").classList.toggle("hidden", !polygon);
+      byId("map-hint").textContent = polygon ? "Click the map to add polygon corners. Add at least three points." : square ? "Click the map to set the square center, or use Show my location." : "Click the map to set the circle center.";
     }
     map.on("click", (event) => {
       if (byId("shape").value === "polygon") { vertices.push([event.latlng.lat, event.latlng.lng]); byId("coordinates").value = JSON.stringify(vertices); draw(geofenceFromForm(), false); }
+      else if (byId("shape").value === "square") { byId("square-latitude").value = event.latlng.lat.toFixed(7); byId("square-longitude").value = event.latlng.lng.toFixed(7); draw(geofenceFromForm(), false); }
       else { byId("latitude").value = event.latlng.lat.toFixed(7); byId("longitude").value = event.latlng.lng.toFixed(7); draw(geofenceFromForm(), false); }
     });
-    ["shape", "radius", "latitude", "longitude", "coordinates"].forEach((id) => byId(id).addEventListener("change", () => { if (id === "shape") updateShape(); try { if (id === "coordinates") vertices = JSON.parse(byId(id).value || "[]"); draw(geofenceFromForm(), false); } catch { /* Keep the map while polygon points are being edited. */ } }));
+    ["shape", "radius", "latitude", "longitude", "square-latitude", "square-longitude", "square-side", "coordinates"].forEach((id) => byId(id).addEventListener("change", () => { if (id === "shape") updateShape(); try { if (id === "coordinates") vertices = JSON.parse(byId(id).value || "[]"); draw(geofenceFromForm(), false); } catch { /* Keep the map while polygon points are being edited. */ } }));
     byId("building-list").addEventListener("change", () => fillBuilding(buildings.find((item) => item.id === byId("building-list").value)));
     byId("clear-map").addEventListener("click", () => { vertices = []; byId("coordinates").value = "[]"; if (boundaryLayer) map.removeLayer(boundaryLayer); boundaryLayer = null; });
     byId("save-building").addEventListener("click", async () => {
