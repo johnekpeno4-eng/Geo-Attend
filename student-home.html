@@ -311,13 +311,30 @@
       try {
         const email = localStorage.getItem("geoAttendCurrentUser") || ""; const response = await fetch(`/api/live-sessions?email=${encodeURIComponent(email)}`, { cache: "no-store" });
         if (!response.ok) return;
-        const data = await response.json();
-        const sessions = Array.isArray(data.sessions) ? data.sessions : [];
+        let data = await response.json();
+        let sessions = Array.isArray(data.sessions) ? data.sessions : [];
+        if (!sessions.length) {
+          const fallbackResponse = await fetch("/api/live-sessions", { cache: "no-store" });
+          if (fallbackResponse.ok) {
+            const fallbackData = await fallbackResponse.json();
+            const fallbackSessions = Array.isArray(fallbackData.sessions) ? fallbackData.sessions : [];
+            if (fallbackSessions.length) {
+              data = fallbackData;
+              sessions = fallbackSessions;
+            }
+          }
+        }
         localStorage.setItem("geoAttendLiveSessions", JSON.stringify(sessions));
         if (data.activeSession) {
           localStorage.setItem("geoAttendActiveSession", JSON.stringify(data.activeSession));
         } else {
           localStorage.removeItem("geoAttendActiveSession");
+        }
+        const attendanceResponse = await fetch(`/api/attendance?email=${encodeURIComponent(email)}`, { cache: "no-store" });
+        if (attendanceResponse.ok) {
+          const attendanceData = await attendanceResponse.json();
+          attendanceLogs = Array.isArray(attendanceData.attendance) ? attendanceData.attendance : attendanceLogs;
+          localStorage.setItem("geoAttendAttendanceLog", JSON.stringify(attendanceLogs));
         }
 
         syncActiveSession();
@@ -331,6 +348,7 @@
 
     let activeSession = getLiveSessions()[0] || null;
     let selectedCheckinSession = null;
+    let selectedAttendanceAction = "check-in";
     let selectedCheckinMethod = "";
     let faceCameraStream = null;
     let faceCaptureImage = null;
@@ -341,12 +359,9 @@
     let isWithinGeofence = false;
     let latestPosition = null;
     let locationWatchId = null;
-    let studentLocationSamples = [];
     const TRUSTED_ADMIN_LOCATION_ACCURACY_METERS = 100;
-    const TRUSTED_STUDENT_LOCATION_ACCURACY_METERS = 100;
-    const STUDENT_LOCATION_TARGET_ACCURACY_METERS = 35;
-    const STUDENT_LOCATION_SAMPLE_MAX_AGE_MS = 90000;
-    const STUDENT_LOCATION_MAX_SAMPLES = 30;
+    const TRUSTED_STUDENT_LOCATION_ACCURACY_METERS = 30;
+    const STUDENT_LOCATION_TARGET_ACCURACY_METERS = 30;
 
     function getStudentSettings() {
       return JSON.parse(localStorage.getItem(`geoAttendStudentSettings:${email}`) || "{}");
@@ -393,16 +408,21 @@
     }
     function normalizeBrowserLocation(position) {
       const coords = position?.coords || position || {};
-      return { lat: Number(coords.latitude ?? coords.lat), lng: Number(coords.longitude ?? coords.lng), accuracy: Number(coords.accuracy || 9999), timestamp: Date.now() };
-    }
-    function getBestRecentStudentLocation(sample) {
-      if (Number.isFinite(sample.lat) && Number.isFinite(sample.lng)) studentLocationSamples.push(sample);
-      const cutoff = Date.now() - STUDENT_LOCATION_SAMPLE_MAX_AGE_MS;
-      studentLocationSamples = studentLocationSamples.filter((item) => item.timestamp >= cutoff).slice(-STUDENT_LOCATION_MAX_SAMPLES);
-      return studentLocationSamples.slice().sort((a, b) => Number(a.accuracy || 9999) - Number(b.accuracy || 9999))[0] || sample;
+      return {
+        lat: Number(coords.latitude ?? coords.lat),
+        lng: Number(coords.longitude ?? coords.lng),
+        accuracy: Number(coords.accuracy || 9999),
+        timestamp: Number(position?.timestamp || coords.timestamp || Date.now())
+      };
     }
     function isStudentGpsUsable(position) {
-      return Boolean(position && Number.isFinite(position.lat) && Number.isFinite(position.lng) && Number(position.accuracy || 9999) <= TRUSTED_STUDENT_LOCATION_ACCURACY_METERS);
+      if (!position || !Number.isFinite(position.lat) || !Number.isFinite(position.lng)) return false;
+      const accuracy = Number(position.accuracy || 9999);
+      const ageMs = Date.now() - Number(position.timestamp || 0);
+      return accuracy > 0
+        && accuracy <= TRUSTED_STUDENT_LOCATION_ACCURACY_METERS
+        && ageMs >= 0
+        && ageMs <= 15000;
     }
     function syncActiveSession(preferred) {
       if (preferred) activeSession = preferred;
@@ -411,6 +431,10 @@
     }
     function getExistingCheckin(sessionId) {
       return attendanceLogs.find((item) => item.sessionId === sessionId);
+    }
+    function getElapsedMinutes(record) {
+      const start = new Date(record?.checkedInAt || 0).getTime();
+      return Number.isFinite(start) && start > 0 ? Math.max(0, Math.floor(((record.checkedOutAt ? new Date(record.checkedOutAt).getTime() : Date.now()) - start) / 60000)) : 0;
     }
     function getAttendanceForSession(sessionId) {
       const records = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]");
@@ -440,7 +464,9 @@
       const actionTitle = document.getElementById("primary-action-title");
       const actionHelper = document.getElementById("primary-action-helper");
       const actionIcon = document.getElementById("primary-action-icon");
-      const ready = activeSession && isSessionStarted(activeSession) && !isWeakAdminGeofence(activeSession.geofence || {});
+      const activeRecord = activeSession ? getExistingCheckin(activeSession.id) : null;
+      const action = activeRecord && !activeRecord.checkedOutAt ? "check-out" : "check-in";
+      const ready = activeSession && (action === "check-out" || isSessionStarted(activeSession)) && !isWeakAdminGeofence(activeSession.geofence || {});
       const checkinTitle = document.getElementById("student-checkin-title");
       const checkinButton = document.getElementById("student-checkin-button");
       const checkinStart = document.getElementById("student-checkin-start");
@@ -450,10 +476,10 @@
       if (checkinEnd) checkinEnd.textContent = activeSession?.endTime || activeSession?.attendanceEnd || "--:--";
       if (checkinButton) {
         checkinButton.disabled = !ready;
-        checkinButton.textContent = ready ? "Check In" : activeSession ? "Check-in unavailable" : "Waiting for a live class";
+        checkinButton.textContent = ready ? (action === "check-out" ? "Check Out" : "Check In") : activeSession ? "Attendance unavailable" : "Waiting for a live class";
       }
-      if (actionTitle) actionTitle.textContent = ready ? "Check in now" : "View active classes";
-      if (actionHelper) actionHelper.textContent = ready ? "Confirm your fingerprint to check in" : "Fingerprint verification is required for check-in";
+      if (actionTitle) actionTitle.textContent = ready ? (action === "check-out" ? "Check out now" : "Check in now") : "View active classes";
+      if (actionHelper) actionHelper.textContent = ready ? `Confirm your fingerprint to ${action === "check-out" ? "check out" : "check in"}` : "Fingerprint verification is required for attendance";
       if (actionIcon) actionIcon.textContent = ready ? "fingerprint" : "event_available";
     }
     function updateGpsReadiness() {
@@ -529,10 +555,10 @@
       checkinInProgress = true;
       setCheckinMessage("Waiting for your fingerprint...");
       try {
-        const optionsData = await postJson("/api/webauthn/login-options", { email, purpose: "attendance", sessionId: selectedCheckinSession.id });
+        const optionsData = await postJson("/api/webauthn/login-options", { email, purpose: "attendance", action: selectedAttendanceAction, sessionId: selectedCheckinSession.id });
         const credential = await navigator.credentials.get({ publicKey: prepareAuthenticationOptions(optionsData.options) });
         if (!credential) throw new Error("Fingerprint verification was cancelled.");
-        const verified = await postJson("/api/webauthn/login-verify", { email, response: serializeAuthenticationResponse(credential) });
+        const verified = await postJson("/api/webauthn/login-verify", { email, challengeId: optionsData.challengeId, response: serializeAuthenticationResponse(credential) });
         await showSuccess(verified.checkinToken);
         closeCheckinModal();
       } catch (error) {
@@ -555,39 +581,31 @@
     function openCheckinModal(sessionId) {
       const session = getLiveSessions().find((item) => item.id === sessionId);
       if (!session) return;
-      if (!isSessionStarted(session)) {
+      const existing = getExistingCheckin(session.id);
+      if (!existing && !isSessionStarted(session)) {
         setCheckinMessage(getSessionStartMessage(session), true);
         return;
       }
-      const existing = getExistingCheckin(session.id);
-      if (existing) {
-        syncActiveSession(session);
-        selectedCheckinSession = session;
-        const modal = document.getElementById("checkin-modal");
-        const sessionName = document.getElementById("checkin-modal-session-name");
-        const sessionMeta = document.getElementById("checkin-modal-session-meta");
-        if (sessionName) sessionName.textContent = session.course || "Live class";
-        if (sessionMeta) sessionMeta.textContent = `${session.locationName || session.geofence?.name || "Selected location"} | ${formatSessionWindow(session)}`;
-        modal?.classList.remove("hidden");
-        modal?.classList.add("flex");
-        modal?.setAttribute("aria-hidden", "false");
-        resetCheckinModal();
-        selectedCheckinSession = session;
-        setCheckinMessage(`You already checked in at ${formatDateTime(existing.checkedInAt)}.`);
-        return;
-      }
+      if (existing?.checkedOutAt) { alert(`This session is complete. You checked in at ${formatDateTime(existing.checkedInAt)} and checked out at ${formatDateTime(existing.checkedOutAt)}.`); return; }
       syncActiveSession(session);
       selectedCheckinSession = session;
+      selectedAttendanceAction = existing ? "check-out" : "check-in";
       const modal = document.getElementById("checkin-modal");
       const sessionName = document.getElementById("checkin-modal-session-name");
       const sessionMeta = document.getElementById("checkin-modal-session-meta");
       if (sessionName) sessionName.textContent = session.course || "Live class";
+      const methodButton = document.getElementById("checkin-option");
+      const modalHeading = document.querySelector("#checkin-modal .text-xs.uppercase");
       clearCheckinMessage();
       resetCheckinModal();
       selectedCheckinSession = session;
+      if (methodButton) methodButton.innerHTML = `<span class="material-symbols-outlined align-middle">fingerprint</span> Check ${existing ? "out" : "in"} with fingerprint`;
+      if (modalHeading) modalHeading.textContent = existing ? "Check Out" : "Check In";
       if (sessionMeta) {
         const locationLabel = session.locationName || session.geofence?.name || "Selected location";
-        sessionMeta.textContent = `${locationLabel} - ${formatSessionWindow(session)}`;
+        sessionMeta.textContent = existing
+          ? `${locationLabel} | Checked in ${formatDateTime(existing.checkedInAt)} | Elapsed ${getElapsedMinutes(existing)} min`
+          : `${locationLabel} - ${formatSessionWindow(session)}`;
       }
       if (isWeakAdminGeofence(session.geofence || {})) {
         document.getElementById("checkin-method-choice")?.classList.add("hidden");
@@ -628,7 +646,11 @@
 
       grid.innerHTML = liveSessions.map((session) => {
         const geofence = session.geofence || {};
-        const attendanceCount = getAttendanceCountForSession(session.id);
+        const attendanceRecords = getAttendanceForSession(session.id);
+        const attendanceCount = attendanceRecords.length;
+        const checkedOutCount = attendanceRecords.filter((item) => item.checkedOutAt).length;
+        const incompleteCount = attendanceRecords.filter((item) => !item.checkedOutAt).length;
+        const ownRecord = getExistingCheckin(session.id);
         const selected = sessions?.id === session.id;
         const sessionStarted = isSessionStarted(session);
         let statusText = "GPS waiting";
@@ -656,7 +678,7 @@
                 <p class="text-body-md text-on-surface-variant mt-xs safe-wrap">${escapeHtml(session.locationName || geofence.name || "Selected location")}</p>
               </div>
               <div class="rounded-lg bg-secondary-fixed text-secondary px-sm py-xs font-mono-data text-xs safe-wrap max-w-full shrink-0">
-                ${attendanceCount} checked in
+                ${attendanceCount} checked in · ${checkedOutCount} checked out · ${incompleteCount} incomplete
               </div>
             </div>
             <div class="grid grid-cols-2 gap-sm mt-md text-sm">
@@ -673,9 +695,10 @@
                 <p class="font-mono-data text-on-surface">${escapeHtml(statusText)}</p>
               </div>
             </div>
+            ${ownRecord ? `<p class="mt-sm rounded-lg bg-surface-container-lowest px-sm py-xs text-xs font-mono-data text-on-surface-variant">Checked in ${escapeHtml(formatDateTime(ownRecord.checkedInAt))}${ownRecord.checkedOutAt ? ` | Checked out ${escapeHtml(formatDateTime(ownRecord.checkedOutAt))}` : ` | Elapsed ${getElapsedMinutes(ownRecord)} min`}</p>` : ""}
             <div class="flex flex-wrap gap-sm mt-md">
-              <button class="flex-1 min-w-[120px] touch-manipulation rounded-lg px-md py-sm font-bold transition-all ${adminGeofenceWeak || !sessionStarted ? "bg-surface-container-high text-on-surface-variant cursor-not-allowed" : "bg-secondary text-on-primary hover:opacity-90 active:scale-95"}" data-open-checkin="${escapeHtml(session.id)}" type="button" ${adminGeofenceWeak || !sessionStarted ? "disabled" : ""}>
-                ${adminGeofenceWeak ? "Admin GPS Too Weak" : !sessionStarted ? "Not Started Yet" : "Check In"}
+              <button class="flex-1 min-w-[120px] touch-manipulation rounded-lg px-md py-sm font-bold transition-all ${adminGeofenceWeak || (!sessionStarted && !ownRecord) ? "bg-surface-container-high text-on-surface-variant cursor-not-allowed" : "bg-secondary text-on-primary hover:opacity-95 active:scale-95"}" data-open-checkin="${escapeHtml(session.id)}" type="button" ${adminGeofenceWeak || (!sessionStarted && !ownRecord) || ownRecord?.checkedOutAt ? "disabled" : ""}>
+                ${adminGeofenceWeak ? "Admin GPS Too Weak" : ownRecord?.checkedOutAt ? `Complete · ${getElapsedMinutes(ownRecord)} min` : !sessionStarted && !ownRecord ? "Not Started Yet" : ownRecord ? `Check Out · ${getElapsedMinutes(ownRecord)} min elapsed` : "Check In"}
               </button>
             </div>
           </article>
@@ -755,8 +778,7 @@
         lng: 7.8103804,
         radius: 75
       };
-      const rawSample = normalizeBrowserLocation(position);
-      latestPosition = getBestRecentStudentLocation(rawSample);
+      latestPosition = normalizeBrowserLocation(position);
       const current = {
         lat: latestPosition.lat,
         lng: latestPosition.lng
@@ -781,7 +803,7 @@
           title: "Phone GPS Weak",
           icon: "location_off",
           color: "text-red-600",
-          details: `Best recent device accuracy is ${accuracy}m. Enable precise location, Wi-Fi/mobile data, and move near a window/outdoors.`,
+          details: `Latest device GPS accuracy is ${accuracy}m. Check-in needs a reading at ${TRUSTED_STUDENT_LOCATION_ACCURACY_METERS}m accuracy or better that is less than 15 seconds old. Enable precise location, Wi-Fi/mobile data, and move near a window or outdoors.`,
           distanceText: "Distance: waiting for accurate GPS",
           within: false
         });
@@ -791,16 +813,17 @@
 
       const distance = distanceInMeters(current, geofence);
       const radius = Number(geofence.radius || 75);
-      const within = distance <= radius;
-      const coords = `${formatSignedCoordinate(current.lat, "N", "S")}, ${formatSignedCoordinate(current.lng, "E", "W")} | Best accuracy: ${Math.round(latestPosition.accuracy)}m`;
+      const uncertaintyMeters = Number(latestPosition.accuracy || 0) + Number(geofence.accuracy || 0);
+      const within = distance <= radius && distance + uncertaintyMeters <= radius;
+      const coords = `${formatSignedCoordinate(current.lat, "N", "S")}, ${formatSignedCoordinate(current.lng, "E", "W")} | GPS accuracy: ${Math.round(latestPosition.accuracy)}m`;
       const distanceText = `Distance: ${formatMeters(distance)} / Radius: ${formatMeters(radius)}`;
 
       setGpsState({
         title: within ? "Within Zone" : "Outside Zone",
         icon: within ? "check_circle" : "warning",
         color: within ? "text-green-600" : "text-red-600",
-        details: coords,
-        distanceText,
+        details: `${coords} | Building location accuracy: ${Math.round(Number(geofence.accuracy || 0))}m`,
+        distanceText: within ? distanceText : `${distanceText} | GPS uncertainty: about ${formatMeters(uncertaintyMeters)}`,
         within
       });
       renderActiveClasses();
@@ -898,6 +921,23 @@
         return;
       }
       const allAttendance = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]");
+      if (selectedAttendanceAction === "check-out") {
+        const existing = getExistingCheckin(session.id);
+        if (!existing || existing.checkedOutAt) throw new Error("Check-out is unavailable for this session.");
+        const result = await postJson("/api/attendance", {
+          action: "check-out", sessionId: session.id, email, regNumber: existing.regNumber,
+          position: latestPosition, checkinToken
+        });
+        const updated = result.record;
+        const index = allAttendance.findIndex((item) => item.id === updated.id);
+        if (index >= 0) allAttendance[index] = updated;
+        else allAttendance.push(updated);
+        localStorage.setItem("geoAttendAttendanceLog", JSON.stringify(allAttendance));
+        attendanceLogs = allAttendance.filter((item) => !email || item.email === email);
+        window.alert(`Checked out at ${formatDateTime(updated.checkedOutAt)}. Elapsed ${updated.durationMinutes} minutes. Status: ${updated.status}.`);
+        updateSummary(); updateTodayStatus(); updateSession(); renderActiveClasses();
+        return;
+      }
       const accounts = JSON.parse(localStorage.getItem("geoAttendAccounts") || "[]");
       const account = accounts.find((savedAccount) => savedAccount.email === email);
       const checkedInAt = new Date();
@@ -917,7 +957,8 @@
         geofence,
         checkedInAt: checkedInAt.toISOString(),
         checkinToken,
-        status: "present",
+        action: "check-in",
+        status: "incomplete",
       };
 
       try { await postJson("/api/attendance", record); } catch (error) { throw error; }

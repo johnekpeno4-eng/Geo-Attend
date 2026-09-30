@@ -362,12 +362,25 @@
                 <input class="w-full bg-surface border border-outline-variant rounded-lg p-md focus:ring-2 focus:ring-secondary transition-all" id="duration" type="number" value="90" />
               </div>
               <div class="space-y-sm">
-                <label class="font-label-md text-on-surface-variant" for="start-time">Attendance Start</label>
+                <label class="font-label-md text-on-surface-variant" for="start-time">Check-in Opens / Class Starts</label>
                 <input class="w-full bg-surface border border-outline-variant rounded-lg p-md focus:ring-2 focus:ring-secondary transition-all" id="start-time" type="time" value="09:00" />
               </div>
               <div class="space-y-sm">
-                <label class="font-label-md text-on-surface-variant" for="end-time">Attendance End</label>
+                <label class="font-label-md text-on-surface-variant" for="end-time">Check-in Closes</label>
                 <input class="w-full bg-surface border border-outline-variant rounded-lg p-md focus:ring-2 focus:ring-secondary transition-all" id="end-time" type="time" value="09:15" />
+              </div>
+              <div class="space-y-sm">
+                <label class="font-label-md text-on-surface-variant" for="checkout-start-time">Check-out Opens</label>
+                <input class="w-full bg-surface border border-outline-variant rounded-lg p-md" id="checkout-start-time" type="time" value="09:00" />
+              </div>
+              <div class="space-y-sm">
+                <label class="font-label-md text-on-surface-variant" for="checkout-end-time">Check-out Closes</label>
+                <input class="w-full bg-surface border border-outline-variant rounded-lg p-md" id="checkout-end-time" type="time" value="10:30" />
+              </div>
+              <div class="space-y-sm">
+                <label class="font-label-md text-on-surface-variant" for="minimum-duration-percent">Minimum Duration for Present (%)</label>
+                <input class="w-full bg-surface border border-outline-variant rounded-lg p-md" id="minimum-duration-percent" type="number" min="0" max="100" placeholder="Optional" />
+                <p class="text-xs text-on-surface-variant">Leave blank to count any check-out as Present.</p>
               </div>
             </div>
           </div>
@@ -811,6 +824,12 @@
         duration: Number(document.getElementById("duration")?.value || 90),
         startTime: document.getElementById("start-time")?.value || "09:00",
         endTime: document.getElementById("end-time")?.value || "09:15",
+        sessionEndTime: (() => { const [hour, minute] = (document.getElementById("start-time")?.value || "09:00").split(":").map(Number); const end = (hour * 60 + minute + Number(document.getElementById("duration")?.value || 90)) % 1440; return `${String(Math.floor(end / 60)).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`; })(),
+        checkInStartTime: document.getElementById("start-time")?.value || "09:00",
+        checkInEndTime: document.getElementById("end-time")?.value || "09:15",
+        checkOutStartTime: document.getElementById("checkout-start-time")?.value || "09:00",
+        checkOutEndTime: document.getElementById("checkout-end-time")?.value || "",
+        minimumDurationPercent: Number(document.getElementById("minimum-duration-percent")?.value || 0),
         locationName: selectedPlaceName,
         verification: readVerificationSettings(),
         geofence: {

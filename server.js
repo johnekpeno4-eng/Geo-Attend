@@ -39,6 +39,7 @@ const loginAttemptStore = new Map();
 const totpSetupStore = new Map();
 const webAuthnChallengeStore = new Map();
 const attendanceAuthorizationStore = new Map();
+const attendanceActionLocks = new Set();
 
 
 const ADMIN_GEOFENCE_MAX_ACCURACY_METERS = 20;
@@ -300,6 +301,11 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && req.url === "/api/attendance") {
       const body = await readJson(req);
       await saveAttendance(res, body);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/attendance/status") {
+      const body = await readJson(req);
+      await updateAttendanceStatus(req, res, body);
       return;
     }
 
@@ -764,6 +770,13 @@ async function initDatabase() {
     full_name TEXT,
     status TEXT NOT NULL DEFAULT 'present',
     checked_in_at TEXT,
+    checked_out_at TEXT,
+    check_in_latitude REAL,
+    check_in_longitude REAL,
+    check_in_accuracy REAL,
+    check_out_latitude REAL,
+    check_out_longitude REAL,
+    check_out_accuracy REAL,
     saved_at TEXT,
     attendance_json TEXT NOT NULL
   )`);
@@ -771,6 +784,13 @@ async function initDatabase() {
   await dbRun("CREATE INDEX IF NOT EXISTS idx_attendance_session_reg ON attendance(session_id, reg_number)");
   await dbRun("CREATE INDEX IF NOT EXISTS idx_attendance_checked_in ON attendance(checked_in_at)");
   await ensureColumn("attendance", "academic_session", "TEXT DEFAULT ''");
+  await ensureColumn("attendance", "checked_out_at", "TEXT");
+  await ensureColumn("attendance", "check_in_latitude", "REAL");
+  await ensureColumn("attendance", "check_in_longitude", "REAL");
+  await ensureColumn("attendance", "check_in_accuracy", "REAL");
+  await ensureColumn("attendance", "check_out_latitude", "REAL");
+  await ensureColumn("attendance", "check_out_longitude", "REAL");
+  await ensureColumn("attendance", "check_out_accuracy", "REAL");
   await dbRun(`CREATE TABLE IF NOT EXISTS attendance_reports (
     id TEXT PRIMARY KEY,
     session_id TEXT,
@@ -981,8 +1001,8 @@ async function writeSqliteSessions(sessions) {
 async function upsertSqliteAttendance(record) {
   const academicSession = normalizeAcademicSession(record.academicSession) || await getCurrentAcademicSession();
   const normalized = { ...record, academicSession };
-  await dbRun(`INSERT INTO attendance (id, session_id, email, reg_number, full_name, status, checked_in_at, saved_at, academic_session, attendance_json)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  await dbRun(`INSERT INTO attendance (id, session_id, email, reg_number, full_name, status, checked_in_at, checked_out_at, check_in_latitude, check_in_longitude, check_in_accuracy, check_out_latitude, check_out_longitude, check_out_accuracy, saved_at, academic_session, attendance_json)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       session_id = excluded.session_id,
       email = excluded.email,
@@ -990,6 +1010,13 @@ async function upsertSqliteAttendance(record) {
       full_name = excluded.full_name,
       status = excluded.status,
       checked_in_at = excluded.checked_in_at,
+      checked_out_at = excluded.checked_out_at,
+      check_in_latitude = excluded.check_in_latitude,
+      check_in_longitude = excluded.check_in_longitude,
+      check_in_accuracy = excluded.check_in_accuracy,
+      check_out_latitude = excluded.check_out_latitude,
+      check_out_longitude = excluded.check_out_longitude,
+      check_out_accuracy = excluded.check_out_accuracy,
       saved_at = excluded.saved_at,
       academic_session = excluded.academic_session,
       attendance_json = excluded.attendance_json`, [
@@ -1000,6 +1027,13 @@ async function upsertSqliteAttendance(record) {
     record.fullName || "",
     record.status || "present",
     record.checkedInAt || null,
+    record.checkedOutAt || null,
+    Number.isFinite(Number(record.checkInLocation?.lat ?? record.position?.lat)) ? Number(record.checkInLocation?.lat ?? record.position?.lat) : null,
+    Number.isFinite(Number(record.checkInLocation?.lng ?? record.position?.lng)) ? Number(record.checkInLocation?.lng ?? record.position?.lng) : null,
+    Number.isFinite(Number(record.checkInLocation?.accuracy ?? record.position?.accuracy)) ? Number(record.checkInLocation?.accuracy ?? record.position?.accuracy) : null,
+    Number.isFinite(Number(record.checkOutLocation?.lat)) ? Number(record.checkOutLocation.lat) : null,
+    Number.isFinite(Number(record.checkOutLocation?.lng)) ? Number(record.checkOutLocation.lng) : null,
+    Number.isFinite(Number(record.checkOutLocation?.accuracy)) ? Number(record.checkOutLocation.accuracy) : null,
     record.savedAt || new Date().toISOString(),
     academicSession,
     JSON.stringify(normalized)
@@ -1008,7 +1042,10 @@ async function upsertSqliteAttendance(record) {
 
 async function readSqliteAttendance() {
   const rows = await dbAll("SELECT attendance_json FROM attendance ORDER BY datetime(checked_in_at) DESC");
-  return rows.map((row) => parseJsonColumn(row.attendance_json, null)).filter(Boolean);
+  return rows.map((row) => parseJsonColumn(row.attendance_json, null)).filter(Boolean).map((record) => ({
+    ...record,
+    status: record.manuallyEditedAt || record.status === "absent" ? record.status : record.checkedOutAt ? record.status : "incomplete"
+  }));
 }
 
 async function writeSqliteAttendance(attendance) {
@@ -1530,31 +1567,33 @@ async function removeWebAuthnCredential(res, body) {
 }
 
 async function getWebAuthnLoginOptions(req, res, body) {
-  const row = await findWebAuthnStudent(body.email || body.regNumber);
-  if (!row) return json(res, 404, { error: "Student account was not found." });
-  const credentials = await dbAll("SELECT credential_id FROM webauthn_credentials WHERE student_id = ?", [row.id]);
-  if (!credentials.length) return json(res, 409, { error: "Fingerprint enrollment is required. Complete registration first." });
-  const email = String(row.email).trim().toLowerCase();
   const context = getWebAuthnContext(req);
+  const conditional = body.mediation === "conditional";
+  const row = conditional ? null : await findWebAuthnStudent(body.email || body.regNumber);
+  if (!conditional && !row) return json(res, 404, { error: "Student account was not found." });
+  const credentials = row ? await dbAll("SELECT credential_id FROM webauthn_credentials WHERE student_id = ?", [row.id]) : [];
+  if (!conditional && !credentials.length) return json(res, 409, { error: "Fingerprint enrollment is required. Complete registration first." });
   const options = await generateAuthenticationOptions({
     rpID: context.rpID,
     userVerification: "required",
-    allowCredentials: credentials.map((item) => ({ id: Buffer.from(item.credential_id).toString("base64url"), type: "public-key" }))
+    allowCredentials: conditional ? [] : credentials.map((item) => ({ id: Buffer.from(item.credential_id).toString("base64url"), type: "public-key" }))
   });
-  webAuthnChallengeStore.set(webAuthnKey("login", email), { challenge: options.challenge, rpID: context.rpID, origin: context.origin, purpose: body.purpose === "attendance" ? "attendance" : "login", sessionId: String(body.sessionId || ""), expiresAt: Date.now() + 5 * 60 * 1000 });
-  json(res, 200, { ok: true, options, email });
+  const challengeId = crypto.randomBytes(24).toString("base64url");
+  webAuthnChallengeStore.set(webAuthnKey("login-challenge", challengeId), { challenge: options.challenge, rpID: context.rpID, origin: context.origin, purpose: body.purpose === "attendance" ? "attendance" : "login", action: body.action === "check-out" ? "check-out" : "check-in", sessionId: String(body.sessionId || ""), expiresAt: Date.now() + 5 * 60 * 1000 });
+  json(res, 200, { ok: true, options, challengeId, email: row ? String(row.email).trim().toLowerCase() : undefined });
 }
 
 async function verifyWebAuthnLogin(req, res, body) {
-  const row = await findWebAuthnStudent(body.email || body.regNumber);
-  if (!row) return json(res, 404, { error: "Student account was not found." });
-  const email = String(row.email).trim().toLowerCase();
-  const key = webAuthnKey("login", email);
-  const saved = webAuthnChallengeStore.get(key);
+  const challengeId = String(body.challengeId || "");
+  const key = webAuthnKey("login-challenge", challengeId);
+  const saved = challengeId ? webAuthnChallengeStore.get(key) : null;
   if (!saved || saved.expiresAt < Date.now()) return json(res, 400, { error: "Fingerprint request expired. Try again." });
   const rawId = String(body.response?.rawId || "");
-  const stored = rawId ? await dbGet("SELECT * FROM webauthn_credentials WHERE student_id = ? AND credential_id = ?", [row.id, Buffer.from(rawId, "base64url")]) : null;
-  if (!stored) return json(res, 401, { error: "This fingerprint is not enrolled for this student." });
+  const stored = rawId ? await dbGet("SELECT * FROM webauthn_credentials WHERE credential_id = ?", [Buffer.from(rawId, "base64url")]) : null;
+  if (!stored) return json(res, 401, { error: "This passkey is not enrolled." });
+  const row = await dbGet("SELECT * FROM students WHERE id = ?", [stored.student_id]);
+  if (!row) return json(res, 404, { error: "Student account was not found." });
+  const email = String(row.email).trim().toLowerCase();
   try {
     const verification = await verifyAuthenticationResponse({ response: body.response, expectedChallenge: saved.challenge, expectedOrigin: saved.origin, expectedRPID: saved.rpID, requireUserVerification: true, credential: { id: Buffer.from(stored.credential_id).toString("base64url"), publicKey: Buffer.from(stored.public_key), counter: Number(stored.sign_count || 0) } });
     if (!verification.verified) return json(res, 401, { error: "Fingerprint verification failed." });
@@ -1566,7 +1605,7 @@ async function verifyWebAuthnLogin(req, res, body) {
     let checkinToken = null;
     if (saved.purpose === "attendance" && saved.sessionId) {
       checkinToken = crypto.randomBytes(32).toString("base64url");
-      attendanceAuthorizationStore.set(checkinToken, { email, sessionId: saved.sessionId, expiresAt: Date.now() + 2 * 60 * 1000 });
+      attendanceAuthorizationStore.set(checkinToken, { email, sessionId: saved.sessionId, action: saved.action || "check-in", expiresAt: Date.now() + 2 * 60 * 1000 });
     }
     json(res, 200, { ok: true, user: sqliteStudentFromRow(row), method: "fingerprint", checkinToken });
   } catch (error) {
@@ -1617,7 +1656,7 @@ async function getBiometricProfile(req, res) {
 }
 
 async function getLiveSessions(req, res) {
-  autoFinalizeExpiredSessions();
+  await autoFinalizeExpiredSessions();
   const { items: sessions, source } = await readLiveSessionsStore();
   const activeSessions = sessions
     .filter((session) => session && session.status === "active")
@@ -1699,6 +1738,13 @@ async function saveLiveSession(res, session) {
     json(res, 400, { error: `Admin GPS accuracy must be ${ADMIN_GEOFENCE_MAX_ACCURACY_METERS}m or better before creating a live geofence.` });
     return;
   }
+  const minimumDurationPercent = Number(session.minimumDurationPercent || 0);
+  if (!Number.isFinite(minimumDurationPercent) || minimumDurationPercent < 0 || minimumDurationPercent > 100) {
+    json(res, 400, { error: "Minimum duration must be between 0 and 100 percent." }); return;
+  }
+  for (const field of ["attendanceStart", "attendanceEnd", "startTime", "endTime", "sessionEndTime", "checkInStartTime", "checkInEndTime", "checkOutStartTime", "checkOutEndTime"]) {
+    if (session[field] && !/^\d{2}:\d{2}$/.test(String(session[field]))) { json(res, 400, { error: `Invalid session time: ${field}.` }); return; }
+  }
 
   const { items: sessions } = await readLiveSessionsStore();
   const actorAdmin = findAdminByIdentifier(session.actorEmail || session.createdBy || "");
@@ -1712,6 +1758,7 @@ async function saveLiveSession(res, session) {
   }
   const normalizedSession = {
     ...scopedSession,
+    minimumDurationPercent,
     id,
     status: "active",
     geofence: {
@@ -1745,12 +1792,15 @@ async function endLiveSession(res, sessionId) {
   ));
 
   const { source } = await writeLiveSessionsStore(nextSessions);
-  if (endedSession) saveAttendanceReportFile({ ...endedSession, status: "ended", endedAt, updatedAt: endedAt }, "manual-end");
+  if (endedSession) {
+    await ensureAbsentAttendance(endedSession);
+    saveAttendanceReportFile({ ...endedSession, status: "ended", endedAt, updatedAt: endedAt }, "manual-end");
+  }
   json(res, 200, { ok: true, source, sessions: nextSessions.filter((session) => session && session.status === "active") });
 }
 
 async function getAttendance(req, res) {
-  autoFinalizeExpiredSessions();
+  await autoFinalizeExpiredSessions();
   const url = new URL(req.url, "http://127.0.0.1");
   const sessionId = String(url.searchParams.get("sessionId") || "").trim();
   const { items, source } = await readAttendanceStore();
@@ -1779,6 +1829,7 @@ function getAttendancePdfPayload(sessionId, academicSession = "") {
   const attendance = readJsonFile(ATTENDANCE_LOG_FILE, [])
     .filter((entry) => entry && (!sessionId || entry.sessionId === sessionId))
     .filter((entry) => !academicSession || (entry.academicSession || DEFAULT_ACADEMIC_SESSION) === academicSession)
+    .map((entry) => ({ ...entry, status: entry.manuallyEditedAt || entry.status === "absent" ? entry.status : entry.checkedOutAt ? entry.status : "incomplete" }))
     .sort((a, b) => new Date(a.checkedInAt || 0) - new Date(b.checkedInAt || 0));
   const title = session?.course || attendance[0]?.course || (sessionId ? "Session Attendance Report" : "Attendance Report");
   const fileSafeTitle = title.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase() || "attendance-report";
@@ -1810,7 +1861,7 @@ function serveAttendancePdf(req, res) {
 }
 
 async function getAttendanceReports(req, res) {
-  autoFinalizeExpiredSessions();
+  await autoFinalizeExpiredSessions();
   const reports = readJsonFile(ATTENDANCE_REPORTS_INDEX_FILE, [])
     .filter((report) => report && report.id && report.filename)
     .sort((a, b) => new Date(b.createdAt || b.updatedAt || 0) - new Date(a.createdAt || a.updatedAt || 0));
@@ -1911,29 +1962,47 @@ function deleteAttendanceReport(res, body) {
   json(res, 200, { ok: true });
 }
 
-function autoFinalizeExpiredSessions() {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  const sessions = readJsonFile(LIVE_SESSIONS_FILE, []);
+async function autoFinalizeExpiredSessions() {
+  const { items: sessions } = await readLiveSessionsStore();
   const now = new Date();
-  let changed = false;
+  const ended = [];
   const nextSessions = sessions.map((session) => {
     if (!session || session.status !== "active") return session;
     const endDate = getSessionEndDate(session);
     if (!endDate || endDate > now) return session;
-    changed = true;
     const endedSession = {
       ...session,
       status: "ended",
       endedAt: endDate.toISOString(),
       updatedAt: now.toISOString()
     };
-    saveAttendanceReportFile(endedSession, "auto-end");
+    ended.push(endedSession);
     return endedSession;
   });
 
-  if (changed) {
-    fs.writeFileSync(LIVE_SESSIONS_FILE, JSON.stringify(nextSessions, null, 2));
+  if (ended.length) {
+    await writeLiveSessionsStore(nextSessions);
+    for (const session of ended) {
+      await ensureAbsentAttendance(session);
+      saveAttendanceReportFile(session, "auto-end");
+    }
   }
+}
+
+async function ensureAbsentAttendance(session) {
+  const [students, { items: attendance }] = await Promise.all([readStudentsStore(), readAttendanceStore()]);
+  const enrolled = students.filter((student) => student && student.role !== "admin"
+    && (!session.departmentId || student.departmentId === session.departmentId)
+    && (!session.levelId || student.levelId === session.levelId));
+  const known = new Set(attendance.filter((item) => item.sessionId === session.id).map((item) => String(item.email || "").toLowerCase()));
+  const missing = enrolled.filter((student) => !known.has(String(student.email || "").toLowerCase())).map((student) => ({
+    id: crypto.createHash("sha256").update(`${session.id}:${student.email || student.regNumber}`).digest("hex"),
+    sessionId: session.id, academicSession: session.academicSession || DEFAULT_ACADEMIC_SESSION,
+    course: session.course, email: student.email, fullName: student.fullName, regNumber: student.regNumber,
+    departmentId: student.departmentId, facultyId: student.facultyId, levelId: student.levelId,
+    status: "absent", checkedInAt: null, checkedOutAt: null, durationMinutes: null, savedAt: new Date().toISOString()
+  }));
+  if (missing.length) await writeAttendanceStore([...attendance, ...missing]);
 }
 
 function saveAttendanceReportFile(session, reason = "generated") {
@@ -2107,13 +2176,6 @@ async function saveAttendance(res, record) {
     json(res, 403, { error: `You are ${distanceLabel} from the class location. You must be within the ${Math.round(geofenceCheck.geofence.radius)}m session radius.` });
     return;
   }
-  const start = getSessionStartDate(session);
-  if (start && Date.now() < start.getTime()) {
-    json(res, 403, { error: `Check-in has not started yet. It opens at ${start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.` });
-    return;
-  }
-
-  const { items: attendance } = await readAttendanceStore();
   const isAssisted = record.checkinType === "assisted-student" || record.assisted === true;
   if (isAssisted || record.assistedByRegNumber || record.targetRegNumber) {
     json(res, 403, { error: "Student-assisted check-in is disabled. Each student must check in personally." });
@@ -2134,29 +2196,90 @@ async function saveAttendance(res, record) {
 
   if (!email && regNumber) email = `${regNumber.toLowerCase()}@reg.geoattend.local`;
   if (!regNumber) regNumber = normalizeRegNumber(record.regNumber) || "--";
-  const checkinToken = String(record.checkinToken || "");
-  const authorization = attendanceAuthorizationStore.get(checkinToken);
-  if (!authorization || authorization.expiresAt < Date.now() || authorization.email !== email || authorization.sessionId !== sessionId) {
-    json(res, 403, { error: "Verify your own fingerprint immediately before checking in." });
-    return;
-  }
-  const alreadyCheckedIn = attendance.some((entry) => entry && entry.sessionId === sessionId && (
-    (regNumber !== "--" && normalizeRegNumber(entry.regNumber) === regNumber)
-    || String(entry.email || "").trim().toLowerCase() === email
-  ));
-  if (alreadyCheckedIn) {
-    json(res, 409, { error: "You have already checked in for this session." });
-    return;
-  }
-
   if (!email || (!isEmail(email) && !email.endsWith("@reg.geoattend.local"))) {
     json(res, 400, { error: "Attendance requires a valid student registration number." });
     return;
   }
 
-  const checkedInAt = record.checkedInAt || new Date().toISOString();
+  const action = record.action === "check-out" ? "check-out" : "check-in";
+  const checkinToken = String(record.checkinToken || "");
+  const authorization = attendanceAuthorizationStore.get(checkinToken);
+  if (!authorization || authorization.expiresAt < Date.now() || authorization.email !== email || authorization.sessionId !== sessionId || authorization.action !== action) {
+    json(res, 403, { error: `Verify your own fingerprint immediately before checking ${action === "check-out" ? "out" : "in"}.` });
+    return;
+  }
+  attendanceAuthorizationStore.delete(checkinToken);
+  const { items: attendance } = await readAttendanceStore();
+  const existing = attendance.find((entry) => entry && entry.sessionId === sessionId && (
+    (regNumber !== "--" && normalizeRegNumber(entry.regNumber) === regNumber)
+    || String(entry.email || "").trim().toLowerCase() === email
+  ));
+  const now = new Date();
+  const getWindowDate = (value, fallback) => {
+    const time = /^\d{2}:\d{2}$/.test(String(value || "")) ? String(value) : fallback;
+    if (!time) return null;
+    const base = session.createdAt ? new Date(session.createdAt) : new Date();
+    if (Number.isNaN(base.getTime())) return null;
+    const [hour, minute] = time.split(":").map(Number);
+    const date = new Date(base);
+    date.setHours(hour, minute, 0, 0);
+    return date;
+  };
+  const classStart = getWindowDate(session.startTime, session.attendanceStart);
+  const classEnd = getSessionEndDate(session);
+  const checkInStart = getWindowDate(session.checkInStartTime || session.attendanceStart, session.startTime);
+  const checkInEnd = getWindowDate(session.checkInEndTime || session.attendanceEnd, session.startTime);
+  const checkOutStart = getWindowDate(session.checkOutStartTime || session.attendanceStart, session.startTime);
+  const checkOutEnd = getWindowDate(session.checkOutEndTime || getSessionEndTime(session) || session.endTime, session.startTime);
+  for (const edge of [checkInStart, checkInEnd, checkOutStart, checkOutEnd]) {
+    if (edge && classStart && edge < classStart) edge.setDate(edge.getDate() + 1);
+  }
+  if (action === "check-in") {
+    if (existing) { json(res, 409, { error: "You have already checked in for this session." }); return; }
+    if ((checkInStart && now < checkInStart) || (checkInEnd && now > checkInEnd) || (classEnd && now > classEnd)) {
+      json(res, 403, { error: "Check-in is outside this session's check-in window." }); return;
+    }
+  } else {
+    if (!existing?.checkedInAt) { json(res, 409, { error: "Check out is unavailable before check-in." }); return; }
+    if (existing.checkedOutAt) { json(res, 409, { error: "You have already checked out for this session." }); return; }
+    const checkedInTime = new Date(existing.checkedInAt);
+    if (now <= checkedInTime) { json(res, 403, { error: "Check-out must be after check-in." }); return; }
+    if ((checkOutStart && now < checkOutStart) || (checkOutEnd && now > checkOutEnd) || (classEnd && now > classEnd)) {
+      json(res, 403, { error: "Check-out is outside this session's check-out window." }); return;
+    }
+  }
+  const actionKey = `${sessionId}:${email}:${action}`;
+  if (attendanceActionLocks.has(actionKey)) { json(res, 409, { error: `A ${action} is already being saved for this session.` }); return; }
+  attendanceActionLocks.add(actionKey);
   const idKey = regNumber !== "--" ? `${sessionId}:${regNumber}` : `${sessionId}:${email}`;
   const id = record.id || crypto.createHash("sha256").update(idKey).digest("hex");
+  if (action === "check-out") {
+    const checkedOutAt = now.toISOString();
+    const durationMinutes = Math.max(0, Math.floor((now.getTime() - new Date(existing.checkedInAt).getTime()) / 60000));
+    const scheduledMinutes = classStart && classEnd ? Math.max(0, Math.floor((classEnd - classStart) / 60000)) : 0;
+    const minimumPercent = Number(session.minimumDurationPercent || 0);
+    const meetsMinimum = !minimumPercent || !scheduledMinutes || durationMinutes >= scheduledMinutes * minimumPercent / 100;
+    const normalizedRecord = {
+      ...existing,
+      checkedOutAt,
+      checkOutLocation: { ...locationCheck.location, timestamp: now.getTime() },
+      checkOutGpsVerification: {
+        distanceMeters: Math.round(distanceMeters), radiusMeters: Math.round(geofenceCheck.geofence.radius),
+        accuracyMeters: Math.round(locationCheck.location.accuracy), locationAgeMs: locationCheck.ageMs, verifiedAt: checkedOutAt
+      },
+      durationMinutes,
+      status: meetsMinimum ? "present" : "incomplete",
+      savedAt: checkedOutAt
+    };
+    const nextAttendance = attendance.map((entry) => entry?.id === existing.id ? normalizedRecord : entry);
+    let source = "sqlite";
+    try { ({ source } = await writeAttendanceStore(nextAttendance)); }
+    finally { attendanceActionLocks.delete(actionKey); }
+    json(res, 200, { ok: true, source, record: normalizedRecord, attendance: nextAttendance });
+    return;
+  }
+
+  const checkedInAt = now.toISOString();
   const normalizedRecord = {
     ...record,
     id,
@@ -2175,7 +2298,8 @@ async function saveAttendance(res, record) {
     signature: record.signature || fullName || email || "",
     signatureDataUrl: normalizeSignatureDataUrl(record.signatureDataUrl || studentForSignature?.signatureDataUrl || ""),
     signatureStrokes: normalizeSignatureStrokes(record.signatureStrokes || studentForSignature?.signatureStrokes || []),
-    status: record.status || "present",
+    status: "incomplete",
+    checkInLocation: { ...locationCheck.location, timestamp: now.getTime() },
     gpsVerification: {
       distanceMeters: Math.round(distanceMeters),
       radiusMeters: Math.round(geofenceCheck.geofence.radius),
@@ -2184,24 +2308,32 @@ async function saveAttendance(res, record) {
       verifiedAt: new Date().toISOString()
     },
     checkedInAt,
+    checkedOutAt: null,
+    durationMinutes: null,
     savedAt: new Date().toISOString()
   };
 
-  const nextAttendance = [
-    normalizedRecord,
-    ...attendance.filter((entry) => {
-      if (!entry || entry.id === id) return false;
-      if (entry.sessionId !== sessionId) return true;
-      const entryReg = normalizeRegNumber(entry.regNumber || entry.targetRegNumber);
-      if (entryReg && regNumber !== "--") return entryReg !== regNumber;
-      return String(entry.email || "").toLowerCase() !== email;
-    })
-  ].slice(0, 2000);
+  const nextAttendance = [normalizedRecord, ...attendance].slice(0, 2000);
 
-  const { source } = await writeAttendanceStore(nextAttendance);
-
-  attendanceAuthorizationStore.delete(checkinToken);
+  let source = "sqlite";
+  try { ({ source } = await writeAttendanceStore(nextAttendance)); }
+  finally { attendanceActionLocks.delete(actionKey); }
   json(res, 200, { ok: true, source, record: normalizedRecord, attendance: nextAttendance });
+}
+
+async function updateAttendanceStatus(req, res, body) {
+  const principal = getRequestPrincipal(req);
+  if (!principal.admin) return json(res, 403, { error: "Admin access is required to edit attendance status." });
+  const allowed = new Set(["present", "incomplete", "absent"]);
+  if (!body?.recordId || !allowed.has(String(body.status || "").toLowerCase())) return json(res, 400, { error: "Choose a valid attendance record and status." });
+  const { items: attendance } = await readAttendanceStore();
+  const record = attendance.find((entry) => entry?.id === String(body.recordId));
+  if (!record) return json(res, 404, { error: "Attendance record not found." });
+  if (!entityMatchesScope(record, principal.admin, principal.admin.adminRole || principal.admin.role)) return json(res, 403, { error: "This attendance record is outside your admin scope." });
+  const nextRecord = { ...record, status: String(body.status).toLowerCase(), manuallyEditedAt: new Date().toISOString(), manuallyEditedBy: principal.admin.email };
+  const nextAttendance = attendance.map((entry) => entry?.id === record.id ? nextRecord : entry);
+  const { source } = await writeAttendanceStore(nextAttendance);
+  return json(res, 200, { ok: true, source, record: nextRecord, attendance: nextAttendance });
 }
 
 function normalizeAdminRole(value) {
@@ -3160,7 +3292,7 @@ function createAttendancePdf({ title, session, attendance }) {
   const date = formatAttendanceSheetDate(session);
   const academicSession = session?.academicSession || attendance[0]?.academicSession || DEFAULT_ACADEMIC_SESSION;
   const rows = attendance.length ? attendance : [];
-  const rowsPerPage = 31;
+  const rowsPerPage = 20;
   const pages = [];
   for (let index = 0; index < Math.max(rows.length, 1); index += rowsPerPage) {
     pages.push(rows.slice(index, index + rowsPerPage));
@@ -3214,11 +3346,15 @@ function createAttendanceTemplatePage({ course, date, academicSession, pageRows,
   const tableX = 54;
   const tableY = 520;
   const tableWidth = 487;
-  const rowHeight = 18;
-  const colSn = 55;
-  const colName = 245;
-  const colReg = 105;
-  const colSignature = tableWidth - colSn - colName - colReg;
+  const rowHeight = 23;
+  const colSn = 28;
+  const colName = 132;
+  const colReg = 70;
+  const colCheckIn = 58;
+  const colCheckOut = 58;
+  const colDuration = 48;
+  const colStatus = 55;
+  const colSignature = tableWidth - colSn - colName - colReg - colCheckIn - colCheckOut - colDuration - colStatus;
   const commands = [];
 
   pdfText(commands, "UNIVERSITY OF UYO", 297, 780, 15, "F2", "center");
@@ -3234,24 +3370,23 @@ function createAttendanceTemplatePage({ course, date, academicSession, pageRows,
     const y = tableY - index * rowHeight;
     pdfLine(commands, tableX, y, tableX + tableWidth, y);
   }
-  pdfLine(commands, tableX + colSn, tableY, tableX + colSn, tableY - totalRows * rowHeight);
-  pdfLine(commands, tableX + colSn + colName, tableY, tableX + colSn + colName, tableY - totalRows * rowHeight);
-  pdfLine(commands, tableX + colSn + colName + colReg, tableY, tableX + colSn + colName + colReg, tableY - totalRows * rowHeight);
+  const columns = [colSn, colName, colReg, colCheckIn, colCheckOut, colDuration, colStatus];
+  columns.reduce((x, width) => { pdfLine(commands, x + width, tableY, x + width, tableY - totalRows * rowHeight); return x + width; }, tableX);
 
-  pdfText(commands, "S/N", tableX + 8, tableY - 13, 11, "F2");
-  pdfText(commands, "NAME", tableX + colSn + 8, tableY - 13, 11, "F2");
-  pdfText(commands, "REG NO", tableX + colSn + colName + 8, tableY - 13, 11, "F2");
-  pdfText(commands, "SIGNATURE", tableX + colSn + colName + colReg + 8, tableY - 13, 10, "F2");
+  const headers = ["#", "NAME", "REG NO", "IN", "OUT", "MIN", "STATUS", "SIGN"];
+  let headerX = tableX;
+  [...columns, colSignature].forEach((width, index) => { pdfText(commands, headers[index], headerX + 3, tableY - 14, 7, "F2"); headerX += width; });
 
   if (!pageRows.length) {
     pdfText(commands, "No checked-in students for this session yet.", tableX + colSn + 8, tableY - rowHeight - 13, 10, "F1");
   } else {
     pageRows.forEach((record, index) => {
       const rowY = tableY - (index + 1) * rowHeight - 13;
-      pdfText(commands, String(startIndex + index + 1).padStart(3, "0"), tableX + 8, rowY, 10, "F1");
-      pdfText(commands, truncateForPdf(String(record.fullName || record.email || "Unknown Student").toUpperCase(), 32), tableX + colSn + 8, rowY, 10, "F1");
-      pdfText(commands, truncateForPdf(String(record.regNumber || "--").toUpperCase(), 18), tableX + colSn + colName + 8, rowY, 10, "F1");
-      drawPdfSignature(commands, record, tableX + colSn + colName + colReg + 6, tableY - (index + 2) * rowHeight + 3, colSignature - 12, rowHeight - 6);
+      const valueX = [tableX, tableX + colSn, tableX + colSn + colName, tableX + colSn + colName + colReg, tableX + colSn + colName + colReg + colCheckIn, tableX + colSn + colName + colReg + colCheckIn + colCheckOut, tableX + colSn + colName + colReg + colCheckIn + colCheckOut + colDuration];
+      const elapsed = Number(record.durationMinutes ?? (record.checkedInAt ? Math.floor(((record.checkedOutAt ? new Date(record.checkedOutAt) : new Date()) - new Date(record.checkedInAt)) / 60000) : 0));
+      const values = [String(startIndex + index + 1), truncateForPdf(String(record.fullName || record.email || "Unknown Student").toUpperCase(), 22), truncateForPdf(String(record.regNumber || "--").toUpperCase(), 12), record.checkedInAt ? new Date(record.checkedInAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--", record.checkedOutAt ? new Date(record.checkedOutAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--", elapsed ? String(elapsed) : "--", String(record.status || "incomplete").toUpperCase()];
+      values.forEach((value, column) => pdfTextBox(commands, String(value), valueX[column] + 3, rowY, columns[column] - 5, 7, "F1", "left"));
+      drawPdfSignature(commands, record, tableX + tableWidth - colSignature + 2, tableY - (index + 2) * rowHeight + 3, colSignature - 4, rowHeight - 6);
     });
   }
 
@@ -3378,15 +3513,28 @@ function getSessionStartDate(session) {
 }
 
 function getSessionEndDate(session) {
-  if (!session?.endTime) return null;
+  const endTime = getSessionEndTime(session);
+  if (!endTime) return null;
   const start = getSessionStartDate(session);
   if (!start) return null;
-  const [hours, minutes] = String(session.endTime).split(":").map(Number);
+  const [hours, minutes] = String(endTime).split(":").map(Number);
   if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
   const end = new Date(start);
   end.setHours(hours, minutes, 0, 0);
   if (end <= start) end.setDate(end.getDate() + 1);
   return end;
+}
+
+function getSessionEndTime(session) {
+  if (session?.sessionEndTime) return session.sessionEndTime;
+  if (session?.startTime && Number(session.duration) > 0) {
+    const [hour, minute] = String(session.startTime).split(":").map(Number);
+    if (Number.isFinite(hour) && Number.isFinite(minute)) {
+      const total = (hour * 60 + minute + Number(session.duration)) % 1440;
+      return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+    }
+  }
+  return session?.endTime || "";
 }
 
 function otpKey(email, purpose) {

@@ -667,8 +667,13 @@
                 <p class="text-[11px] font-mono-data text-on-surface-variant break-words">${escapeHtml(student.regNumber || student.email || "--")}</p>
               </div>
               <div class="text-right shrink-0">
-                <p class="text-[11px] font-bold text-secondary">${escapeHtml(student.verificationMethod || "Verified")}</p>
-                <p class="text-[10px] font-mono-data text-on-surface-variant">${escapeHtml(formatSessionTime(student.checkedInAt))}</p>
+                <p class="text-[11px] font-bold text-secondary">${escapeHtml(student.status || "Incomplete")}</p>
+                <p class="text-[10px] font-mono-data text-on-surface-variant">In ${escapeHtml(formatSessionTime(student.checkedInAt))} | Out ${escapeHtml(formatSessionTime(student.checkedOutAt))}</p>
+                <label class="mt-1 block text-[10px] text-on-surface-variant">Edit status
+                  <select class="rounded border border-outline-variant bg-surface px-1 py-0.5 text-[10px]" data-attendance-status="${escapeHtml(student.id)}">
+                    ${["present", "incomplete", "absent"].map((status) => `<option value="${status}" ${String(student.status || "incomplete").toLowerCase() === status ? "selected" : ""}>${status[0].toUpperCase()}${status.slice(1)}</option>`).join("")}
+                  </select>
+                </label>
               </div>
             </div>
           `).join("")}
@@ -1216,6 +1221,10 @@
       grid.innerHTML = sessions.map((session) => {
         const geofence = session.geofence || {};
         const attendanceCount = getAttendanceCount(session.id);
+        const sessionAttendance = getAttendanceForSession(session.id);
+        const checkedInCount = sessionAttendance.filter((entry) => entry.checkedInAt).length;
+        const checkedOutCount = sessionAttendance.filter((entry) => entry.checkedOutAt).length;
+        const incompleteCount = sessionAttendance.filter((entry) => entry.checkedInAt && !entry.checkedOutAt && entry.status !== "absent").length;
         const checkedInStudents = renderCheckedInStudents(session.id);
         return `
           <article class="rounded-xl border border-outline-variant/50 bg-surface-container-low p-md shadow-sm">
@@ -1229,7 +1238,7 @@
                 <p class="text-body-md text-on-surface-variant mt-xs truncate">${session.locationName || geofence.name || "Selected location"}</p>
               </div>
               <div class="rounded-lg bg-secondary-fixed text-secondary px-sm py-xs font-mono-data text-xs">
-                ${attendanceCount} checked in
+                ${checkedInCount} checked in · ${checkedOutCount} checked out · ${incompleteCount} incomplete
               </div>
             </div>
             <div class="grid grid-cols-2 gap-sm mt-md text-sm">
@@ -1306,6 +1315,22 @@
 
       grid.querySelectorAll("[data-assist-checkin]").forEach((button) => {
         button.addEventListener("click", () => openAssistedCheckinModal(button.dataset.assistCheckin));
+      });
+      grid.querySelectorAll("[data-attendance-status]").forEach((select) => {
+        select.addEventListener("change", async () => {
+          try {
+            const actorEmail = localStorage.getItem("geoAttendCurrentUser") || "";
+            const response = await fetch(`/api/attendance/status?actorEmail=${encodeURIComponent(actorEmail)}`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ recordId: select.dataset.attendanceStatus, status: select.value })
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || "Could not edit attendance status.");
+            realtimeAttendance = Array.isArray(data.attendance) ? data.attendance : realtimeAttendance;
+            localStorage.setItem("geoAttendAttendanceLog", JSON.stringify(realtimeAttendance));
+            renderLiveSessions();
+          } catch (error) { window.alert(error.message || "Could not edit attendance status."); }
+        });
       });
       grid.querySelectorAll("[data-approval-unlock]").forEach((button) => {
         button.addEventListener("click", () => toggleStudentAssistedApproval(button.dataset.approvalUnlock, true));
