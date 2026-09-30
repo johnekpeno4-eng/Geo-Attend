@@ -578,6 +578,8 @@
     }
 
     if (role === "admin" && isAdminPage) {
+      const isBuildingAdmin = adminRole === "building_admin";
+      if (!isBuildingAdmin) {
       const switchLink = document.createElement("a");
       switchLink.href = "student-home.html#active-classes";
       switchLink.className = "admin-view-switch bg-secondary text-on-primary rounded-xl px-4 py-2 shadow-lg font-bold inline-flex items-center gap-2 shrink-0";
@@ -588,6 +590,7 @@
       } else {
         switchLink.classList.add("fixed", "top-4", "left-4", "z-[999]");
         document.body.appendChild(switchLink);
+      }
       }
       ensureAdminHeaderTools();
       setupAdminProfileMenu();
@@ -645,6 +648,10 @@
       if (!header || document.getElementById("admin-profile-menu-root")) return;
       const currentEmail = localStorage.getItem("geoAttendCurrentUser") || "Admin";
       const currentName = getDisplayName();
+      const managementLink = adminRole === "building_admin"
+        ? '<a class="flex items-center gap-2 rounded-lg px-3 py-2 font-bold text-on-surface hover:bg-surface-container-low" href="buildings.html"><span class="material-symbols-outlined text-[20px]">location_city</span>Manage Buildings</a>'
+        : '<a class="flex items-center gap-2 rounded-lg px-3 py-2 font-bold text-on-surface hover:bg-surface-container-low" href="admin-management.html"><span class="material-symbols-outlined text-[20px]">admin_panel_settings</span>Manage Admins</a>';
+      const adminCheckinLink = adminRole === "building_admin" ? "" : '<a class="flex items-center gap-2 rounded-lg px-3 py-2 font-bold text-on-surface hover:bg-surface-container-low" href="student-home.html#active-classes"><span class="material-symbols-outlined text-[20px]">how_to_reg</span>Admin Check-in</a>';
       const root = document.createElement("div");
       root.id = "admin-profile-menu-root";
       root.className = "admin-profile-menu-root relative";
@@ -658,14 +665,8 @@
             <p class="font-bold text-on-surface break-words">${escapeLocalHtml(currentName)}</p>
             <p class="text-xs text-on-surface-variant break-words">${escapeLocalHtml(currentEmail)}</p>
           </div>
-          <a class="flex items-center gap-2 rounded-lg px-3 py-2 font-bold text-on-surface hover:bg-surface-container-low" href="admin-management.html">
-            <span class="material-symbols-outlined text-[20px]">admin_panel_settings</span>
-            Manage Admins
-          </a>
-          <a class="flex items-center gap-2 rounded-lg px-3 py-2 font-bold text-on-surface hover:bg-surface-container-low" href="student-home.html#active-classes">
-            <span class="material-symbols-outlined text-[20px]">how_to_reg</span>
-            Admin Check-in
-          </a>
+          ${managementLink}
+          ${adminCheckinLink}
           <button class="admin-theme-toggle mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 font-bold text-on-surface hover:bg-surface-container-low" type="button">
             <span class="material-symbols-outlined text-[20px]">dark_mode</span>
             <span>${document.documentElement.classList.contains("dark") ? "Switch to Light Mode" : "Switch to Dark Mode"}</span>
