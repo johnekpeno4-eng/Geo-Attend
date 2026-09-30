@@ -1760,10 +1760,11 @@ function validateSessionGeofence(geofence) {
       return { ok: false, error: "A polygon geofence needs at least three valid [latitude, longitude] points." };
     }
     const normalized = { type: "polygon", coordinates: coordinates.map(([lat, lng]) => [Number(lat), Number(lng)]) };
-    if (geofence.shape === "square") {
-      const lat = Number(geofence.lat), lng = Number(geofence.lng), sideMeters = Number(geofence.sideMeters);
-      if (![lat, lng, sideMeters].every(Number.isFinite) || Math.abs(lat) > 90 || Math.abs(lng) > 180 || sideMeters < MIN_GEOFENCE_RADIUS_METERS || sideMeters > MAX_GEOFENCE_RADIUS_METERS) return { ok: false, error: "A square geofence needs a valid center and a side length from 20m to 5,000m." };
-      Object.assign(normalized, { shape: "square", lat, lng, sideMeters });
+    if (geofence.shape === "rectangle" || geofence.shape === "square") {
+      const lat = Number(geofence.lat), lng = Number(geofence.lng);
+      const lengthMeters = Number(geofence.lengthMeters ?? geofence.sideMeters), breadthMeters = Number(geofence.breadthMeters ?? geofence.sideMeters);
+      if (![lat, lng, lengthMeters, breadthMeters].every(Number.isFinite) || Math.abs(lat) > 90 || Math.abs(lng) > 180 || lengthMeters < MIN_GEOFENCE_RADIUS_METERS || lengthMeters > MAX_GEOFENCE_RADIUS_METERS || breadthMeters < MIN_GEOFENCE_RADIUS_METERS || breadthMeters > MAX_GEOFENCE_RADIUS_METERS) return { ok: false, error: "A rectangle needs a valid center and length and breadth from 20m to 5,000m." };
+      Object.assign(normalized, { shape: geofence.shape, lat, lng, lengthMeters, breadthMeters });
     }
     return { ok: true, geofence: normalized };
   }

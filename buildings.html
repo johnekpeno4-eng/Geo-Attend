@@ -11,15 +11,15 @@
 </head>
 <body class="min-h-screen bg-slate-50 text-slate-900">
   <main class="mx-auto max-w-5xl space-y-6 p-6">
-    <header class="flex items-center justify-between"><div><p class="text-sm font-bold uppercase tracking-widest text-blue-700">GeoAttend</p><h1 class="text-3xl font-extrabold">Saved buildings</h1><p class="mt-1 text-slate-600">Set a circle, square, or custom polygon on the map. New sessions inherit the saved boundary.</p></div><a id="create-session-link" class="rounded-lg bg-blue-700 px-4 py-2 font-bold text-white" href="create-session.html">Create session</a></header>
+    <header class="flex items-center justify-between"><div><p class="text-sm font-bold uppercase tracking-widest text-blue-700">GeoAttend</p><h1 class="text-3xl font-extrabold">Saved buildings</h1><p class="mt-1 text-slate-600">Set a circle, rectangle, or custom polygon on the map. New sessions inherit the saved boundary.</p></div><a id="create-session-link" class="rounded-lg bg-blue-700 px-4 py-2 font-bold text-white" href="create-session.html">Create session</a></header>
     <section class="grid gap-6 rounded-2xl border bg-white p-5 shadow-sm md:grid-cols-[1fr_1.3fr]">
       <div class="space-y-4">
         <label class="block text-sm font-semibold">Saved building<select id="building-list" class="mt-1 w-full rounded-lg border p-3"><option value="">New building</option></select></label>
         <label class="block text-sm font-semibold">Building name<input id="building-name" class="mt-1 w-full rounded-lg border p-3" placeholder="Engineering Block A" /></label>
         <label class="block text-sm font-semibold">Default room / venue note<input id="room-note" class="mt-1 w-full rounded-lg border p-3" placeholder="Room 204" /></label>
-        <label class="block text-sm font-semibold">Boundary shape<select id="shape" class="mt-1 w-full rounded-lg border p-3"><option value="circle">Circle</option><option value="square">Square</option><option value="polygon">Polygon</option></select></label>
+        <label class="block text-sm font-semibold">Boundary shape<select id="shape" class="mt-1 w-full rounded-lg border p-3"><option value="circle">Circle</option><option value="rectangle">Rectangle</option><option value="polygon">Polygon</option></select></label>
         <div id="circle-fields" class="grid grid-cols-2 gap-3"><label class="text-sm font-semibold">Latitude<input id="latitude" type="number" step="any" class="mt-1 w-full rounded-lg border p-3" /></label><label class="text-sm font-semibold">Longitude<input id="longitude" type="number" step="any" class="mt-1 w-full rounded-lg border p-3" /></label><label class="col-span-2 text-sm font-semibold">Radius (meters)<input id="radius" type="number" min="20" max="5000" value="100" class="mt-1 w-full rounded-lg border p-3" /></label></div>
-        <div id="square-fields" class="hidden grid grid-cols-2 gap-3"><label class="text-sm font-semibold">Center latitude<input id="square-latitude" type="number" step="any" class="mt-1 w-full rounded-lg border p-3" /></label><label class="text-sm font-semibold">Center longitude<input id="square-longitude" type="number" step="any" class="mt-1 w-full rounded-lg border p-3" /></label><label class="col-span-2 text-sm font-semibold">Side length (meters)<input id="square-side" type="number" min="20" max="5000" value="100" class="mt-1 w-full rounded-lg border p-3" /></label></div>
+        <div id="rectangle-fields" class="hidden grid grid-cols-2 gap-3"><label class="text-sm font-semibold">Center latitude<input id="rectangle-latitude" type="number" step="any" class="mt-1 w-full rounded-lg border p-3" /></label><label class="text-sm font-semibold">Center longitude<input id="rectangle-longitude" type="number" step="any" class="mt-1 w-full rounded-lg border p-3" /></label><label class="text-sm font-semibold">Length (meters)<input id="rectangle-length" type="number" min="20" max="5000" value="100" class="mt-1 w-full rounded-lg border p-3" /></label><label class="text-sm font-semibold">Breadth (meters)<input id="rectangle-breadth" type="number" min="20" max="5000" value="100" class="mt-1 w-full rounded-lg border p-3" /></label></div>
         <label id="polygon-field" class="hidden block text-sm font-semibold">Polygon points, JSON [latitude, longitude] pairs<textarea id="coordinates" rows="4" class="mt-1 w-full rounded-lg border p-3 font-mono text-xs" placeholder="Click the map to add at least 3 boundary points"></textarea></label>
         <p id="map-hint" class="rounded-lg bg-blue-50 p-3 text-sm text-blue-900">Click the map to set the circle center.</p>
         <div class="flex gap-2"><button id="save-building" class="rounded-lg bg-blue-700 px-4 py-3 font-bold text-white">Save building</button><button id="delete-building" class="rounded-lg border border-red-300 px-4 py-3 font-bold text-red-700" type="button">Delete</button><button id="clear-map" class="rounded-lg border px-4 py-3 font-bold" type="button">Clear points</button></div>
@@ -54,8 +54,8 @@
           map.setView(location, 17); currentLocationMarker.openPopup();
           if (byId("shape").value === "circle") {
             byId("latitude").value = location.lat.toFixed(7); byId("longitude").value = location.lng.toFixed(7); draw(geofenceFromForm(), false);
-          } else if (byId("shape").value === "square") {
-            byId("square-latitude").value = location.lat.toFixed(7); byId("square-longitude").value = location.lng.toFixed(7); draw(geofenceFromForm(), false);
+          } else if (byId("shape").value === "rectangle") {
+            byId("rectangle-latitude").value = location.lat.toFixed(7); byId("rectangle-longitude").value = location.lng.toFixed(7); draw(geofenceFromForm(), false);
           }
           byId("message").textContent = "Your current location is shown on the map.";
         }
@@ -67,11 +67,11 @@
     });
     function geofenceFromForm() {
       if (byId("shape").value === "polygon") return { type: "polygon", coordinates: vertices.length ? vertices : JSON.parse(byId("coordinates").value || "[]") };
-      if (byId("shape").value === "square") {
-        const lat = Number(byId("square-latitude").value), lng = Number(byId("square-longitude").value), sideMeters = Number(byId("square-side").value);
-        if (!byId("square-latitude").value || !byId("square-longitude").value || !Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(sideMeters) || sideMeters < 20 || sideMeters > 5000 || Math.abs(lat) > 90 || Math.abs(lng) > 180) throw new Error("Choose a square center and enter a side length from 20 to 5,000 meters.");
-        const halfLat = sideMeters / 2 / 111320, halfLng = sideMeters / 2 / (111320 * Math.cos(lat * Math.PI / 180));
-        return { type: "polygon", shape: "square", lat, lng, sideMeters, coordinates: [[lat - halfLat, lng - halfLng], [lat - halfLat, lng + halfLng], [lat + halfLat, lng + halfLng], [lat + halfLat, lng - halfLng]] };
+      if (byId("shape").value === "rectangle") {
+        const lat = Number(byId("rectangle-latitude").value), lng = Number(byId("rectangle-longitude").value), lengthMeters = Number(byId("rectangle-length").value), breadthMeters = Number(byId("rectangle-breadth").value);
+        if (!byId("rectangle-latitude").value || !byId("rectangle-longitude").value || !Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(lengthMeters) || !Number.isFinite(breadthMeters) || lengthMeters < 20 || lengthMeters > 5000 || breadthMeters < 20 || breadthMeters > 5000 || Math.abs(lat) > 90 || Math.abs(lng) > 180) throw new Error("Choose a rectangle center and enter length and breadth from 20 to 5,000 meters.");
+        const halfLat = lengthMeters / 2 / 111320, halfLng = breadthMeters / 2 / (111320 * Math.cos(lat * Math.PI / 180));
+        return { type: "polygon", shape: "rectangle", lat, lng, lengthMeters, breadthMeters, coordinates: [[lat - halfLat, lng - halfLng], [lat - halfLat, lng + halfLng], [lat + halfLat, lng + halfLng], [lat + halfLat, lng - halfLng]] };
       }
       return { type: "circle", lat: Number(byId("latitude").value), lng: Number(byId("longitude").value), radius: Number(byId("radius").value) };
     }
@@ -98,22 +98,23 @@
     function fillBuilding(building) {
       selectedId = building?.id || ""; vertices = building?.geofence?.coordinates || [];
       byId("building-list").value = selectedId; byId("building-name").value = building?.name || ""; byId("room-note").value = building?.roomNote || "";
-      byId("shape").value = building?.geofence?.shape === "square" ? "square" : building?.geofence?.type || "circle"; byId("latitude").value = building?.geofence?.lat ?? ""; byId("longitude").value = building?.geofence?.lng ?? "";
-      byId("square-latitude").value = building?.geofence?.lat ?? ""; byId("square-longitude").value = building?.geofence?.lng ?? ""; byId("square-side").value = building?.geofence?.sideMeters || 100;
+      const savedShape = building?.geofence?.shape;
+      byId("shape").value = savedShape === "rectangle" || savedShape === "square" ? "rectangle" : building?.geofence?.type || "circle"; byId("latitude").value = building?.geofence?.lat ?? ""; byId("longitude").value = building?.geofence?.lng ?? "";
+      byId("rectangle-latitude").value = building?.geofence?.lat ?? ""; byId("rectangle-longitude").value = building?.geofence?.lng ?? ""; byId("rectangle-length").value = building?.geofence?.lengthMeters || building?.geofence?.sideMeters || 100; byId("rectangle-breadth").value = building?.geofence?.breadthMeters || building?.geofence?.sideMeters || 100;
       byId("radius").value = building?.geofence?.radius || 100; byId("coordinates").value = JSON.stringify(vertices); updateShape(); draw(building?.geofence);
     }
     function updateShape() {
       const polygon = byId("shape").value === "polygon";
-      const square = byId("shape").value === "square";
-      byId("circle-fields").classList.toggle("hidden", polygon || square); byId("square-fields").classList.toggle("hidden", !square); byId("polygon-field").classList.toggle("hidden", !polygon);
-      byId("map-hint").textContent = polygon ? "Click the map to add polygon corners. Add at least three points." : square ? "Click the map to set the square center, or use Show my location." : "Click the map to set the circle center.";
+      const rectangle = byId("shape").value === "rectangle";
+      byId("circle-fields").classList.toggle("hidden", polygon || rectangle); byId("rectangle-fields").classList.toggle("hidden", !rectangle); byId("polygon-field").classList.toggle("hidden", !polygon);
+      byId("map-hint").textContent = polygon ? "Click the map to add polygon corners. Add at least three points." : rectangle ? "Click the map to set the rectangle center, or use Show my location." : "Click the map to set the circle center.";
     }
     map.on("click", (event) => {
       if (byId("shape").value === "polygon") { vertices.push([event.latlng.lat, event.latlng.lng]); byId("coordinates").value = JSON.stringify(vertices); draw(geofenceFromForm(), false); }
-      else if (byId("shape").value === "square") { byId("square-latitude").value = event.latlng.lat.toFixed(7); byId("square-longitude").value = event.latlng.lng.toFixed(7); draw(geofenceFromForm(), false); }
+      else if (byId("shape").value === "rectangle") { byId("rectangle-latitude").value = event.latlng.lat.toFixed(7); byId("rectangle-longitude").value = event.latlng.lng.toFixed(7); draw(geofenceFromForm(), false); }
       else { byId("latitude").value = event.latlng.lat.toFixed(7); byId("longitude").value = event.latlng.lng.toFixed(7); draw(geofenceFromForm(), false); }
     });
-    ["shape", "radius", "latitude", "longitude", "square-latitude", "square-longitude", "square-side", "coordinates"].forEach((id) => byId(id).addEventListener("change", () => { if (id === "shape") updateShape(); try { if (id === "coordinates") vertices = JSON.parse(byId(id).value || "[]"); draw(geofenceFromForm(), false); } catch { /* Keep the map while polygon points are being edited. */ } }));
+    ["shape", "radius", "latitude", "longitude", "rectangle-latitude", "rectangle-longitude", "rectangle-length", "rectangle-breadth", "coordinates"].forEach((id) => byId(id).addEventListener("change", () => { if (id === "shape") updateShape(); try { if (id === "coordinates") vertices = JSON.parse(byId(id).value || "[]"); draw(geofenceFromForm(), false); } catch { /* Keep the map while polygon points are being edited. */ } }));
     byId("building-list").addEventListener("change", () => fillBuilding(buildings.find((item) => item.id === byId("building-list").value)));
     byId("clear-map").addEventListener("click", () => { vertices = []; byId("coordinates").value = "[]"; if (boundaryLayer) map.removeLayer(boundaryLayer); boundaryLayer = null; });
     byId("save-building").addEventListener("click", async () => {
