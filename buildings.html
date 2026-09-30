@@ -11,7 +11,7 @@
 </head>
 <body class="min-h-screen bg-slate-50 text-slate-900">
   <main class="mx-auto max-w-5xl space-y-6 p-6">
-    <header class="flex items-center justify-between"><div><p class="text-sm font-bold uppercase tracking-widest text-blue-700">GeoAttend</p><h1 class="text-3xl font-extrabold">Saved buildings</h1><p class="mt-1 text-slate-600">Define a circle or draw a polygon on the map. New sessions inherit the saved boundary.</p></div><a id="create-session-link" class="rounded-lg bg-blue-700 px-4 py-2 font-bold text-white" href="create-session.html">Create session</a></header>
+    <header class="flex items-center justify-between"><div><p class="text-sm font-bold uppercase tracking-widest text-blue-700">GeoAttend</p><h1 class="text-3xl font-extrabold">Saved buildings</h1><p class="mt-1 text-slate-600">Set a circle, square, or custom polygon on the map. New sessions inherit the saved boundary.</p></div><a id="create-session-link" class="rounded-lg bg-blue-700 px-4 py-2 font-bold text-white" href="create-session.html">Create session</a></header>
     <section class="grid gap-6 rounded-2xl border bg-white p-5 shadow-sm md:grid-cols-[1fr_1.3fr]">
       <div class="space-y-4">
         <label class="block text-sm font-semibold">Saved building<select id="building-list" class="mt-1 w-full rounded-lg border p-3"><option value="">New building</option></select></label>
@@ -52,11 +52,10 @@
           if (currentLocationMarker) map.removeLayer(currentLocationMarker);
           currentLocationMarker = L.circleMarker(location, { radius: 9, color: "#fff", weight: 3, fillColor: "#dc2626", fillOpacity: 1 }).addTo(map).bindPopup("Your current location");
           map.setView(location, 17); currentLocationMarker.openPopup();
-          if (byId("shape").value === "circle" || byId("shape").value === "square") {
+          if (byId("shape").value === "circle") {
             byId("latitude").value = location.lat.toFixed(7); byId("longitude").value = location.lng.toFixed(7); draw(geofenceFromForm(), false);
-            if (byId("shape").value === "square") {
-              byId("square-latitude").value = location.lat.toFixed(7); byId("square-longitude").value = location.lng.toFixed(7); draw(geofenceFromForm(), false);
-            }
+          } else if (byId("shape").value === "square") {
+            byId("square-latitude").value = location.lat.toFixed(7); byId("square-longitude").value = location.lng.toFixed(7); draw(geofenceFromForm(), false);
           }
           byId("message").textContent = "Your current location is shown on the map.";
         }
@@ -70,6 +69,7 @@
       if (byId("shape").value === "polygon") return { type: "polygon", coordinates: vertices.length ? vertices : JSON.parse(byId("coordinates").value || "[]") };
       if (byId("shape").value === "square") {
         const lat = Number(byId("square-latitude").value), lng = Number(byId("square-longitude").value), sideMeters = Number(byId("square-side").value);
+        if (!byId("square-latitude").value || !byId("square-longitude").value || !Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(sideMeters) || sideMeters < 20 || sideMeters > 5000 || Math.abs(lat) > 90 || Math.abs(lng) > 180) throw new Error("Choose a square center and enter a side length from 20 to 5,000 meters.");
         const halfLat = sideMeters / 2 / 111320, halfLng = sideMeters / 2 / (111320 * Math.cos(lat * Math.PI / 180));
         return { type: "polygon", shape: "square", lat, lng, sideMeters, coordinates: [[lat - halfLat, lng - halfLng], [lat - halfLat, lng + halfLng], [lat + halfLat, lng + halfLng], [lat + halfLat, lng - halfLng]] };
       }

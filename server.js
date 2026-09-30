@@ -1759,7 +1759,13 @@ function validateSessionGeofence(geofence) {
     if (!Array.isArray(coordinates) || coordinates.length < 3 || coordinates.some((point) => !Array.isArray(point) || point.length !== 2 || !point.every(Number.isFinite) || Math.abs(point[0]) > 90 || Math.abs(point[1]) > 180)) {
       return { ok: false, error: "A polygon geofence needs at least three valid [latitude, longitude] points." };
     }
-    return { ok: true, geofence: { type: "polygon", coordinates: coordinates.map(([lat, lng]) => [Number(lat), Number(lng)]) } };
+    const normalized = { type: "polygon", coordinates: coordinates.map(([lat, lng]) => [Number(lat), Number(lng)]) };
+    if (geofence.shape === "square") {
+      const lat = Number(geofence.lat), lng = Number(geofence.lng), sideMeters = Number(geofence.sideMeters);
+      if (![lat, lng, sideMeters].every(Number.isFinite) || Math.abs(lat) > 90 || Math.abs(lng) > 180 || sideMeters < MIN_GEOFENCE_RADIUS_METERS || sideMeters > MAX_GEOFENCE_RADIUS_METERS) return { ok: false, error: "A square geofence needs a valid center and a side length from 20m to 5,000m." };
+      Object.assign(normalized, { shape: "square", lat, lng, sideMeters });
+    }
+    return { ok: true, geofence: normalized };
   }
   const lat = Number(geofence?.lat);
   const lng = Number(geofence?.lng);

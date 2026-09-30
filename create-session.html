@@ -707,7 +707,7 @@
         ? L.polygon(geofence.coordinates, { color: "#0058be", weight: 3, fillOpacity: .14 }).addTo(previewMap)
         : L.circle([geofence.lat, geofence.lng], { radius: geofence.radius, color: "#0058be", weight: 3, fillOpacity: .14 }).addTo(previewMap);
       previewMap.fitBounds(buildingOutline.getBounds(), { padding: [16, 16] });
-      if (note) note.textContent = `${building.name}${building.roomNote ? ` | ${building.roomNote}` : ""} | ${geofence.type === "polygon" ? "Polygon boundary" : `${geofence.radius}m radius`}`;
+      if (note) note.textContent = `${building.name}${building.roomNote ? ` | ${building.roomNote}` : ""} | ${geofence.shape === "square" ? `${geofence.sideMeters}m square` : geofence.type === "polygon" ? "Polygon boundary" : `${geofence.radius}m radius`}`;
     }
 
     async function loadBuildings(selectedId = "") {
