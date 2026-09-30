@@ -35,7 +35,8 @@
     let selectedId = "";
     let vertices = [];
     let boundaryLayer = null;
-    const map = L.map("building-map").setView([5.1065, 7.8104], 16);
+    const akwaIbomBounds = L.latLngBounds([4.35, 7.35], [5.55, 8.35]);
+    const map = L.map("building-map", { maxBounds: akwaIbomBounds, maxBoundsViscosity: 1, minZoom: 8, maxZoom: 19 }).fitBounds(akwaIbomBounds);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
     function geofenceFromForm() {
       if (byId("shape").value === "polygon") return { type: "polygon", coordinates: vertices.length ? vertices : JSON.parse(byId("coordinates").value || "[]") };
