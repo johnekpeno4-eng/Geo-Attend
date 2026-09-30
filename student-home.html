@@ -386,7 +386,7 @@
       const startValue = session?.attendanceStart || session?.startTime || "";
       if (!startValue || !/^\d{2}:\d{2}$/.test(startValue)) return null;
       const [hour, minute] = startValue.split(":").map(Number);
-      const date = new Date();
+      const date = session?.date ? new Date(`${session.date}T00:00:00`) : new Date();
       date.setHours(hour, minute, 0, 0);
       return date;
     }
@@ -660,10 +660,11 @@
         } else if (latestPosition && !isStudentGpsUsable(latestPosition)) {
           statusText = `Your GPS weak - ${Math.round(Number(latestPosition.accuracy || 0)) || "unknown"}m accuracy`;
         } else if (latestPosition) {
-          const distance = distanceInMeters(latestPosition, geofence);
-          const radius = Number(geofence.radius || 75);
-          const within = distance <= radius;
-          statusText = within ? `Within zone - ${formatMeters(distance)} away` : `Outside zone - ${formatMeters(distance)} away`;
+          const distance = geofence.type === "polygon" ? null : distanceInMeters(latestPosition, geofence);
+          const within = isInsideBuildingBoundary(latestPosition, geofence);
+          statusText = geofence.type === "polygon"
+            ? (within ? "Inside saved building boundary" : "Outside saved building boundary")
+            : (within ? `Within zone - ${formatMeters(distance)} away` : `Outside zone - ${formatMeters(distance)} away`);
         }
 
         return `
@@ -733,6 +734,20 @@
       const lat2 = toRadians(b.lat);
       const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
       return 2 * earthRadius * Math.asin(Math.sqrt(h));
+    }
+
+    function isInsideBuildingBoundary(point, geofence) {
+      if (geofence?.type !== "polygon") {
+        return distanceInMeters(point, geofence) + Number(point.accuracy || 0) <= Number(geofence?.radius || 75);
+      }
+      const vertices = geofence.coordinates || [];
+      let inside = false;
+      for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
+        const [latA, lngA] = vertices[i];
+        const [latB, lngB] = vertices[j];
+        if ((latA > point.lat) !== (latB > point.lat) && point.lng < ((lngB - lngA) * (point.lat - latA)) / (latB - latA) + lngA) inside = !inside;
+      }
+      return inside;
     }
 
     function formatSignedCoordinate(value, positiveSuffix, negativeSuffix) {
@@ -811,19 +826,20 @@
         return;
       }
 
-      const distance = distanceInMeters(current, geofence);
+      const polygon = geofence.type === "polygon";
+      const distance = polygon ? null : distanceInMeters(current, geofence);
       const radius = Number(geofence.radius || 75);
-      const uncertaintyMeters = Number(latestPosition.accuracy || 0) + Number(geofence.accuracy || 0);
-      const within = distance <= radius && distance + uncertaintyMeters <= radius;
+      const uncertaintyMeters = Number(latestPosition.accuracy || 0);
+      const within = isInsideBuildingBoundary(latestPosition, geofence);
       const coords = `${formatSignedCoordinate(current.lat, "N", "S")}, ${formatSignedCoordinate(current.lng, "E", "W")} | GPS accuracy: ${Math.round(latestPosition.accuracy)}m`;
-      const distanceText = `Distance: ${formatMeters(distance)} / Radius: ${formatMeters(radius)}`;
+      const distanceText = polygon ? "Saved building polygon" : `Distance: ${formatMeters(distance)} / Radius: ${formatMeters(radius)}`;
 
       setGpsState({
         title: within ? "Within Zone" : "Outside Zone",
         icon: within ? "check_circle" : "warning",
         color: within ? "text-green-600" : "text-red-600",
-        details: `${coords} | Building location accuracy: ${Math.round(Number(geofence.accuracy || 0))}m`,
-        distanceText: within ? distanceText : `${distanceText} | GPS uncertainty: about ${formatMeters(uncertaintyMeters)}`,
+        details: coords,
+        distanceText: within || polygon ? distanceText : `${distanceText} | GPS uncertainty: about ${formatMeters(uncertaintyMeters)}`,
         within
       });
       renderActiveClasses();

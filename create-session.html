@@ -133,10 +133,11 @@
       }
     }
 
-    #geofence-map {
+    #building-preview-map {
       width: 100%;
-      height: 100%;
-      min-height: 400px;
+      height: 260px;
+      border-radius: 0.75rem;
+      overflow: hidden;
     }
 
     .leaflet-control-attribution {
@@ -378,6 +379,25 @@
                 <input class="w-full bg-surface border border-outline-variant rounded-lg p-md" id="checkout-end-time" type="time" value="10:30" />
               </div>
               <div class="space-y-sm">
+                <label class="font-label-md text-on-surface-variant" for="session-date">Class Date</label>
+                <input class="w-full bg-surface border border-outline-variant rounded-lg p-md" id="session-date" type="date" required />
+              </div>
+              <div class="space-y-sm">
+                <label class="font-label-md text-on-surface-variant" for="building-select">Building</label>
+                <select class="w-full bg-surface border border-outline-variant rounded-lg p-md" id="building-select" required><option value="">Loading saved buildings...</option></select>
+              </div>
+              <div class="space-y-sm md:col-span-2">
+                <label class="font-label-md text-on-surface-variant" for="room-note">Room / venue note</label>
+                <input class="w-full bg-surface border border-outline-variant rounded-lg p-md" id="room-note" placeholder="Room 204 or lecture theatre" />
+              </div>
+              <div class="space-y-sm md:col-span-2">
+                <label class="font-label-md text-on-surface-variant">Repeat weekly on</label>
+                <div class="flex flex-wrap gap-3 text-sm" id="recurrence-days">
+                  <label><input type="checkbox" value="1" /> Mon</label><label><input type="checkbox" value="2" /> Tue</label><label><input type="checkbox" value="3" /> Wed</label><label><input type="checkbox" value="4" /> Thu</label><label><input type="checkbox" value="5" /> Fri</label><label><input type="checkbox" value="6" /> Sat</label><label><input type="checkbox" value="0" /> Sun</label>
+                </div>
+                <label class="mt-2 block text-sm" for="recurrence-end-date">Repeat until <input id="recurrence-end-date" type="date" class="ml-2 rounded border p-2" /></label>
+              </div>
+              <div class="space-y-sm">
                 <label class="font-label-md text-on-surface-variant" for="minimum-duration-percent">Minimum Duration for Present (%)</label>
                 <input class="w-full bg-surface border border-outline-variant rounded-lg p-md" id="minimum-duration-percent" type="number" min="0" max="100" placeholder="Optional" />
                 <p class="text-xs text-on-surface-variant">Leave blank to count any check-out as Present.</p>
@@ -387,78 +407,9 @@
 
           <div class="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden">
             <div class="p-xl pb-md">
-              <div class="flex items-center justify-between mb-lg">
-                <div class="flex items-center gap-sm">
-                  <span class="material-symbols-outlined text-secondary">location_on</span>
-                  <h3 class="font-title-md text-on-surface">Geofencing Intelligence</h3>
-                </div>
-              </div>
-
-              <div class="mb-md grid grid-cols-1 md:grid-cols-[1fr_auto] gap-sm">
-                <div class="relative">
-                  <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
-                  <input class="w-full bg-surface border border-outline-variant rounded-lg py-md pl-10 pr-md focus:ring-2 focus:ring-secondary transition-all" id="map-search" placeholder="Search a location in Nigeria, e.g. UNILAG, Lagos" type="search" />
-                </div>
-                <button class="bg-secondary text-on-secondary rounded-lg px-lg py-md font-title-md text-sm active:scale-95 transition-all flex items-center justify-center gap-sm" id="map-search-button" type="button">
-                  <span class="material-symbols-outlined text-[18px]">travel_explore</span>
-                  Search
-                </button>
-              </div>
-
-              <div class="mb-md flex flex-col sm:flex-row gap-sm">
-                <button class="inline-flex items-center justify-center gap-sm rounded-full border border-secondary text-secondary px-md py-sm text-sm font-title-md hover:bg-secondary/10 active:scale-95 transition-all" id="admin-location-preset" type="button">
-                  <span class="material-symbols-outlined text-[18px]">my_location</span>
-                  Use This Device Location
-                </button>
-                <button class="inline-flex items-center justify-center gap-sm rounded-full border border-secondary text-secondary px-md py-sm text-sm font-title-md hover:bg-secondary/10 active:scale-95 transition-all" id="university-of-uyo-preset" type="button">
-                  <span class="material-symbols-outlined text-[18px]">school</span>
-                  Use University of Uyo
-                </button>
-                <button class="inline-flex items-center justify-center gap-sm rounded-full border border-secondary text-secondary px-md py-sm text-sm font-title-md hover:bg-secondary/10 active:scale-95 transition-all" id="admin-live-location-toggle" type="button" aria-pressed="false">
-                  <span class="material-symbols-outlined text-[18px]">gps_fixed</span>
-                  Track This Device GPS
-                </button>
-              </div>
-              <p class="mb-md text-xs text-on-surface-variant" id="admin-live-location-status">Live device GPS tracking is off. Turn it on only when the class geofence should follow this device location.</p>
-
-              <div class="hidden mb-md rounded-lg border border-outline-variant bg-surface p-sm space-y-xs max-h-44 overflow-y-auto" id="map-search-results"></div>
-
-              <div class="relative h-[400px] w-full bg-surface-container rounded-lg overflow-hidden mb-lg group">
-                <div id="geofence-map" aria-label="Interactive geofence selector map"></div>
-                <div class="absolute bottom-md left-md bg-inverse-surface text-on-primary p-sm px-md rounded-lg text-xs font-mono-data shadow-lg" id="map-coordinates">
-                  LAT: 40.7128 N | LON: 74.0060 W
-                </div>
-                <div class="absolute top-md left-md bg-surface-container-lowest/95 text-on-surface p-sm px-md rounded-lg text-xs shadow-md border border-outline-variant max-w-[260px]" id="map-status">
-                  Loading street map...
-                </div>
-              </div>
-
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-xl">
-                <div class="space-y-md">
-                  <div class="flex justify-between items-end">
-                    <label class="font-label-md text-on-surface-variant" for="radius">Radius Precision</label>
-                    <span class="font-mono-data text-secondary text-sm" id="radius-value">75m</span>
-                  </div>
-                  <input class="w-full h-2 bg-surface-container rounded-lg appearance-none cursor-pointer accent-secondary" id="radius" max="5000" min="5" type="range" value="75" />
-                  <label class="block">
-                    <span class="font-label-md text-on-surface-variant">Custom radius in meters</span>
-                    <input class="mt-xs w-full rounded-lg border border-outline-variant bg-surface px-md py-sm font-mono-data text-on-surface focus:border-secondary focus:ring-2 focus:ring-secondary/20" id="radius-custom" min="5" step="1" type="number" value="75" />
-                  </label>
-                  <div class="grid grid-cols-2 gap-sm">
-                    <button class="rounded-lg border border-outline-variant bg-surface px-md py-sm text-sm font-title-md text-on-surface hover:border-secondary hover:text-secondary active:scale-95 transition-all" id="decrease-radius" type="button">
-                      -10m
-                    </button>
-                    <button class="rounded-lg border border-outline-variant bg-surface px-md py-sm text-sm font-title-md text-on-surface hover:border-secondary hover:text-secondary active:scale-95 transition-all" id="increase-radius" type="button">
-                      +100m
-                    </button>
-                  </div>
-                  <div class="flex justify-between text-[10px] text-on-surface-variant font-mono-data">
-                    <span>5m</span>
-                    <span>No upper limit</span>
-                  </div>
-                </div>
-
-              </div>
+              <div class="mb-3 flex items-center justify-between"><div><h3 class="font-title-md text-on-surface">Building geofence</h3><p class="text-xs text-on-surface-variant">This read-only preview comes from the saved building.</p></div><a class="rounded-lg border border-secondary px-3 py-2 text-sm font-bold text-secondary" href="buildings.html">Manage buildings</a></div>
+              <div id="building-preview-map" class="h-64 w-full rounded-lg border border-outline-variant"></div>
+              <p id="building-preview-note" class="mt-2 text-sm text-on-surface-variant">Choose a saved building to preview its boundary.</p>
             </div>
           </div>
         </div>
@@ -514,50 +465,9 @@
   </main>
 
   <script>
-    const DEFAULT_GEOFENCE = {
-      lat: 5.1065259,
-      lng: 7.8103804,
-      radius: 75
-    };
-    const UNIVERSITY_OF_UYO = {
-      name: "University of Uyo",
-      lat: 5.1065259,
-      lng: 7.8103804
-    };
-    const UNIVERSITY_OF_UYO_POIS = [
-      { name: "Agric Lecture Theatre", lat: 5.11315, lng: 7.81005, icon: "school", type: "place" },
-      { name: "Faculty of Agriculture,\nUniversity of Uyo, Uyo", lat: 5.11125, lng: 7.81008, icon: "place", type: "place" },
-      { name: "Uniuyo Science\nLecture Hall", lat: 5.10865, lng: 7.81215, icon: "school", type: "place" },
-      { name: "Faculty of Engineering,\nUniversity of Uyo", lat: 5.10625, lng: 7.80745, icon: "school", type: "place" },
-      { name: "New Engineering Block", lat: 5.10510, lng: 7.80645, icon: "school", type: "place" },
-      { name: "TETFUND Hall", lat: 5.10420, lng: 7.80810, icon: "school", type: "place" },
-      { name: "Uniuyo Central\nAdministration Office", lat: 5.10125, lng: 7.81050, icon: "place", type: "place" },
-      { name: "University of Uyo Rd", lat: 5.10045, lng: 7.81125, icon: "route", type: "place" },
-      { name: "Uniuyo Stadium", lat: 5.10185, lng: 7.81285, icon: "stadium", type: "place" },
-      { name: "Uniuyo PG school", lat: 5.09720, lng: 7.80885, icon: "school", type: "place" },
-      { name: "Downtown\nShopping Complex", lat: 5.10695, lng: 7.80280, icon: "shopping_bag", type: "shop" },
-      { name: "Home complex", lat: 5.09560, lng: 7.80455, icon: "place", type: "place" },
-      { name: "Campus Chapel", lat: 5.10295, lng: 7.81360, icon: "church", type: "landmark" }
-    ];
-    let leafletMap;
-    let geofenceMarker;
-    let geofenceCircle;
-    let campusPoiLayer;
-    let selectedGeofence = { ...DEFAULT_GEOFENCE };
-    let selectedPlaceName = UNIVERSITY_OF_UYO.name;
-    let searchAbortController = null;
     let qrRotationTimer = null;
     let qrCountdownTimer = null;
     let activeQrExpiresAt = 0;
-    let adminLocationWatchId = null;
-    let adminLiveTrackingEnabled = false;
-    let lastAdminLocationPublishAt = 0;
-    let weakAdminLocationSamples = 0;
-    const ADMIN_LOCATION_PUBLISH_INTERVAL = 5000;
-    const PC_LOCATION_WEAK_ACCURACY_METERS = 100;
-    const TRUSTED_ADMIN_LOCATION_ACCURACY_METERS = 20;
-    const LOCATION_SAMPLE_WINDOW_MS = 25000;
-    const LOCATION_TARGET_ACCURACY_METERS = 20;
     let academicScope = null;
 
     function selectedOptionText(selectId) {
@@ -632,183 +542,6 @@
       }
     }
 
-    function getLocationDeviceProfile() {
-      const userAgent = navigator.userAgent || "";
-      const platform = navigator.platform || "";
-      const touchCapable = navigator.maxTouchPoints > 1;
-      const mobile = /Android|iPhone|iPod|Mobile/i.test(userAgent);
-      const tablet = /iPad|Tablet/i.test(userAgent) || (touchCapable && /Mac/i.test(platform));
-      if (mobile && !tablet) {
-        return {
-          type: "mobile",
-          label: "phone GPS",
-          targetAccuracy: 20,
-          trustedAccuracy: 80,
-          weakAccuracy: 120,
-          sampleWindowMs: 30000,
-          timeoutMs: 30000,
-          guidance: "Keep precise location on, mobile data on, and stand near a window or outdoors."
-        };
-      }
-      if (tablet) {
-        return {
-          type: "tablet",
-          label: "tablet GPS",
-          targetAccuracy: 25,
-          trustedAccuracy: 100,
-          weakAccuracy: 160,
-          sampleWindowMs: 30000,
-          timeoutMs: 30000,
-          guidance: "Keep precise location, Wi-Fi, and mobile data enabled if this tablet supports it."
-        };
-      }
-      return {
-        type: "desktop",
-        label: "computer location",
-        targetAccuracy: 80,
-        trustedAccuracy: 250,
-        weakAccuracy: 500,
-        sampleWindowMs: 35000,
-        timeoutMs: 35000,
-        guidance: "Desktop browsers usually use Wi-Fi/IP location. Turn on OS location services and Wi-Fi, or set the class point on the map."
-      };
-    }
-
-    const LOCATION_DEVICE_PROFILE = getLocationDeviceProfile();
-
-    function formatCoordinate(value, positiveSuffix, negativeSuffix) {
-      const suffix = value >= 0 ? positiveSuffix : negativeSuffix;
-      return `${Math.abs(value).toFixed(4)} ${suffix}`;
-    }
-
-    function updateMapCoordinateLabel(lat, lng, accuracy = selectedGeofence.accuracy) {
-      const coordinateLabel = document.getElementById("map-coordinates");
-      if (!coordinateLabel) return;
-      const accuracyLabel = Number.isFinite(Number(accuracy)) && Number(accuracy) > 0
-        ? ` | ACC: ${Math.round(Number(accuracy))}m`
-        : "";
-      coordinateLabel.textContent = `LAT: ${formatCoordinate(lat, "N", "S")} | LON: ${formatCoordinate(lng, "E", "W")}${accuracyLabel}`;
-    }
-
-    function updateMapStatus(text, isError = false) {
-      const status = document.getElementById("map-status");
-      if (!status) return;
-      status.textContent = text;
-      status.classList.toggle("text-error", isError);
-    }
-
-    function getPcLocationAccuracyMessage(accuracy) {
-      const meters = Math.round(Number(accuracy) || 0);
-      if (!meters) return `Accuracy unknown. ${LOCATION_DEVICE_PROFILE.guidance}`;
-      if (meters <= LOCATION_DEVICE_PROFILE.targetAccuracy) return `Strong ${LOCATION_DEVICE_PROFILE.label} fix: ${meters}m accuracy.`;
-      if (meters <= LOCATION_DEVICE_PROFILE.weakAccuracy) return `Usable ${LOCATION_DEVICE_PROFILE.label} fix: ${meters}m accuracy.`;
-      return `Weak ${LOCATION_DEVICE_PROFILE.label} fix: ${meters}m accuracy. Increase radius, improve device location settings, or select the class point on the map.`;
-    }
-
-    function isTrustedPcLocationAccuracy(accuracy) {
-      const meters = Number(accuracy || 0);
-      return meters > 0 && meters <= TRUSTED_ADMIN_LOCATION_ACCURACY_METERS;
-    }
-
-    function isWeakPcGeofence(geofence = selectedGeofence) {
-      const source = String(geofence.source || "");
-      const accuracy = Number(geofence.accuracy || 0);
-      const radius = Number(geofence.radius || getRadiusValue() || 0);
-      return source.includes("geolocation") && (!accuracy || accuracy > Math.max(LOCATION_DEVICE_PROFILE.trustedAccuracy, radius));
-    }
-
-    function normalizeBrowserLocation(position) {
-      return {
-        lat: position.coords.latitude,
-        lng: position.coords.longitude,
-        accuracy: Math.round(position.coords.accuracy || 0),
-        altitude: position.coords.altitude,
-        altitudeAccuracy: position.coords.altitudeAccuracy,
-        heading: position.coords.heading,
-        speed: position.coords.speed,
-        timestamp: position.timestamp || Date.now()
-      };
-    }
-
-    function getBestLocationSample(samples) {
-      return [...samples]
-        .filter((sample) => Number.isFinite(sample.lat) && Number.isFinite(sample.lng))
-        .sort((a, b) => {
-          const accuracyA = a.accuracy || Number.POSITIVE_INFINITY;
-          const accuracyB = b.accuracy || Number.POSITIVE_INFINITY;
-          if (accuracyA !== accuracyB) return accuracyA - accuracyB;
-          return b.timestamp - a.timestamp;
-        })[0] || null;
-    }
-
-    function collectBestBrowserLocation({ onSample, timeoutMs = LOCATION_DEVICE_PROFILE.sampleWindowMs || LOCATION_SAMPLE_WINDOW_MS, targetAccuracy = LOCATION_DEVICE_PROFILE.targetAccuracy || LOCATION_TARGET_ACCURACY_METERS } = {}) {
-      return new Promise((resolve, reject) => {
-        if (!navigator.geolocation) {
-          reject(new Error("This browser does not support location capture."));
-          return;
-        }
-
-        const samples = [];
-        let settled = false;
-        let watchId = null;
-        let timeoutId = null;
-
-        const finish = (error = null) => {
-          if (settled) return;
-          settled = true;
-          window.clearTimeout(timeoutId);
-          if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-          const best = getBestLocationSample(samples);
-          if (best) {
-            resolve(best);
-            return;
-          }
-          reject(error || new Error("No location reading was received."));
-        };
-
-        watchId = navigator.geolocation.watchPosition((position) => {
-          const sample = normalizeBrowserLocation(position);
-          samples.push(sample);
-          onSample?.(sample, samples);
-          if (sample.accuracy && sample.accuracy <= targetAccuracy && samples.length >= 2) {
-            finish();
-          }
-        }, (error) => {
-          finish(new Error(error.message || "Allow location permission and try again."));
-        }, {
-          enableHighAccuracy: true,
-          maximumAge: 0,
-          timeout: LOCATION_DEVICE_PROFILE.timeoutMs || 30000
-        });
-
-        timeoutId = window.setTimeout(() => finish(), timeoutMs);
-      });
-    }
-
-    function getRadiusValue() {
-      const customValue = Number(document.getElementById("radius-custom")?.value || 0);
-      if (Number.isFinite(customValue) && customValue >= 5) return customValue;
-      return Number(document.getElementById("radius")?.value || DEFAULT_GEOFENCE.radius);
-    }
-
-    function setRadiusValue(value) {
-      const radiusInput = document.getElementById("radius");
-      const customRadiusInput = document.getElementById("radius-custom");
-      const radiusValue = document.getElementById("radius-value");
-      const min = Number(radiusInput?.min || customRadiusInput?.min || 5);
-      const numericValue = Math.round(Number(value));
-      const nextRadius = Number.isFinite(numericValue) ? Math.max(min, numericValue) : DEFAULT_GEOFENCE.radius;
-      if (radiusInput) {
-        const sliderMax = Number(radiusInput.max || 5000);
-        radiusInput.value = Math.min(sliderMax, nextRadius);
-      }
-      if (customRadiusInput) customRadiusInput.value = nextRadius;
-      if (radiusValue) radiusValue.textContent = `${nextRadius.toLocaleString()}m`;
-      selectedGeofence.radius = nextRadius;
-      if (geofenceCircle) geofenceCircle.setRadius(nextRadius);
-      persistDraftGeofence();
-    }
-
     function readVerificationSettings() {
       return {
         requireFaceRecognition: true,
@@ -816,45 +549,43 @@
       };
     }
 
+    let editingSessionId = "";
+    let savedBuildings = [];
+    let previewMap;
+    let buildingOutline;
+
     function buildSessionPayload(status = "draft") {
+      const selectedBuilding = savedBuildings.find((building) => building.id === document.getElementById("building-select")?.value);
+      const courseText = document.getElementById("course")?.value || "CHM121: General Chemistry II";
+      const [codePart, ...titleParts] = courseText.split(":");
       const session = {
         ...getSelectedSessionScope(),
         academicSession: localStorage.getItem("geoAttendAcademicSession") || "",
-        course: document.getElementById("course")?.value || "CHM121: General Chemistry II",
+        course: courseText,
+        courseCode: codePart.trim(), courseTitle: titleParts.join(":").trim(),
         duration: Number(document.getElementById("duration")?.value || 90),
+        date: document.getElementById("session-date")?.value || "",
         startTime: document.getElementById("start-time")?.value || "09:00",
         endTime: document.getElementById("end-time")?.value || "09:15",
+        buildingId: selectedBuilding?.id || "",
+        buildingName: selectedBuilding?.name || "",
+        roomNote: document.getElementById("room-note")?.value.trim() || "",
+        locationName: selectedBuilding?.name || "",
+        recurrenceDays: [...document.querySelectorAll("#recurrence-days input:checked")].map((input) => Number(input.value)),
+        recurrenceEndDate: document.getElementById("recurrence-end-date")?.value || "",
         sessionEndTime: (() => { const [hour, minute] = (document.getElementById("start-time")?.value || "09:00").split(":").map(Number); const end = (hour * 60 + minute + Number(document.getElementById("duration")?.value || 90)) % 1440; return `${String(Math.floor(end / 60)).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`; })(),
         checkInStartTime: document.getElementById("start-time")?.value || "09:00",
         checkInEndTime: document.getElementById("end-time")?.value || "09:15",
         checkOutStartTime: document.getElementById("checkout-start-time")?.value || "09:00",
         checkOutEndTime: document.getElementById("checkout-end-time")?.value || "",
         minimumDurationPercent: Number(document.getElementById("minimum-duration-percent")?.value || 0),
-        locationName: selectedPlaceName,
         verification: readVerificationSettings(),
-        geofence: {
-          lat: selectedGeofence.lat,
-          lng: selectedGeofence.lng,
-          radius: getRadiusValue(),
-          name: selectedPlaceName,
-          accuracy: selectedGeofence.accuracy || null,
-          source: selectedGeofence.source || "manual",
-          capturedAt: selectedGeofence.timestamp || new Date().toISOString()
-        },
-        adminLocationTracking: {
-          enabled: adminLiveTrackingEnabled,
-          updatedAt: adminLiveTrackingEnabled ? new Date().toISOString() : null
-        },
+        actorEmail: localStorage.getItem("geoAttendCurrentUser") || "",
+        ...(editingSessionId ? { id: editingSessionId } : {}),
         status,
         updatedAt: new Date().toISOString()
       };
 
-      return session;
-    }
-
-    function persistDraftGeofence() {
-      const session = buildSessionPayload("draft");
-      localStorage.setItem("geoAttendSessionDraft", JSON.stringify(session));
       return session;
     }
 
@@ -957,199 +688,105 @@
       return data.session || session;
     }
 
-    function setAdminLiveLocationUi(enabled, message = "") {
-      const button = document.getElementById("admin-live-location-toggle");
-      const status = document.getElementById("admin-live-location-status");
-      if (button) {
-        button.setAttribute("aria-pressed", String(enabled));
-        button.classList.toggle("bg-secondary", enabled);
-        button.classList.toggle("text-on-secondary", enabled);
-        button.classList.toggle("text-secondary", !enabled);
-        button.classList.toggle("border-secondary", !enabled);
-        button.classList.toggle("border-transparent", enabled);
-        button.classList.toggle("hover:bg-secondary/10", !enabled);
-        button.innerHTML = enabled
-          ? '<span class="material-symbols-outlined text-[18px]">gps_fixed</span> Stop PC Live GPS'
-          : '<span class="material-symbols-outlined text-[18px]">gps_fixed</span> Track This PC Live GPS';
-      }
-      if (status) {
-        status.textContent = message || (enabled
-          ? "Live PC GPS tracking is on. Keep this page open so students receive updated geofence coordinates from this PC."
-          : "Live PC GPS tracking is off. Turn it on only when the class geofence should follow this PC location.");
-        status.classList.toggle("text-secondary", enabled);
-      }
+    function setupBuildingPreviewMap() {
+      if (!window.L || !document.getElementById("building-preview-map")) return;
+      previewMap = L.map("building-preview-map", { zoomControl: true, dragging: true }).setView([5.1065, 7.8104], 16);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(previewMap);
     }
 
-    function updateLocalLiveSession(session) {
-      localStorage.setItem("geoAttendActiveSession", JSON.stringify(session));
-      const liveSessions = JSON.parse(localStorage.getItem("geoAttendLiveSessions") || "[]")
-        .filter((item) => item.id !== session.id && item.status === "active");
-      liveSessions.unshift(session);
-      localStorage.setItem("geoAttendLiveSessions", JSON.stringify(liveSessions.slice(0, 25)));
-    }
-
-    function applyTrackedAdminPosition(position) {
-      const sample = normalizeBrowserLocation(position);
-      const latLng = {
-        lat: sample.lat,
-        lng: sample.lng
-      };
-      const accuracy = sample.accuracy;
-      if (!isTrustedPcLocationAccuracy(accuracy)) {
-        weakAdminLocationSamples += 1;
-        const accuracyMessage = getPcLocationAccuracyMessage(accuracy);
-        updateMapStatus(`Waiting for an accurate PC/device fix. ${accuracyMessage} Sample ${weakAdminLocationSamples}.`, true);
-        setAdminLiveLocationUi(true, `Still sampling this device location. ${accuracyMessage}`);
+    function renderBuildingPreview(building) {
+      if (buildingOutline) previewMap?.removeLayer(buildingOutline);
+      buildingOutline = null;
+      const note = document.getElementById("building-preview-note");
+      if (!building?.geofence || !previewMap) {
+        if (note) note.textContent = "Choose a saved building to preview its boundary.";
         return;
       }
-      weakAdminLocationSamples = 0;
-      const label = accuracy ? `This PC live GPS (${accuracy}m accuracy)` : "This PC live GPS";
-      setGeofenceCenter(latLng, label, {
-        accuracy,
-        source: "pc-geolocation-live"
-      });
-      leafletMap?.setView([latLng.lat, latLng.lng], leafletMap.getZoom() || 18);
-      const accuracyMessage = getPcLocationAccuracyMessage(accuracy);
-      updateMapStatus(`Live PC location updated. ${accuracyMessage}`, accuracy > PC_LOCATION_WEAK_ACCURACY_METERS);
-      setAdminLiveLocationUi(true, `Live PC GPS tracking is on. ${accuracyMessage}`);
-
-      const activeSession = JSON.parse(localStorage.getItem("geoAttendActiveSession") || "null");
-      if (!activeSession?.id || !adminLiveTrackingEnabled) return;
-
-      const updatedSession = {
-        ...activeSession,
-        locationName: label,
-        geofence: {
-          ...(activeSession.geofence || {}),
-          lat: latLng.lat,
-          lng: latLng.lng,
-          radius: getRadiusValue(),
-          name: label,
-          accuracy,
-          source: "pc-geolocation-live"
-        },
-        adminLocationTracking: {
-          enabled: true,
-          accuracy,
-          source: "pc-geolocation-live",
-          updatedAt: new Date().toISOString()
-        },
-        updatedAt: new Date().toISOString()
-      };
-
-      updateLocalLiveSession(updatedSession);
-      const now = Date.now();
-      if (now - lastAdminLocationPublishAt >= ADMIN_LOCATION_PUBLISH_INTERVAL) {
-        lastAdminLocationPublishAt = now;
-        saveLiveSessionToServer(updatedSession).catch((error) => {
-          setActionFeedback(error.message || "Live PC GPS updated locally, but could not publish to students yet.", "error");
-        });
-      }
+      const geofence = building.geofence;
+      buildingOutline = geofence.type === "polygon"
+        ? L.polygon(geofence.coordinates, { color: "#0058be", weight: 3, fillOpacity: .14 }).addTo(previewMap)
+        : L.circle([geofence.lat, geofence.lng], { radius: geofence.radius, color: "#0058be", weight: 3, fillOpacity: .14 }).addTo(previewMap);
+      previewMap.fitBounds(buildingOutline.getBounds(), { padding: [16, 16] });
+      if (note) note.textContent = `${building.name}${building.roomNote ? ` | ${building.roomNote}` : ""} | ${geofence.type === "polygon" ? "Polygon boundary" : `${geofence.radius}m radius`}`;
     }
 
-    function stopAdminLiveLocationTracking(message = "Live PC GPS tracking is off. The current geofence is now fixed.") {
-      if (adminLocationWatchId !== null) {
-        navigator.geolocation.clearWatch(adminLocationWatchId);
-      }
-      adminLocationWatchId = null;
-      adminLiveTrackingEnabled = false;
-      setAdminLiveLocationUi(false, message);
-
-      const activeSession = JSON.parse(localStorage.getItem("geoAttendActiveSession") || "null");
-      if (!activeSession?.id) return;
-      const updatedSession = {
-        ...activeSession,
-        geofence: {
-          ...(activeSession.geofence || {}),
-          radius: getRadiusValue()
-        },
-        adminLocationTracking: {
-          ...(activeSession.adminLocationTracking || {}),
-          enabled: false,
-          stoppedAt: new Date().toISOString()
-        },
-        updatedAt: new Date().toISOString()
-      };
-      updateLocalLiveSession(updatedSession);
-      saveLiveSessionToServer(updatedSession).catch(() => {
-        setActionFeedback("Live PC tracking stopped locally, but the server update failed. Try publishing again if students still see live tracking.", "error");
-      });
+    async function loadBuildings(selectedId = "") {
+      const response = await fetch("/api/buildings", { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not load saved buildings.");
+      savedBuildings = data.buildings || [];
+      const select = document.getElementById("building-select");
+      select.innerHTML = '<option value="">Select a building</option>' + savedBuildings.map((building) => `<option value="${building.id}">${building.name}</option>`).join("");
+      if (selectedId) select.value = selectedId;
+      renderBuildingPreview(savedBuildings.find((building) => building.id === select.value));
     }
 
-    function startAdminLiveLocationTracking() {
-      if (!navigator.geolocation) {
-        updateMapStatus("This browser does not support live PC GPS tracking.", true);
-        setAdminLiveLocationUi(false, "This browser does not support live PC GPS tracking.");
-        return;
-      }
-
-      if (adminLocationWatchId !== null) {
-        navigator.geolocation.clearWatch(adminLocationWatchId);
-      }
-      adminLiveTrackingEnabled = true;
-      weakAdminLocationSamples = 0;
-      lastAdminLocationPublishAt = 0;
-      setAdminLiveLocationUi(true, "Starting fused device location tracking...");
-      updateMapStatus("Starting fused device location tracking. Keep Wi-Fi and precise location enabled.");
-      adminLocationWatchId = navigator.geolocation.watchPosition(
-        applyTrackedAdminPosition,
-        (error) => {
-          updateMapStatus(error.message || "Allow location permission to use this device live location tracking.", true);
-          stopAdminLiveLocationTracking("Live location tracking stopped. Allow location permission and try again.");
-        },
-        {
-          enableHighAccuracy: true,
-          maximumAge: 0,
-          timeout: 20000
-        }
-      );
+    async function populateSessionForEdit(session) {
+      if (!session) return;
+      editingSessionId = session.id;
+      document.getElementById("generate-session").innerHTML = '<span class="material-symbols-outlined text-[18px]">save</span> Save Changes';
+      const course = document.getElementById("course");
+      if (![...course.options].some((option) => option.value === session.course)) course.add(new Option(session.course, session.course));
+      course.value = session.course || course.value;
+      document.getElementById("duration").value = session.duration || 90;
+      document.getElementById("start-time").value = session.startTime || "09:00";
+      document.getElementById("end-time").value = session.endTime || "09:15";
+      document.getElementById("session-date").value = session.date || new Date().toISOString().slice(0, 10);
+      document.getElementById("room-note").value = session.roomNote || "";
+      document.getElementById("checkout-start-time").value = session.checkOutStartTime || "09:00";
+      document.getElementById("checkout-end-time").value = session.checkOutEndTime || session.sessionEndTime || "10:30";
+      document.getElementById("minimum-duration-percent").value = session.minimumDurationPercent || "";
+      document.getElementById("recurrence-end-date").value = session.recurrenceEndDate || "";
+      document.querySelectorAll("#recurrence-days input").forEach((input) => { input.checked = (session.recurrenceDays || []).includes(Number(input.value)); });
+      await loadBuildings(session.buildingId);
+      if (session.departmentId) document.getElementById("session-department").value = session.departmentId;
+      if (session.levelId) document.getElementById("session-level").value = session.levelId;
+      refreshSessionCourses();
+      course.value = session.course || course.value;
     }
 
-    function toggleAdminLiveLocationTracking() {
-      if (adminLiveTrackingEnabled) {
-        stopAdminLiveLocationTracking();
-        return;
-      }
-      startAdminLiveLocationTracking();
+    async function initSessionForm() {
+      await loadAcademicScope();
+      const date = document.getElementById("session-date");
+      date.value = new URLSearchParams(location.search).get("date") || new Date().toISOString().slice(0, 10);
+      setupBuildingPreviewMap();
+      document.getElementById("building-select").addEventListener("change", () => renderBuildingPreview(savedBuildings.find((building) => building.id === document.getElementById("building-select").value)));
+      await loadBuildings();
+      const saved = JSON.parse(localStorage.getItem("geoAttendSessionToEdit") || "null");
+      if (saved && new URLSearchParams(location.search).has("sessionId")) await populateSessionForEdit(saved);
+      localStorage.removeItem("geoAttendSessionToEdit");
     }
 
     async function activateSession() {
-      const session = persistDraftGeofence();
-      if (isWeakPcGeofence(session.geofence)) {
-        const accuracy = Number(session.geofence.accuracy || 0);
-        setActionFeedback(`Cannot generate session because device GPS accuracy is ${accuracy || "unknown"}m. A live device geofence requires 20m accuracy or better. Improve precise location, Wi-Fi, and mobile data, or select the exact class point on the map.`, "error");
-        updateMapStatus(`Weak device GPS rejected. Accuracy: ${accuracy || "unknown"}m. A live device geofence requires 20m accuracy or better; use map search/click for a fixed class geofence.`, true);
-        return null;
-      }
-      session.id = `session-${Date.now()}`;
+      const session = buildSessionPayload("active");
+      if (!session.buildingId) { setActionFeedback("Choose a saved building before publishing the session.", "error"); return null; }
+      if (!session.date) { setActionFeedback("Choose the class date.", "error"); return null; }
+      session.id = editingSessionId || `session-${Date.now()}`;
       session.status = "active";
       session.createdAt = new Date().toISOString();
-      localStorage.setItem("geoAttendActiveSession", JSON.stringify(session));
-      const liveSessions = JSON.parse(localStorage.getItem("geoAttendLiveSessions") || "[]")
-        .filter((item) => item.id !== session.id && item.status === "active");
-      liveSessions.unshift(session);
-      localStorage.setItem("geoAttendLiveSessions", JSON.stringify(liveSessions.slice(0, 25)));
       const generateButton = document.getElementById("generate-session");
       if (generateButton) {
         generateButton.disabled = true;
         generateButton.innerHTML = '<span class="material-symbols-outlined text-[18px]">sync</span> Publishing...';
       }
       let publishedSession = session;
-      let publishedToServer = true;
       try {
         publishedSession = await saveLiveSessionToServer(session);
       } catch (error) {
-        publishedToServer = false;
-        setActionFeedback(error.message || "Session saved locally, but students on other devices may not see it yet.", "error");
+        setActionFeedback(error.message || "Could not save the session.", "error");
+        if (generateButton) { generateButton.disabled = false; generateButton.textContent = editingSessionId ? "Save Changes" : "Generate Session"; }
+        return null;
       }
+      localStorage.setItem("geoAttendActiveSession", JSON.stringify(publishedSession));
+      const liveSessions = JSON.parse(localStorage.getItem("geoAttendLiveSessions") || "[]").filter((item) => item.id !== publishedSession.id);
+      liveSessions.unshift(publishedSession);
+      localStorage.setItem("geoAttendLiveSessions", JSON.stringify(liveSessions));
       startQrRotation(publishedSession);
       if (generateButton) {
         generateButton.disabled = false;
         generateButton.innerHTML = '<span class="material-symbols-outlined text-[18px]">verified</span> Session Live';
       }
-      if (publishedToServer) {
-        setActionFeedback("Session generated. Students will be checked against this live geofence.", "success");
-      }
+      setActionFeedback(editingSessionId ? "Session changes saved." : "Session created. Students will be checked against the selected building boundary.", "success");
       return publishedSession;
     }
 
@@ -1160,106 +797,6 @@
         return;
       }
       window.location.href = "live-monitor.html";
-    }
-
-    function setMarkerLabel(label = selectedPlaceName) {
-      if (!geofenceMarker) return;
-      geofenceMarker
-        .bindTooltip(label, {
-          permanent: true,
-          direction: "top",
-          offset: [0, -12],
-          className: "geofence-marker-label"
-        })
-        .openTooltip();
-    }
-
-    function createCampusPoiLayer() {
-      const markers = UNIVERSITY_OF_UYO_POIS.map((poi) => {
-        const icon = L.divIcon({
-          className: "",
-          html: `<span class="campus-poi-icon ${poi.type}"><span class="material-symbols-outlined">${poi.icon}</span></span>`,
-          iconSize: [30, 30],
-          iconAnchor: [15, 15],
-          tooltipAnchor: [0, -18]
-        });
-
-        return L.marker([poi.lat, poi.lng], {
-          icon,
-          interactive: false,
-          keyboard: false
-        }).bindTooltip(poi.name.replace(/\n/g, "<br>"), {
-          permanent: true,
-          direction: "top",
-          offset: [0, -18],
-          className: "campus-poi-label"
-        });
-      });
-
-      return L.layerGroup(markers);
-    }
-
-    function setGeofenceCenter(latLng, label = "Selected location", meta = {}) {
-      const lat = latLng.lat;
-      const lng = latLng.lng;
-      selectedPlaceName = label;
-      selectedGeofence = {
-        lat,
-        lng,
-        radius: getRadiusValue(),
-        accuracy: meta.accuracy || null,
-        source: meta.source || "manual"
-      };
-      updateMapCoordinateLabel(lat, lng, selectedGeofence.accuracy);
-      if (geofenceCircle) geofenceCircle.setLatLng([lat, lng]);
-      if (geofenceMarker) geofenceMarker.setLatLng([lat, lng]);
-      setMarkerLabel(selectedPlaceName);
-      persistDraftGeofence();
-    }
-
-    async function useAdminCurrentLocation() {
-      if (!navigator.geolocation) {
-        updateMapStatus("This browser does not support PC location capture.", true);
-        return;
-      }
-
-      const button = document.getElementById("admin-location-preset");
-      const previousContent = button?.innerHTML;
-      if (button) {
-        button.disabled = true;
-        button.innerHTML = '<span class="material-symbols-outlined text-[18px]">sync</span> Sampling...';
-      }
-      updateMapStatus("Sampling this device location for the best fused GPS/Wi-Fi/cell fix. Keep the page open...");
-
-      try {
-        const best = await collectBestBrowserLocation({
-          onSample: (sample, samples) => {
-            updateMapStatus(`Sampling location ${samples.length}. Best accuracy so far: ${getBestLocationSample(samples)?.accuracy || "unknown"}m.`);
-          }
-        });
-        const latLng = {
-          lat: best.lat,
-          lng: best.lng
-        };
-        const accuracy = best.accuracy;
-        if (!isTrustedPcLocationAccuracy(accuracy)) {
-          updateMapStatus(`This device location was not used. ${getPcLocationAccuracyMessage(accuracy)} Use map search/click for the exact class location, or enable precise location, Wi-Fi, and mobile data.`, true);
-        } else {
-          setGeofenceCenter(latLng, accuracy ? `This device location (${accuracy}m accuracy)` : "This device location", {
-            accuracy,
-            source: "pc-geolocation"
-          });
-          leafletMap?.setView([latLng.lat, latLng.lng], 18);
-          updateMapStatus(`Best device location captured. ${getPcLocationAccuracyMessage(accuracy)} Adjust radius before generating session.`, accuracy > PC_LOCATION_WEAK_ACCURACY_METERS);
-        }
-      } catch (error) {
-        updateMapStatus(error.message || "Allow location permission to use this device location.", true);
-      } finally {
-        if (button) {
-          button.disabled = false;
-          button.innerHTML = previousContent;
-        }
-      }
     }
 
     function renderSearchResults(results) {
@@ -1453,50 +990,9 @@
     document.getElementById("session-faculty")?.addEventListener("change", refreshSessionDepartments);
     document.getElementById("session-department")?.addEventListener("change", refreshSessionCourses);
     document.getElementById("session-level")?.addEventListener("change", refreshSessionCourses);
-    loadAcademicScope();
     document.getElementById("generate-session")?.addEventListener("click", activateSession);
     document.getElementById("save-template")?.addEventListener("click", saveSessionTemplate);
-    document.getElementById("admin-location-preset")?.addEventListener("click", useAdminCurrentLocation);
-    document.getElementById("admin-live-location-toggle")?.addEventListener("click", toggleAdminLiveLocationTracking);
-    document.getElementById("university-of-uyo-preset")?.addEventListener("click", useUniversityOfUyo);
-    document.getElementById("decrease-radius")?.addEventListener("click", () => setRadiusValue(getRadiusValue() - 10));
-    document.getElementById("increase-radius")?.addEventListener("click", () => setRadiusValue(getRadiusValue() + 100));
-    document.getElementById("map-search-button")?.addEventListener("click", searchNigeriaLocation);
-    document.getElementById("map-search")?.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        searchNigeriaLocation();
-      }
-    });
-
-    setupGeofenceMap();
-    const existingActiveSession = JSON.parse(localStorage.getItem("geoAttendActiveSession") || "null");
-    if (existingActiveSession?.id) {
-      let sessionToPublish = existingActiveSession;
-      if (existingActiveSession.adminLocationTracking?.enabled) {
-        sessionToPublish = {
-          ...existingActiveSession,
-          adminLocationTracking: {
-            ...(existingActiveSession.adminLocationTracking || {}),
-            enabled: false,
-            pausedAt: new Date().toISOString()
-          },
-          updatedAt: new Date().toISOString()
-        };
-        updateLocalLiveSession(sessionToPublish);
-        setAdminLiveLocationUi(false, "This session was created with live PC GPS. Tap Track This PC Live GPS to resume real-time updates from this device.");
-      }
-      startQrRotation(sessionToPublish);
-      saveLiveSessionToServer(sessionToPublish).catch(() => {
-        setActionFeedback("This active session is local only. Generate it again if students on other devices cannot see it.", "error");
-      });
-    }
-
-    window.addEventListener("beforeunload", () => {
-      if (adminLocationWatchId !== null && navigator.geolocation) {
-        navigator.geolocation.clearWatch(adminLocationWatchId);
-      }
-    });
+    initSessionForm().catch((error) => setActionFeedback(error.message || "Could not initialize the session form.", "error"));
   </script>
 </body>
 </html>

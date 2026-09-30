@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Buildings | GeoAttend</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-900">
+  <main class="mx-auto max-w-5xl space-y-6 p-6">
+    <header class="flex items-center justify-between"><div><p class="text-sm font-bold uppercase tracking-widest text-blue-700">GeoAttend</p><h1 class="text-3xl font-extrabold">Saved buildings</h1><p class="mt-1 text-slate-600">Define a circle or draw a polygon on the map. New sessions inherit the saved boundary.</p></div><a class="rounded-lg bg-blue-700 px-4 py-2 font-bold text-white" href="create-session.html">Create session</a></header>
+    <section class="grid gap-6 rounded-2xl border bg-white p-5 shadow-sm md:grid-cols-[1fr_1.3fr]">
+      <div class="space-y-4">
+        <label class="block text-sm font-semibold">Saved building<select id="building-list" class="mt-1 w-full rounded-lg border p-3"><option value="">New building</option></select></label>
+        <label class="block text-sm font-semibold">Building name<input id="building-name" class="mt-1 w-full rounded-lg border p-3" placeholder="Engineering Block A" /></label>
+        <label class="block text-sm font-semibold">Default room / venue note<input id="room-note" class="mt-1 w-full rounded-lg border p-3" placeholder="Room 204" /></label>
+        <label class="block text-sm font-semibold">Boundary shape<select id="shape" class="mt-1 w-full rounded-lg border p-3"><option value="circle">Circle</option><option value="polygon">Polygon</option></select></label>
+        <div id="circle-fields" class="grid grid-cols-2 gap-3"><label class="text-sm font-semibold">Latitude<input id="latitude" type="number" step="any" class="mt-1 w-full rounded-lg border p-3" /></label><label class="text-sm font-semibold">Longitude<input id="longitude" type="number" step="any" class="mt-1 w-full rounded-lg border p-3" /></label><label class="col-span-2 text-sm font-semibold">Radius (meters)<input id="radius" type="number" min="20" max="5000" value="100" class="mt-1 w-full rounded-lg border p-3" /></label></div>
+        <label id="polygon-field" class="hidden block text-sm font-semibold">Polygon points, JSON [latitude, longitude] pairs<textarea id="coordinates" rows="4" class="mt-1 w-full rounded-lg border p-3 font-mono text-xs" placeholder="Click the map to add at least 3 boundary points"></textarea></label>
+        <p id="map-hint" class="rounded-lg bg-blue-50 p-3 text-sm text-blue-900">Click the map to set the circle center.</p>
+        <div class="flex gap-2"><button id="save-building" class="rounded-lg bg-blue-700 px-4 py-3 font-bold text-white">Save building</button><button id="delete-building" class="rounded-lg border border-red-300 px-4 py-3 font-bold text-red-700" type="button">Delete</button><button id="clear-map" class="rounded-lg border px-4 py-3 font-bold" type="button">Clear points</button></div>
+        <p id="message" class="text-sm font-semibold" role="status"></p>
+      </div>
+      <div id="building-map" class="min-h-[480px] overflow-hidden rounded-xl border"></div>
+    </section>
+  </main>
+  <script>
+    const byId = (id) => document.getElementById(id);
+    const actorEmail = localStorage.getItem("geoAttendCurrentUser") || "";
+    let buildings = [];
+    let selectedId = "";
+    let vertices = [];
+    let boundaryLayer = null;
+    const map = L.map("building-map").setView([5.1065, 7.8104], 16);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
+    function geofenceFromForm() {
+      if (byId("shape").value === "polygon") return { type: "polygon", coordinates: vertices.length ? vertices : JSON.parse(byId("coordinates").value || "[]") };
+      return { type: "circle", lat: Number(byId("latitude").value), lng: Number(byId("longitude").value), radius: Number(byId("radius").value) };
+    }
+    function draw(geofence, fit = true) {
+      if (boundaryLayer) map.removeLayer(boundaryLayer);
+      if (!geofence) return;
+      if (geofence.type === "polygon") {
+        boundaryLayer = L.polygon(geofence.coordinates, { color: "#0058be", weight: 3, fillOpacity: .12 }).addTo(map);
+        if (fit) map.fitBounds(boundaryLayer.getBounds(), { padding: [20, 20] });
+      } else if (Number.isFinite(Number(geofence.lat)) && Number.isFinite(Number(geofence.lng))) {
+        boundaryLayer = L.circle([geofence.lat, geofence.lng], { radius: Number(geofence.radius || 100), color: "#0058be", weight: 3, fillOpacity: .12 }).addTo(map);
+        if (fit) map.fitBounds(boundaryLayer.getBounds(), { padding: [20, 20] });
+      }
+    }
+    function renderList() {
+      byId("building-list").innerHTML = '<option value="">New building</option>' + buildings.map((item) => `<option value="${item.id}">${item.name}</option>`).join("");
+    }
+    async function load() {
+      const response = await fetch("/api/buildings", { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not load buildings.");
+      buildings = data.buildings || []; renderList();
+    }
+    function fillBuilding(building) {
+      selectedId = building?.id || ""; vertices = building?.geofence?.coordinates || [];
+      byId("building-list").value = selectedId; byId("building-name").value = building?.name || ""; byId("room-note").value = building?.roomNote || "";
+      byId("shape").value = building?.geofence?.type || "circle"; byId("latitude").value = building?.geofence?.lat ?? ""; byId("longitude").value = building?.geofence?.lng ?? "";
+      byId("radius").value = building?.geofence?.radius || 100; byId("coordinates").value = JSON.stringify(vertices); updateShape(); draw(building?.geofence);
+    }
+    function updateShape() {
+      const polygon = byId("shape").value === "polygon";
+      byId("circle-fields").classList.toggle("hidden", polygon); byId("polygon-field").classList.toggle("hidden", !polygon);
+      byId("map-hint").textContent = polygon ? "Click the map to add polygon corners. Add at least three points." : "Click the map to set the circle center.";
+    }
+    map.on("click", (event) => {
+      if (byId("shape").value === "polygon") { vertices.push([event.latlng.lat, event.latlng.lng]); byId("coordinates").value = JSON.stringify(vertices); draw(geofenceFromForm(), false); }
+      else { byId("latitude").value = event.latlng.lat.toFixed(7); byId("longitude").value = event.latlng.lng.toFixed(7); draw(geofenceFromForm(), false); }
+    });
+    ["shape", "radius", "latitude", "longitude", "coordinates"].forEach((id) => byId(id).addEventListener("change", () => { if (id === "shape") updateShape(); try { if (id === "coordinates") vertices = JSON.parse(byId(id).value || "[]"); draw(geofenceFromForm(), false); } catch { /* Keep the map while polygon points are being edited. */ } }));
+    byId("building-list").addEventListener("change", () => fillBuilding(buildings.find((item) => item.id === byId("building-list").value)));
+    byId("clear-map").addEventListener("click", () => { vertices = []; byId("coordinates").value = "[]"; if (boundaryLayer) map.removeLayer(boundaryLayer); boundaryLayer = null; });
+    byId("save-building").addEventListener("click", async () => {
+      try {
+        const response = await fetch("/api/buildings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: selectedId, actorEmail, name: byId("building-name").value, roomNote: byId("room-note").value, geofence: geofenceFromForm() }) });
+        const data = await response.json(); if (!response.ok) throw new Error(data.error || "Could not save building.");
+        await load(); fillBuilding(data.building); byId("message").textContent = "Building saved. Future sessions will use this boundary.";
+      } catch (error) { byId("message").textContent = error.message; }
+    });
+    byId("delete-building").addEventListener("click", async () => {
+      if (!selectedId || !window.confirm("Delete this saved building?")) return;
+      try { const response = await fetch("/api/buildings/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: selectedId, actorEmail }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error || "Could not delete building."); await load(); fillBuilding(null); byId("message").textContent = "Building deleted."; }
+      catch (error) { byId("message").textContent = error.message; }
+    });
+    updateShape(); load().catch((error) => { byId("message").textContent = error.message; });
+  </script>
+</body>
+</html>

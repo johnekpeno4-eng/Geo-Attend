@@ -303,6 +303,25 @@ const server = http.createServer(async (req, res) => {
       await saveAttendance(res, body);
       return;
     }
+    if (req.method === "POST" && req.url === "/api/live-sessions/cancel") {
+      const body = await readJson(req);
+      await cancelLiveSession(res, body);
+      return;
+    }
+    if (req.method === "GET" && req.url.startsWith("/api/buildings")) {
+      await getBuildings(req, res);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/buildings") {
+      const body = await readJson(req);
+      await saveBuilding(res, body);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/buildings/delete") {
+      const body = await readJson(req);
+      await deleteBuilding(res, body);
+      return;
+    }
     if (req.method === "POST" && req.url === "/api/attendance/status") {
       const body = await readJson(req);
       await updateAttendanceStatus(req, res, body);
@@ -751,6 +770,14 @@ async function initDatabase() {
   await dbRun("CREATE INDEX IF NOT EXISTS idx_biometric_profiles_email ON biometric_profiles(email)");
   await dbRun("CREATE TABLE IF NOT EXISTS webauthn_credentials (id INTEGER PRIMARY KEY AUTOINCREMENT, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE, credential_id BLOB NOT NULL UNIQUE, public_key BLOB NOT NULL, sign_count INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
   await dbRun("CREATE INDEX IF NOT EXISTS idx_webauthn_credentials_student ON webauthn_credentials(student_id)");
+  await dbRun(`CREATE TABLE IF NOT EXISTS buildings (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+    room_note TEXT NOT NULL DEFAULT '',
+    geofence_json TEXT NOT NULL,
+    created_at TEXT,
+    updated_at TEXT
+  )`);
   await dbRun(`CREATE TABLE IF NOT EXISTS live_sessions (
     id TEXT PRIMARY KEY,
     status TEXT NOT NULL DEFAULT 'active',
@@ -761,6 +788,8 @@ async function initDatabase() {
   )`);
   await dbRun("CREATE INDEX IF NOT EXISTS idx_live_sessions_status_updated ON live_sessions(status, updated_at)");
   await ensureColumn("live_sessions", "academic_session", "TEXT DEFAULT ''");
+  await ensureColumn("live_sessions", "building_id", "TEXT DEFAULT ''");
+  await ensureColumn("live_sessions", "session_date", "TEXT DEFAULT ''");
 
   await dbRun(`CREATE TABLE IF NOT EXISTS attendance (
     id TEXT PRIMARY KEY,
@@ -967,12 +996,15 @@ async function readSqliteStudents() {
 async function upsertSqliteSession(session) {
   const academicSession = normalizeAcademicSession(session.academicSession) || await getCurrentAcademicSession();
   const normalized = { ...session, academicSession };
-  await dbRun(`INSERT INTO live_sessions (id, status, session_json, academic_session, created_at, updated_at, ended_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+  if (session.buildingId) delete normalized.geofence;
+  await dbRun(`INSERT INTO live_sessions (id, status, session_json, academic_session, building_id, session_date, created_at, updated_at, ended_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       status = excluded.status,
       session_json = excluded.session_json,
       academic_session = excluded.academic_session,
+      building_id = excluded.building_id,
+      session_date = excluded.session_date,
       created_at = COALESCE(live_sessions.created_at, excluded.created_at),
       updated_at = excluded.updated_at,
       ended_at = excluded.ended_at`, [
@@ -980,6 +1012,8 @@ async function upsertSqliteSession(session) {
     session.status || "active",
     JSON.stringify(normalized),
     academicSession,
+    session.buildingId || "",
+    session.date || "",
     session.createdAt || session.created_at || null,
     session.updatedAt || session.updated_at || new Date().toISOString(),
     session.endedAt || session.ended_at || null
@@ -988,14 +1022,28 @@ async function upsertSqliteSession(session) {
 
 async function readSqliteSessions() {
   const rows = await dbAll("SELECT session_json FROM live_sessions ORDER BY datetime(updated_at) DESC");
-  return rows.map((row) => parseJsonColumn(row.session_json, null)).filter(Boolean);
+  const sessions = rows.map((row) => parseJsonColumn(row.session_json, null)).filter(Boolean);
+  const buildingIds = [...new Set(sessions.map((session) => session.buildingId).filter(Boolean))];
+  const buildings = new Map();
+  for (const id of buildingIds) {
+    const row = await dbGet("SELECT id, name, room_note, geofence_json FROM buildings WHERE id = ?", [id]);
+    if (row) buildings.set(id, { id: row.id, name: row.name, roomNote: row.room_note, geofence: parseJsonColumn(row.geofence_json, null) });
+  }
+  return sessions.map((session) => {
+    const building = buildings.get(session.buildingId);
+    return building ? { ...session, buildingName: building.name, geofence: building.geofence } : session;
+  });
 }
 
 async function writeSqliteSessions(sessions) {
   for (const session of Array.isArray(sessions) ? sessions : []) {
     if (session?.id) await upsertSqliteSession(session);
   }
-  writeLocalJson(LIVE_SESSIONS_FILE, sessions);
+  writeLocalJson(LIVE_SESSIONS_FILE, (Array.isArray(sessions) ? sessions : []).map((session) => {
+    if (!session?.buildingId) return session;
+    const { geofence, ...stored } = session;
+    return stored;
+  }));
 }
 
 async function upsertSqliteAttendance(record) {
@@ -1706,6 +1754,13 @@ function readFreshStudentLocation(position) {
 }
 
 function validateSessionGeofence(geofence) {
+  if (String(geofence?.type || "circle").toLowerCase() === "polygon") {
+    const coordinates = geofence?.coordinates;
+    if (!Array.isArray(coordinates) || coordinates.length < 3 || coordinates.some((point) => !Array.isArray(point) || point.length !== 2 || !point.every(Number.isFinite) || Math.abs(point[0]) > 90 || Math.abs(point[1]) > 180)) {
+      return { ok: false, error: "A polygon geofence needs at least three valid [latitude, longitude] points." };
+    }
+    return { ok: true, geofence: { type: "polygon", coordinates: coordinates.map(([lat, lng]) => [Number(lat), Number(lng)]) } };
+  }
   const lat = Number(geofence?.lat);
   const lng = Number(geofence?.lng);
   const radius = Number(geofence?.radius);
@@ -1715,7 +1770,68 @@ function validateSessionGeofence(geofence) {
   if (radius < MIN_GEOFENCE_RADIUS_METERS || radius > MAX_GEOFENCE_RADIUS_METERS) {
     return { ok: false, error: `Session radius must be between ${MIN_GEOFENCE_RADIUS_METERS}m and ${MAX_GEOFENCE_RADIUS_METERS}m.` };
   }
-  return { ok: true, geofence: { lat, lng, radius, accuracy: Number(geofence.accuracy || 0), source: geofence.source || "manual" } };
+  return { ok: true, geofence: { type: "circle", lat, lng, radius } };
+}
+
+function isInsideGeofence(point, geofence) {
+  if (geofence?.type !== "polygon") return distanceBetweenCoordinatesMeters(point, geofence) <= Number(geofence?.radius);
+  const [lat, lng] = [Number(point?.lat), Number(point?.lng)];
+  const vertices = geofence.coordinates || [];
+  let inside = false;
+  for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
+    const [yi, xi] = vertices[i];
+    const [yj, xj] = vertices[j];
+    if ((yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+function getGeofenceRadius(geofence) {
+  if (geofence?.type !== "polygon") return Number(geofence?.radius || 0);
+  const vertices = geofence.coordinates || [];
+  if (!vertices.length) return 0;
+  const center = {
+    lat: vertices.reduce((sum, point) => sum + point[0], 0) / vertices.length,
+    lng: vertices.reduce((sum, point) => sum + point[1], 0) / vertices.length
+  };
+  return Math.ceil(Math.max(...vertices.map(([lat, lng]) => distanceBetweenCoordinatesMeters(center, { lat, lng }))));
+}
+
+async function getBuildings(req, res) {
+  const rows = await dbAll("SELECT id, name, room_note, geofence_json, created_at, updated_at FROM buildings ORDER BY name COLLATE NOCASE");
+  json(res, 200, { ok: true, buildings: rows.map((row) => ({ id: row.id, name: row.name, roomNote: row.room_note, geofence: parseJsonColumn(row.geofence_json, null), createdAt: row.created_at, updatedAt: row.updated_at })) });
+}
+
+async function saveBuilding(res, body) {
+  const actorAdmin = findAdminByIdentifier(body.actorEmail || "");
+  if (!actorAdmin) return json(res, 403, { error: "Admin access is required to manage buildings." });
+  const name = String(body.name || "").trim();
+  if (!name) return json(res, 400, { error: "Building name is required." });
+  const validation = validateSessionGeofence(body.geofence);
+  if (!validation.ok) return json(res, 400, { error: validation.error });
+  const id = String(body.id || crypto.randomUUID());
+  const now = new Date().toISOString();
+  try {
+    await dbRun(`INSERT INTO buildings (id, name, room_note, geofence_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET name = excluded.name, room_note = excluded.room_note, geofence_json = excluded.geofence_json, updated_at = excluded.updated_at`,
+    [id, name, String(body.roomNote || "").trim(), JSON.stringify(validation.geofence), body.createdAt || now, now]);
+  } catch (error) {
+    if (String(error.message || "").includes("UNIQUE")) return json(res, 409, { error: "A building with that name already exists." });
+    throw error;
+  }
+  const building = { id, name, roomNote: String(body.roomNote || "").trim(), geofence: validation.geofence, updatedAt: now };
+  json(res, 200, { ok: true, building });
+}
+
+async function deleteBuilding(res, body) {
+  const actorAdmin = findAdminByIdentifier(body.actorEmail || "");
+  if (!actorAdmin) return json(res, 403, { error: "Admin access is required to manage buildings." });
+  const id = String(body.id || "").trim();
+  if (!id) return json(res, 400, { error: "Building id is required." });
+  const upcoming = await dbGet("SELECT id FROM live_sessions WHERE building_id = ? AND session_date >= date('now', 'localtime') AND status NOT IN ('ended', 'cancelled') LIMIT 1", [id]);
+  if (upcoming) return json(res, 409, { error: "This building has upcoming sessions. Cancel or move them before deleting it." });
+  await dbRun("DELETE FROM buildings WHERE id = ?", [id]);
+  json(res, 200, { ok: true });
 }
 async function saveLiveSession(res, session) {
   if (!session || typeof session !== "object") {
@@ -1729,15 +1845,14 @@ async function saveLiveSession(res, session) {
     return;
   }
 
-  const geofenceCheck = validateSessionGeofence(session.geofence);
-  if (!geofenceCheck.ok) {
-    json(res, 400, { error: geofenceCheck.error });
-    return;
-  }
-  if (String(session.geofence?.source || "").includes("geolocation") && geofenceCheck.geofence.accuracy > ADMIN_GEOFENCE_MAX_ACCURACY_METERS) {
-    json(res, 400, { error: `Admin GPS accuracy must be ${ADMIN_GEOFENCE_MAX_ACCURACY_METERS}m or better before creating a live geofence.` });
-    return;
-  }
+  const buildingId = String(session.buildingId || "").trim();
+  const buildingRow = buildingId ? await dbGet("SELECT id, name, room_note, geofence_json FROM buildings WHERE id = ?", [buildingId]) : null;
+  if (!buildingRow) { json(res, 400, { error: "Select a saved building before creating the session." }); return; }
+  const geofenceCheck = validateSessionGeofence(parseJsonColumn(buildingRow.geofence_json, null));
+  if (!geofenceCheck.ok) { json(res, 400, { error: "The selected building geofence is invalid." }); return; }
+
+  const actorAdmin = findAdminByIdentifier(session.actorEmail || session.createdBy || "");
+  if (!actorAdmin) { json(res, 403, { error: "Admin access is required to create or edit sessions." }); return; }
   const minimumDurationPercent = Number(session.minimumDurationPercent || 0);
   if (!Number.isFinite(minimumDurationPercent) || minimumDurationPercent < 0 || minimumDurationPercent > 100) {
     json(res, 400, { error: "Minimum duration must be between 0 and 100 percent." }); return;
@@ -1745,9 +1860,22 @@ async function saveLiveSession(res, session) {
   for (const field of ["attendanceStart", "attendanceEnd", "startTime", "endTime", "sessionEndTime", "checkInStartTime", "checkInEndTime", "checkOutStartTime", "checkOutEndTime"]) {
     if (session[field] && !/^\d{2}:\d{2}$/.test(String(session[field]))) { json(res, 400, { error: `Invalid session time: ${field}.` }); return; }
   }
+  const sessionDate = String(session.date || "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(sessionDate) || Number.isNaN(new Date(`${sessionDate}T00:00:00`).getTime())) {
+    json(res, 400, { error: "Choose a valid class date." }); return;
+  }
+  const recurrenceEndDate = String(session.recurrenceEndDate || "");
+  const recurrenceDays = Array.isArray(session.recurrenceDays) ? [...new Set(session.recurrenceDays.map(Number).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6))] : [];
+  if (recurrenceDays.length && (!/^\d{4}-\d{2}-\d{2}$/.test(recurrenceEndDate) || recurrenceEndDate < sessionDate || (new Date(`${recurrenceEndDate}T00:00:00`) - new Date(`${sessionDate}T00:00:00`)) > 366 * 86400000)) {
+    json(res, 400, { error: "Choose a recurrence end date within one year of the first class date." }); return;
+  }
 
   const { items: sessions } = await readLiveSessionsStore();
-  const actorAdmin = findAdminByIdentifier(session.actorEmail || session.createdBy || "");
+  const editing = sessions.find((item) => item?.id === id);
+  if (editing && !entityMatchesScope(editing, actorAdmin, actorAdmin.adminRole || actorAdmin.role)) {
+    json(res, 403, { error: "This session is outside your admin scope." }); return;
+  }
+  const seriesId = editing?.seriesId || id;
   const scopedSession = { ...applyAdminScopeToSession(session, actorAdmin), academicSession: await getCurrentAcademicSession() };
   if (actorAdmin && isLecturerAdmin(actorAdmin)) {
     const assignedCodes = await getLecturerAssignedCourseCodes(actorAdmin.email);
@@ -1756,25 +1884,46 @@ async function saveLiveSession(res, session) {
       return;
     }
   }
-  const normalizedSession = {
+  const now = new Date().toISOString();
+  const occurrenceDates = [];
+  if (recurrenceDays.length) {
+    for (const date = new Date(`${sessionDate}T12:00:00`); date <= new Date(`${recurrenceEndDate}T23:59:59`); date.setDate(date.getDate() + 1)) {
+      if (recurrenceDays.includes(date.getDay())) occurrenceDates.push(date.toISOString().slice(0, 10));
+    }
+  } else occurrenceDates.push(sessionDate);
+  if (!occurrenceDates.length) { json(res, 400, { error: "The selected recurrence days are outside the date range." }); return; }
+  const generated = occurrenceDates.map((date) => ({
     ...scopedSession,
-    minimumDurationPercent,
-    id,
-    status: "active",
-    geofence: {
-      ...scopedSession.geofence,
-      ...geofenceCheck.geofence,
-      capturedAt: scopedSession.geofence?.capturedAt || scopedSession.geofence?.timestamp || new Date().toISOString()
-    },
-    updatedAt: new Date().toISOString()
-  };
-  const nextSessions = [
-    normalizedSession,
-    ...sessions.filter((item) => item && item.id !== id)
-  ].slice(0, 50);
+    id: date === sessionDate ? id : `${seriesId}-${date.replaceAll("-", "")}`,
+    seriesId: recurrenceDays.length ? seriesId : "",
+    buildingId, buildingName: buildingRow.name, roomNote: String(session.roomNote || "").trim(), date,
+    recurrenceDays, recurrenceEndDate: recurrenceDays.length ? recurrenceEndDate : "",
+    minimumDurationPercent, status: "active", geofence: geofenceCheck.geofence,
+    createdAt: editing?.createdAt || now, updatedAt: now
+  }));
+  const generatedIds = new Set(generated.map((item) => item.id));
+  const replacementIds = new Set(sessions.filter((item) => item?.id === seriesId || item?.seriesId === seriesId).map((item) => item.id));
+  const obsoleteFutureOccurrences = sessions.filter((item) => item && replacementIds.has(item.id) && !generatedIds.has(item.id) && item.date >= sessionDate && item.status === "active");
+  const replacementSessions = sessions.filter((item) => item && replacementIds.has(item.id) && !generatedIds.has(item.id) && !obsoleteFutureOccurrences.some((obsolete) => obsolete.id === item.id));
+  const nextSessions = [...generated, ...replacementSessions, ...sessions.filter((item) => item && !generatedIds.has(item.id) && !replacementIds.has(item.id)), ...obsoleteFutureOccurrences.map((item) => ({ ...item, status: "cancelled", cancelledAt: now, updatedAt: now }))];
   const { source } = await writeLiveSessionsStore(nextSessions);
 
-  json(res, 200, { ok: true, source, session: normalizedSession, sessions: nextSessions.filter((item) => item.status === "active") });
+  json(res, 200, { ok: true, source, session: generated[0], sessions: nextSessions.filter((item) => item.status === "active") });
+}
+
+async function cancelLiveSession(res, body) {
+  const admin = findAdminByIdentifier(body.actorEmail || "");
+  if (!admin) return json(res, 403, { error: "Admin access is required to cancel sessions." });
+  const id = String(body.sessionId || "").trim();
+  const { items: sessions } = await readLiveSessionsStore();
+  const session = sessions.find((item) => item?.id === id);
+  if (!session) return json(res, 404, { error: "Session not found." });
+  if (!entityMatchesScope(session, admin, admin.adminRole || admin.role)) return json(res, 403, { error: "This session is outside your admin scope." });
+  const cancelledAt = new Date().toISOString();
+  const cancelledIds = new Set([id, ...sessions.filter((item) => item?.seriesId && item.seriesId === (session.seriesId || id)).map((item) => item.id)]);
+  const next = sessions.map((item) => item && cancelledIds.has(item.id) && item.status === "active" ? { ...item, status: "cancelled", cancelledAt, updatedAt: cancelledAt } : item);
+  await writeLiveSessionsStore(next);
+  json(res, 200, { ok: true, sessions: next.filter((item) => item?.status === "active") });
 }
 
 async function endLiveSession(res, sessionId) {
@@ -2170,10 +2319,11 @@ async function saveAttendance(res, record) {
     json(res, 403, { error: locationCheck.error });
     return;
   }
-  const distanceMeters = distanceBetweenCoordinatesMeters(locationCheck.location, geofenceCheck.geofence);
-  if (!Number.isFinite(distanceMeters) || distanceMeters > geofenceCheck.geofence.radius) {
-    const distanceLabel = Number.isFinite(distanceMeters) ? `${Math.round(distanceMeters)}m` : "an unknown distance";
-    json(res, 403, { error: `You are ${distanceLabel} from the class location. You must be within the ${Math.round(geofenceCheck.geofence.radius)}m session radius.` });
+  const insideGeofence = isInsideGeofence(locationCheck.location, geofenceCheck.geofence);
+  const distanceMeters = geofenceCheck.geofence.type === "polygon" ? (insideGeofence ? 0 : Number.NaN) : distanceBetweenCoordinatesMeters(locationCheck.location, geofenceCheck.geofence);
+  if (!insideGeofence) {
+    const distanceLabel = Number.isFinite(distanceMeters) ? `${Math.round(distanceMeters)}m` : "outside the saved building boundary";
+    json(res, 403, { error: `You are ${distanceLabel} from the class location. You must be inside the saved building geofence (${getGeofenceRadius(geofenceCheck.geofence)}m approximate radius).` });
     return;
   }
   const isAssisted = record.checkinType === "assisted-student" || record.assisted === true;
@@ -2218,7 +2368,7 @@ async function saveAttendance(res, record) {
   const getWindowDate = (value, fallback) => {
     const time = /^\d{2}:\d{2}$/.test(String(value || "")) ? String(value) : fallback;
     if (!time) return null;
-    const base = session.createdAt ? new Date(session.createdAt) : new Date();
+    const base = session.date ? new Date(`${session.date}T00:00:00`) : session.createdAt ? new Date(session.createdAt) : new Date();
     if (Number.isNaN(base.getTime())) return null;
     const [hour, minute] = time.split(":").map(Number);
     const date = new Date(base);
@@ -2264,7 +2414,7 @@ async function saveAttendance(res, record) {
       checkedOutAt,
       checkOutLocation: { ...locationCheck.location, timestamp: now.getTime() },
       checkOutGpsVerification: {
-        distanceMeters: Math.round(distanceMeters), radiusMeters: Math.round(geofenceCheck.geofence.radius),
+        distanceMeters: Math.round(distanceMeters), radiusMeters: getGeofenceRadius(geofenceCheck.geofence),
         accuracyMeters: Math.round(locationCheck.location.accuracy), locationAgeMs: locationCheck.ageMs, verifiedAt: checkedOutAt
       },
       durationMinutes,
@@ -2302,7 +2452,7 @@ async function saveAttendance(res, record) {
     checkInLocation: { ...locationCheck.location, timestamp: now.getTime() },
     gpsVerification: {
       distanceMeters: Math.round(distanceMeters),
-      radiusMeters: Math.round(geofenceCheck.geofence.radius),
+      radiusMeters: getGeofenceRadius(geofenceCheck.geofence),
       accuracyMeters: Math.round(locationCheck.location.accuracy),
       locationAgeMs: locationCheck.ageMs,
       verifiedAt: new Date().toISOString()
@@ -3505,7 +3655,7 @@ function getSessionStartDate(session) {
   if (!session?.startTime) return null;
   const [hours, minutes] = String(session.startTime).split(":").map(Number);
   if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
-  const base = session.createdAt ? new Date(session.createdAt) : new Date();
+  const base = session.date ? new Date(`${session.date}T00:00:00`) : session.createdAt ? new Date(session.createdAt) : new Date();
   if (Number.isNaN(base.getTime())) return null;
   const start = new Date(base);
   start.setHours(hours, minutes, 0, 0);

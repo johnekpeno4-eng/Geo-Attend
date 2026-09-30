@@ -1235,7 +1235,8 @@
                   Live
                 </div>
                 <h4 class="font-title-md text-on-surface truncate">${session.course || "Untitled Session"}</h4>
-                <p class="text-body-md text-on-surface-variant mt-xs truncate">${session.locationName || geofence.name || "Selected location"}</p>
+                <p class="text-body-md text-on-surface-variant mt-xs truncate">${session.buildingName || session.locationName || geofence.name || "Selected location"}${session.roomNote ? ` · ${session.roomNote}` : ""}</p>
+                <p class="text-body-sm text-on-surface-variant mt-xs">${session.date || ""}</p>
               </div>
               <div class="rounded-lg bg-secondary-fixed text-secondary px-sm py-xs font-mono-data text-xs">
                 ${checkedInCount} checked in · ${checkedOutCount} checked out · ${incompleteCount} incomplete
@@ -1248,7 +1249,7 @@
               </div>
               <div class="rounded-lg bg-surface-container-lowest p-sm border border-outline-variant/30">
                 <p class="font-label-md text-on-surface-variant uppercase">Radius</p>
-                <p class="font-mono-data text-on-surface">${geofence.radius || 75}m</p>
+                <p class="font-mono-data text-on-surface">${geofence.type === "polygon" ? "Building outline" : `${geofence.radius || 75}m`}</p>
               </div>
               <div class="rounded-lg bg-surface-container-lowest p-sm border border-outline-variant/30 col-span-2">
                 <p class="font-label-md text-on-surface-variant uppercase">Created</p>
@@ -1263,6 +1264,8 @@
               ${checkedInStudents}
             </div>
             <div class="flex flex-wrap gap-sm mt-md">
+              <button class="flex-1 min-w-[120px] bg-surface-container-lowest border border-outline-variant rounded-lg px-md py-sm font-bold text-on-surface hover:bg-surface-container transition-all" data-edit-session="${session.id}">Edit Session</button>
+              <button class="flex-1 min-w-[120px] bg-surface-container-lowest border border-error/30 rounded-lg px-md py-sm font-bold text-error hover:bg-error-container transition-all" data-cancel-session="${session.id}">Cancel Session</button>
               <button class="flex-1 min-w-[120px] bg-secondary text-on-primary rounded-lg px-md py-sm font-bold hover:opacity-90 active:scale-95 transition-all" data-monitor-session="${session.id}">
                 Open Monitor
               </button>
@@ -1288,6 +1291,33 @@
           </article>
         `;
       }).join("");
+
+      grid.querySelectorAll("[data-edit-session]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const session = sessions.find((item) => item.id === button.dataset.editSession);
+          if (!session) return;
+          localStorage.setItem("geoAttendSessionToEdit", JSON.stringify(session));
+          window.location.href = `create-session.html?sessionId=${encodeURIComponent(session.id)}`;
+        });
+      });
+      grid.querySelectorAll("[data-cancel-session]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const sessionId = button.dataset.cancelSession;
+          if (!confirm("Cancel this class session? Students will no longer be able to check in or out.")) return;
+          try {
+            const response = await fetch("/api/live-sessions/cancel", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ sessionId, actorEmail: localStorage.getItem("geoAttendCurrentUser") || "" })
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.error || "Could not cancel this session.");
+            localStorage.setItem("geoAttendLiveSessions", JSON.stringify(data.sessions || []));
+            const active = JSON.parse(localStorage.getItem("geoAttendActiveSession") || "null");
+            if (active?.id === sessionId) localStorage.removeItem("geoAttendActiveSession");
+            renderLiveSessions(data.sessions || []);
+          } catch (error) { window.alert(error.message || "Could not cancel this session."); }
+        });
+      });
 
       grid.querySelectorAll("[data-monitor-session]").forEach((button) => {
         button.addEventListener("click", () => {
