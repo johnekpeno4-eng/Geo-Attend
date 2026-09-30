@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Buildings | GeoAttend</title>
+  <script src="role-access.js?v=20260930-building-admin" defer></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -29,6 +30,7 @@
   <script>
     const byId = (id) => document.getElementById(id);
     const actorEmail = localStorage.getItem("geoAttendCurrentUser") || "";
+    if (localStorage.getItem("geoAttendAdminRole") === "building_admin") document.getElementById("create-session-link")?.remove();
     let buildings = [];
     let selectedId = "";
     let vertices = [];

@@ -3,7 +3,7 @@
   document.documentElement.classList.toggle("dark", savedTheme === "dark");
   document.documentElement.classList.toggle("light", savedTheme !== "dark");
 
-  const ADMIN_PAGES = new Set(["dashboard.html", "create-session.html", "live-monitor.html", "students.html", "records.html", "session-report.html", "admin-management.html", "courses.html", "admin-reports.html"]);
+  const ADMIN_PAGES = new Set(["dashboard.html", "create-session.html", "live-monitor.html", "students.html", "records.html", "session-report.html", "admin-management.html", "courses.html", "admin-reports.html", "buildings.html"]);
   const STUDENT_PAGES = new Set(["student-home.html", "student-history.html", "student-profile.html", "student-report.html"]);
   const PUBLIC_PAGES = new Set(["login.html", "register.html", ""]);
 
@@ -101,6 +101,10 @@
   }
 
   const adminRole = localStorage.getItem("geoAttendAdminRole") || "";
+  if (role === "admin" && adminRole === "building_admin" && page !== "buildings.html") {
+    go("buildings.html");
+    return;
+  }
   const lecturerRestrictedPages = new Set(["admin-management.html", "courses.html", "students.html", "records.html"]);
   if (role === "admin" && adminRole === "lecturer_admin" && lecturerRestrictedPages.has(page)) {
     go("dashboard.html");
@@ -183,7 +187,7 @@
             message.classList.add("text-[#0058be]", "bg-[#eff4ff]");
           }
           setTimeout(() => {
-            window.location.href = role === "admin" ? "dashboard.html" : "student-home.html";
+            window.location.href = role === "admin" ? (localStorage.getItem("geoAttendAdminRole") === "building_admin" ? "buildings.html" : "dashboard.html") : "student-home.html";
           }, 500);
         }
 
@@ -217,7 +221,7 @@
           }
 
           setTimeout(() => {
-            window.location.href = "dashboard.html";
+          window.location.href = adminResult.user.adminRole === "building_admin" ? "buildings.html" : "dashboard.html";
           }, 500);
           return;
         } catch (error) {
@@ -537,7 +541,7 @@
         const selectedRole = button.dataset.loginAs;
         localStorage.setItem("geoAttendRole", selectedRole);
         localStorage.setItem("geoAttendView", selectedRole === "admin" ? "admin" : "student");
-        window.location.href = selectedRole === "admin" ? "dashboard.html" : "student-home.html";
+          window.location.href = selectedRole === "admin" ? (localStorage.getItem("geoAttendAdminRole") === "building_admin" ? "buildings.html" : "dashboard.html") : "student-home.html";
       });
     });
 
