@@ -1778,7 +1778,7 @@ function validateSessionGeofence(geofence) {
   const lng = Number(geofence?.lng);
   const radius = Number(geofence?.radius);
   if (![lat, lng, radius].every(Number.isFinite) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
-    return { ok: false, error: "This session does not have a valid GPS geofence." };
+    return { ok: false, error: "This session does not have a valid building boundary." };
   }
   if (radius < MIN_GEOFENCE_RADIUS_METERS || radius > MAX_GEOFENCE_RADIUS_METERS) {
     return { ok: false, error: `Session radius must be between ${MIN_GEOFENCE_RADIUS_METERS}m and ${MAX_GEOFENCE_RADIUS_METERS}m.` };
