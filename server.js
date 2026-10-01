@@ -328,6 +328,55 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "POST" && req.url === "/api/survey/devices") {
+      const body = await readJson(req);
+      await pairSurveyDevice(req, res, body);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/survey/devices/revoke") {
+      const body = await readJson(req);
+      await revokeSurveyDevice(req, res, body);
+      return;
+    }
+    if (req.method === "GET" && req.url.startsWith("/api/survey/admin")) {
+      await getSurveyAdminData(req, res);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/survey/start") {
+      const body = await readJson(req);
+      await startSurvey(req, res, body);
+      return;
+    }
+    if (req.method === "GET" && req.url.startsWith("/api/survey/active")) {
+      await getDeviceActiveSurvey(req, res);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/survey/point") {
+      const body = await readJson(req);
+      await addSurveyPoint(req, res, body);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/survey/finish") {
+      const body = await readJson(req);
+      await finishSurveyFromDevice(req, res, body);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/survey/points/delete") {
+      const body = await readJson(req);
+      await deleteSurveyPoint(req, res, body);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/survey/points/move") {
+      const body = await readJson(req);
+      await moveSurveyPoint(req, res, body);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/survey/publish") {
+      const body = await readJson(req);
+      await publishSurvey(req, res, body);
+      return;
+    }
+
     if (req.method === "GET" && req.url.startsWith("/api/student-presence")) {
       await getStudentPresence(req, res);
       return;
@@ -777,6 +826,61 @@ async function initDatabase() {
     geofence_json TEXT NOT NULL,
     created_at TEXT,
     updated_at TEXT
+  )`);
+  await dbRun(`CREATE TABLE IF NOT EXISTS survey_devices (
+    id TEXT PRIMARY KEY,
+    label TEXT NOT NULL,
+    owner_email TEXT NOT NULL COLLATE NOCASE,
+    token_hash TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL,
+    last_seen_at TEXT,
+    revoked_at TEXT
+  )`);
+  await dbRun(`CREATE TABLE IF NOT EXISTS surveys (
+    id INTEGER PRIMARY KEY,
+    building_id TEXT NOT NULL,
+    building_name TEXT NOT NULL,
+    device_id TEXT NOT NULL,
+    owner_email TEXT NOT NULL COLLATE NOCASE,
+    status TEXT NOT NULL DEFAULT 'active',
+    started_at TEXT NOT NULL,
+    finished_at TEXT,
+    published_at TEXT,
+    buffer_m REAL NOT NULL DEFAULT 0
+  )`);
+  await dbRun(`CREATE TABLE IF NOT EXISTS survey_points (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    survey_id INTEGER NOT NULL REFERENCES surveys(id),
+    seq INTEGER NOT NULL,
+    lat REAL NOT NULL,
+    lng REAL NOT NULL,
+    hdop REAL NOT NULL,
+    satellites INTEGER NOT NULL,
+    captured_at TEXT NOT NULL,
+    samples INTEGER NOT NULL,
+    device_id TEXT NOT NULL,
+    UNIQUE(survey_id, seq)
+  )`);
+  await dbRun("CREATE INDEX IF NOT EXISTS idx_survey_points_survey ON survey_points(survey_id, seq)");
+  await dbRun(`CREATE TABLE IF NOT EXISTS building_geofence_versions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    building_id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    geofence_json TEXT NOT NULL,
+    source TEXT NOT NULL,
+    survey_id INTEGER,
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE(building_id, version)
+  )`);
+  await dbRun(`CREATE TABLE IF NOT EXISTS survey_action_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    owner_email TEXT NOT NULL COLLATE NOCASE,
+    device_id TEXT,
+    survey_id INTEGER,
+    action TEXT NOT NULL,
+    details_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL
   )`);
   await dbRun(`CREATE TABLE IF NOT EXISTS live_sessions (
     id TEXT PRIMARY KEY,
@@ -1833,6 +1937,224 @@ async function deleteBuilding(res, body) {
   await dbRun("DELETE FROM buildings WHERE id = ?", [id]);
   json(res, 200, { ok: true });
 }
+
+function getSurveyAdminEmail() {
+  return String(process.env.SURVEY_ADMIN_EMAIL || process.env.ADMIN_EMAIL || "").trim().toLowerCase();
+}
+
+function requireSurveyAdmin(res, identifier) {
+  const designatedEmail = getSurveyAdminEmail();
+  if (!designatedEmail) { json(res, 500, { error: "Set SURVEY_ADMIN_EMAIL (or ADMIN_EMAIL) in .env to designate the survey admin." }); return null; }
+  const admin = findAdminByIdentifier(identifier);
+  if (!admin || String(admin.email || "").trim().toLowerCase() !== designatedEmail) {
+    json(res, 403, { error: "Only the designated survey admin can manage survey devices and surveys." });
+    return null;
+  }
+  return admin;
+}
+
+async function logSurveyAction(ownerEmail, deviceId, surveyId, action, details = {}) {
+  await dbRun("INSERT INTO survey_action_log (owner_email, device_id, survey_id, action, details_json, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+    [ownerEmail, deviceId || null, surveyId || null, action, JSON.stringify(details), new Date().toISOString()]);
+}
+
+async function authenticateSurveyDevice(req, res) {
+  const token = String(req.headers["x-device-token"] || "").trim();
+  if (!token) { json(res, 401, { error: "Device token is required." }); return null; }
+  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+  const row = await dbGet("SELECT id, label, owner_email FROM survey_devices WHERE token_hash = ? AND revoked_at IS NULL", [tokenHash]);
+  if (!row || row.owner_email.toLowerCase() !== getSurveyAdminEmail() || !findAdminByIdentifier(row.owner_email)) {
+    json(res, 403, { error: "Device token is invalid or its owner is no longer the designated survey admin." });
+    return null;
+  }
+  await dbRun("UPDATE survey_devices SET last_seen_at = ? WHERE id = ?", [new Date().toISOString(), row.id]);
+  return { id: row.id, label: row.label, ownerEmail: row.owner_email };
+}
+
+async function pairSurveyDevice(req, res, body) {
+  const admin = requireSurveyAdmin(res, body.actorEmail);
+  if (!admin) return;
+  const id = crypto.randomUUID();
+  const label = String(body.label || "Survey device").trim().slice(0, 80) || "Survey device";
+  const token = crypto.randomBytes(32).toString("hex");
+  const now = new Date().toISOString();
+  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+  await dbRun("INSERT INTO survey_devices (id, label, owner_email, token_hash, created_at) VALUES (?, ?, ?, ?, ?)", [id, label, admin.email, tokenHash, now]);
+  await logSurveyAction(admin.email, id, null, "device-paired", { label });
+  json(res, 201, { ok: true, device: { id, label, createdAt: now }, deviceToken: token });
+}
+
+async function revokeSurveyDevice(req, res, body) {
+  const admin = requireSurveyAdmin(res, body.actorEmail);
+  if (!admin) return;
+  const device = await dbGet("SELECT id, label FROM survey_devices WHERE id = ? AND owner_email = ? COLLATE NOCASE AND revoked_at IS NULL", [String(body.deviceId || ""), admin.email]);
+  if (!device) return json(res, 404, { error: "Active paired device not found." });
+  const now = new Date().toISOString();
+  await dbRun("UPDATE survey_devices SET revoked_at = ? WHERE id = ?", [now, device.id]);
+  await dbRun("UPDATE surveys SET status = 'cancelled', finished_at = ? WHERE device_id = ? AND status = 'active'", [now, device.id]);
+  await logSurveyAction(admin.email, device.id, null, "device-revoked", { label: device.label });
+  json(res, 200, { ok: true });
+}
+
+async function getSurveyAdminData(req, res) {
+  const url = new URL(req.url, `http://${req.headers.host || "127.0.0.1"}`);
+  const admin = requireSurveyAdmin(res, url.searchParams.get("actorEmail"));
+  if (!admin) return;
+  const devices = await dbAll("SELECT id, label, created_at, last_seen_at, revoked_at FROM survey_devices WHERE owner_email = ? COLLATE NOCASE ORDER BY datetime(created_at) DESC", [admin.email]);
+  const surveys = await dbAll("SELECT id, building_id, building_name, device_id, status, started_at, finished_at, published_at, buffer_m FROM surveys WHERE owner_email = ? COLLATE NOCASE ORDER BY id DESC LIMIT 100", [admin.email]);
+  const surveyId = Number(url.searchParams.get("surveyId") || 0);
+  const points = surveyId ? await dbAll("SELECT p.id, p.survey_id, p.seq, p.lat, p.lng, p.hdop, p.satellites, p.captured_at, p.samples, p.device_id FROM survey_points p JOIN surveys s ON s.id = p.survey_id WHERE p.survey_id = ? AND s.owner_email = ? COLLATE NOCASE ORDER BY p.seq", [surveyId, admin.email]) : [];
+  const selectedSurvey = surveyId ? await dbGet("SELECT building_id FROM surveys WHERE id = ? AND owner_email = ? COLLATE NOCASE", [surveyId, admin.email]) : null;
+  const versions = selectedSurvey ? await dbAll("SELECT version, source, survey_id, created_by, created_at, geofence_json FROM building_geofence_versions WHERE building_id = ? ORDER BY version DESC", [selectedSurvey.building_id]) : [];
+  const actions = await dbAll("SELECT id, device_id, survey_id, action, details_json, created_at FROM survey_action_log WHERE owner_email = ? COLLATE NOCASE ORDER BY id DESC LIMIT 100", [admin.email]);
+  const buildings = await dbAll("SELECT id, name, room_note, geofence_json FROM buildings ORDER BY name COLLATE NOCASE");
+  json(res, 200, {
+    ok: true,
+    surveyAdminEmail: admin.email,
+    devices,
+    surveys,
+    points,
+    versions: versions.map((version) => ({ ...version, geofence: parseJsonColumn(version.geofence_json, null) })),
+    actions: actions.map((action) => ({ ...action, details: parseJsonColumn(action.details_json, {}) })),
+    buildings: buildings.map((building) => ({ id: building.id, name: building.name, roomNote: building.room_note, geofence: parseJsonColumn(building.geofence_json, null) }))
+  });
+}
+
+async function startSurvey(req, res, body) {
+  const admin = requireSurveyAdmin(res, body.actorEmail);
+  if (!admin) return;
+  const device = await dbGet("SELECT id, label FROM survey_devices WHERE id = ? AND owner_email = ? COLLATE NOCASE AND revoked_at IS NULL", [String(body.deviceId || ""), admin.email]);
+  const building = await dbGet("SELECT id, name FROM buildings WHERE id = ?", [String(body.buildingId || "")]);
+  if (!device || !building) return json(res, 400, { error: "Choose a paired device and a saved building." });
+  const running = await dbGet("SELECT id FROM surveys WHERE status = 'active' LIMIT 1");
+  if (running) return json(res, 409, { error: "Another survey is already active. Finish it before starting a new survey." });
+  const id = crypto.randomInt(100000, 2147483647);
+  const now = new Date().toISOString();
+  await dbRun("INSERT INTO surveys (id, building_id, building_name, device_id, owner_email, status, started_at) VALUES (?, ?, ?, ?, ?, 'active', ?)", [id, building.id, building.name, device.id, admin.email, now]);
+  await logSurveyAction(admin.email, device.id, id, "survey-started", { buildingId: building.id, buildingName: building.name });
+  json(res, 201, { ok: true, survey: { id, buildingId: building.id, buildingName: building.name, deviceId: device.id, status: "active", startedAt: now } });
+}
+
+async function getDeviceActiveSurvey(req, res) {
+  const device = await authenticateSurveyDevice(req, res);
+  if (!device) return;
+  const survey = await dbGet("SELECT id, building_name, status FROM surveys WHERE device_id = ? AND status = 'active' ORDER BY started_at DESC LIMIT 1", [device.id]);
+  if (!survey) return json(res, 200, { ok: true, active: false, survey_id: 0, building_name: "", points_count: 0 });
+  const count = await dbGet("SELECT COUNT(*) AS count FROM survey_points WHERE survey_id = ?", [survey.id]);
+  json(res, 200, { ok: true, active: true, survey_id: survey.id, building_name: survey.building_name, points_count: Number(count?.count || 0) });
+}
+
+async function addSurveyPoint(req, res, body) {
+  const device = await authenticateSurveyDevice(req, res);
+  if (!device) return;
+  const surveyId = Number(body.survey_id || body.surveyId);
+  const survey = await dbGet("SELECT id, owner_email, status FROM surveys WHERE id = ? AND device_id = ?", [surveyId, device.id]);
+  if (!survey || survey.status !== "active") return json(res, 409, { error: "There is no active survey assigned to this device." });
+  const lat = Number(body.lat), lng = Number(body.lng), hdop = Number(body.hdop), satellites = Number(body.sats ?? body.satellites);
+  const seq = Number(body.seq), samples = Number(body.samples);
+  const capturedAt = String(body.captured_at || body.timestamp || new Date().toISOString());
+  if (![lat, lng, hdop, satellites, seq, samples].every(Number.isFinite) || Math.abs(lat) > 90 || Math.abs(lng) > 180 || !Number.isInteger(seq) || seq < 1 || !Number.isInteger(satellites) || satellites < 6 || hdop < 0 || hdop > 2.5 || !Number.isInteger(samples) || samples < 1 || Number.isNaN(Date.parse(capturedAt))) {
+    await logSurveyAction(device.ownerEmail, device.id, surveyId, "point-rejected", { seq, hdop, satellites, samples });
+    return json(res, 422, { error: "Point rejected: require valid coordinates, HDOP at most 2.5, at least 6 satellites, a valid timestamp, and a positive sample count." });
+  }
+  await dbRun("INSERT OR IGNORE INTO survey_points (survey_id, seq, lat, lng, hdop, satellites, captured_at, samples, device_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    [surveyId, seq, lat, lng, hdop, satellites, new Date(capturedAt).toISOString(), samples, device.id]);
+  await logSurveyAction(device.ownerEmail, device.id, surveyId, "point-received", { seq, hdop, satellites, samples });
+  const count = await dbGet("SELECT COUNT(*) AS count FROM survey_points WHERE survey_id = ?", [surveyId]);
+  json(res, 200, { ok: true, points_count: Number(count?.count || 0) });
+}
+
+async function finishSurveyFromDevice(req, res, body) {
+  const device = await authenticateSurveyDevice(req, res);
+  if (!device) return;
+  const surveyId = Number(body.survey_id || body.surveyId);
+  const survey = await dbGet("SELECT id, owner_email, status FROM surveys WHERE id = ? AND device_id = ?", [surveyId, device.id]);
+  if (!survey || survey.status !== "active") return json(res, 409, { error: "This survey is not active on this device." });
+  const count = await dbGet("SELECT COUNT(*) AS count FROM survey_points WHERE survey_id = ?", [surveyId]);
+  if (Number(count?.count || 0) < 3) return json(res, 422, { error: "A survey needs at least three accepted corner points." });
+  const now = new Date().toISOString();
+  await dbRun("UPDATE surveys SET status = 'review', finished_at = ? WHERE id = ?", [now, surveyId]);
+  await logSurveyAction(device.ownerEmail, device.id, surveyId, "survey-finished", { pointsCount: Number(count.count) });
+  json(res, 200, { ok: true, points_count: Number(count.count) });
+}
+
+async function deleteSurveyPoint(req, res, body) {
+  const admin = requireSurveyAdmin(res, body.actorEmail);
+  if (!admin) return;
+  const point = await dbGet("SELECT p.id, p.survey_id, s.device_id, s.status FROM survey_points p JOIN surveys s ON s.id = p.survey_id WHERE p.id = ? AND s.owner_email = ? COLLATE NOCASE", [Number(body.pointId), admin.email]);
+  if (!point || point.status !== "review") return json(res, 404, { error: "Review point not found." });
+  await dbRun("DELETE FROM survey_points WHERE id = ?", [point.id]);
+  await logSurveyAction(admin.email, point.device_id, point.survey_id, "point-deleted", { pointId: point.id });
+  json(res, 200, { ok: true });
+}
+
+async function moveSurveyPoint(req, res, body) {
+  const admin = requireSurveyAdmin(res, body.actorEmail);
+  if (!admin) return;
+  const lat = Number(body.lat), lng = Number(body.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return json(res, 400, { error: "Choose valid latitude and longitude coordinates." });
+  const point = await dbGet("SELECT p.id, p.survey_id, s.device_id, s.status FROM survey_points p JOIN surveys s ON s.id = p.survey_id WHERE p.id = ? AND s.owner_email = ? COLLATE NOCASE", [Number(body.pointId), admin.email]);
+  if (!point || point.status !== "review") return json(res, 404, { error: "Review point not found." });
+  await dbRun("UPDATE survey_points SET lat = ?, lng = ? WHERE id = ?", [lat, lng, point.id]);
+  await logSurveyAction(admin.email, point.device_id, point.survey_id, "point-moved", { pointId: point.id, lat, lng });
+  json(res, 200, { ok: true });
+}
+
+function offsetSurveyPolygon(coordinates, bufferMeters) {
+  if (!bufferMeters) return coordinates;
+  const meanLat = coordinates.reduce((sum, point) => sum + point[0], 0) / coordinates.length;
+  const scaleX = 111320 * Math.cos(meanLat * Math.PI / 180), scaleY = 111320;
+  const points = coordinates.map(([lat, lng]) => ({ x: lng * scaleX, y: lat * scaleY }));
+  const area = points.reduce((sum, point, i) => { const next = points[(i + 1) % points.length]; return sum + point.x * next.y - next.x * point.y; }, 0);
+  const ccw = area > 0;
+  const lines = points.map((point, i) => {
+    const next = points[(i + 1) % points.length], dx = next.x - point.x, dy = next.y - point.y, length = Math.hypot(dx, dy) || 1;
+    const normal = ccw ? { x: dy / length, y: -dx / length } : { x: -dy / length, y: dx / length };
+    return { point: { x: point.x + normal.x * bufferMeters, y: point.y + normal.y * bufferMeters }, direction: { x: dx, y: dy } };
+  });
+  return points.map((_, i) => {
+    const a = lines[(i + lines.length - 1) % lines.length], b = lines[i];
+    const cross = a.direction.x * b.direction.y - a.direction.y * b.direction.x;
+    if (Math.abs(cross) < 1e-8) return [(a.point.y + b.point.y) / (2 * scaleY), (a.point.x + b.point.x) / (2 * scaleX)];
+    const t = ((b.point.x - a.point.x) * b.direction.y - (b.point.y - a.point.y) * b.direction.x) / cross;
+    let x = a.point.x + t * a.direction.x, y = a.point.y + t * a.direction.y;
+    const original = points[i], dx = x - original.x, dy = y - original.y, distance = Math.hypot(dx, dy), maxMiter = bufferMeters * 4;
+    if (distance > maxMiter) { x = original.x + dx * maxMiter / distance; y = original.y + dy * maxMiter / distance; }
+    return [y / scaleY, x / scaleX];
+  });
+}
+
+async function publishSurvey(req, res, body) {
+  const admin = requireSurveyAdmin(res, body.actorEmail);
+  if (!admin) return;
+  const surveyId = Number(body.surveyId);
+  const survey = await dbGet("SELECT * FROM surveys WHERE id = ? AND owner_email = ? COLLATE NOCASE", [surveyId, admin.email]);
+  if (!survey || survey.status !== "review") return json(res, 409, { error: "Only a finished survey can be published." });
+  const coordinates = Array.isArray(body.coordinates) ? body.coordinates.map((point) => [Number(point?.[0]), Number(point?.[1])]) : [];
+  const bufferMeters = Number(body.bufferMeters || 0);
+  if (coordinates.length < 3 || coordinates.length > 100 || !Number.isFinite(bufferMeters) || bufferMeters < 0 || bufferMeters > 15) return json(res, 400, { error: "Provide 3 to 100 edited corners and an outward buffer from 0 to 15 metres." });
+  const originalCheck = validateSessionGeofence({ type: "polygon", coordinates });
+  if (!originalCheck.ok) return json(res, 400, { error: originalCheck.error });
+  const published = { type: "polygon", coordinates: offsetSurveyPolygon(originalCheck.geofence.coordinates, bufferMeters) };
+  const finalCheck = validateSessionGeofence(published);
+  if (!finalCheck.ok) return json(res, 400, { error: finalCheck.error });
+  const building = await dbGet("SELECT id, geofence_json FROM buildings WHERE id = ?", [survey.building_id]);
+  if (!building) return json(res, 404, { error: "The surveyed building no longer exists." });
+  const current = parseJsonColumn(building.geofence_json, null);
+  let versionRow = await dbGet("SELECT MAX(version) AS version FROM building_geofence_versions WHERE building_id = ?", [building.id]);
+  let nextVersion = Number(versionRow?.version || 0) + 1;
+  if (!versionRow?.version) {
+    await dbRun("INSERT OR IGNORE INTO building_geofence_versions (building_id, version, geofence_json, source, survey_id, created_by, created_at) VALUES (?, ?, ?, 'pre-survey', NULL, ?, ?)", [building.id, nextVersion, JSON.stringify(current), admin.email, new Date().toISOString()]);
+    nextVersion++;
+  }
+  const now = new Date().toISOString();
+  await dbRun("INSERT INTO building_geofence_versions (building_id, version, geofence_json, source, survey_id, created_by, created_at) VALUES (?, ?, ?, 'survey', ?, ?, ?)", [building.id, nextVersion, JSON.stringify(published), surveyId, admin.email, now]);
+  await dbRun("UPDATE buildings SET geofence_json = ?, updated_at = ? WHERE id = ?", [JSON.stringify(published), now, building.id]);
+  await dbRun("UPDATE surveys SET status = 'published', published_at = ?, buffer_m = ? WHERE id = ?", [now, bufferMeters, surveyId]);
+  await logSurveyAction(admin.email, survey.device_id, surveyId, "survey-published", { buildingId: building.id, version: nextVersion, bufferMeters, pointCount: coordinates.length });
+  json(res, 200, { ok: true, version: nextVersion, geofence: published });
+}
+
 async function saveLiveSession(res, session) {
   if (!session || typeof session !== "object") {
     json(res, 400, { error: "A valid session payload is required." });

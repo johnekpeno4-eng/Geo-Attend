@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Survey device | GeoAttend</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-900">
+  <main class="mx-auto max-w-7xl space-y-6 p-5 md:p-8">
+    <header class="flex flex-wrap items-center justify-between gap-4"><div><p class="text-sm font-bold uppercase tracking-widest text-blue-700">GeoAttend</p><h1 class="text-3xl font-extrabold">Survey device</h1><p class="mt-1 text-slate-600">Pair the GPS device, survey a building, review corners, then publish a versioned boundary.</p></div><a class="rounded-lg border bg-white px-4 py-2 font-bold" href="dashboard.html">Dashboard</a></header>
+    <p id="notice" class="rounded-lg bg-blue-50 p-3 text-sm font-semibold text-blue-900" role="status">Loading survey admin access…</p>
+    <section class="grid gap-5 lg:grid-cols-3">
+      <article class="space-y-3 rounded-xl border bg-white p-5 shadow-sm">
+        <h2 class="text-lg font-bold">1. Pair a device</h2>
+        <label class="block text-sm font-semibold">Device name<input id="device-label" class="mt-1 w-full rounded-lg border p-3" value="Survey device 1" /></label>
+        <button id="pair-device" class="rounded-lg bg-blue-700 px-4 py-3 font-bold text-white">Pair device</button>
+        <div id="pair-result" class="hidden break-all rounded-lg bg-amber-50 p-3 text-sm"></div>
+        <div><h3 class="font-semibold">Paired devices</h3><ul id="devices" class="mt-2 space-y-2 text-sm"></ul></div>
+      </article>
+      <article class="space-y-3 rounded-xl border bg-white p-5 shadow-sm lg:col-span-2">
+        <h2 class="text-lg font-bold">2. Start a survey</h2>
+        <div class="grid gap-3 md:grid-cols-2">
+          <label class="text-sm font-semibold">Saved building<select id="building" class="mt-1 w-full rounded-lg border p-3"></select></label>
+          <label class="text-sm font-semibold">Paired device<select id="device" class="mt-1 w-full rounded-lg border p-3"></select></label>
+        </div>
+        <button id="start-survey" class="rounded-lg bg-blue-700 px-4 py-3 font-bold text-white">Start survey</button>
+        <p class="text-sm text-slate-600">The device checks for its active survey every few seconds. Tap its button to capture corners; hold 1.5–5 seconds to finish.</p>
+      </article>
+    </section>
+    <section class="grid gap-5 lg:grid-cols-[320px_1fr]">
+      <article class="space-y-4 rounded-xl border bg-white p-5 shadow-sm">
+        <div><h2 class="text-lg font-bold">3. Review survey</h2><label class="mt-2 block text-sm font-semibold">Survey<select id="survey" class="mt-1 w-full rounded-lg border p-3"></select></label></div>
+        <label class="block text-sm font-semibold">Outward buffer: <span id="buffer-value">0</span> m<input id="buffer" class="w-full" type="range" min="0" max="15" value="0" /></label>
+        <ul id="points" class="space-y-2 text-sm"></ul>
+        <button id="publish" class="w-full rounded-lg bg-emerald-700 px-4 py-3 font-bold text-white">Publish polygon to building</button>
+        <p class="text-xs text-slate-500">Drag a point marker to adjust it or remove a corner. Publish requires at least three points.</p>
+      </article>
+      <div id="survey-map" class="min-h-[520px] overflow-hidden rounded-xl border bg-white shadow-sm"></div>
+    </section>
+    <section class="rounded-xl border bg-white p-5 shadow-sm"><h2 class="text-lg font-bold">Building boundary versions</h2><ul id="versions" class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3"></ul></section>
+    <section class="rounded-xl border bg-white p-5 shadow-sm"><h2 class="text-lg font-bold">Survey action log</h2><div class="mt-3 overflow-x-auto"><table class="w-full text-left text-sm"><thead><tr class="border-b"><th class="p-2">Time</th><th class="p-2">Account</th><th class="p-2">Device</th><th class="p-2">Survey</th><th class="p-2">Action</th></tr></thead><tbody id="actions"></tbody></table></div></section>
+  </main>
+  <script>
+    const actorEmail = localStorage.getItem("geoAttendCurrentUser") || "";
+    const $ = (id) => document.getElementById(id);
+    let surveyData = { devices: [], surveys: [], points: [], buildings: [], actions: [] };
+    let selectedSurveyId = 0, editedPoints = [], markers = [], pointLayer = null;
+    const map = L.map("survey-map").setView([5.1065, 7.8104], 16);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 20, attribution: "© OpenStreetMap" }).addTo(map);
+    async function request(url, options = {}) {
+      const response = await fetch(url, options);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Survey request failed.");
+      return data;
+    }
+    function post(url, body) { return request(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, actorEmail }) }); }
+    function showMessage(text, isError = false) { $("notice").textContent = text; $("notice").className = `rounded-lg p-3 text-sm font-semibold ${isError ? "bg-red-50 text-red-900" : "bg-blue-50 text-blue-900"}`; }
+    function fillChoices() {
+      $("device").innerHTML = surveyData.devices.filter((item) => !item.revoked_at).map((item) => `<option value="${item.id}">${item.label} · ${item.id.slice(0, 8)}</option>`).join("") || '<option value="">Pair a device first</option>';
+      $("building").innerHTML = surveyData.buildings.map((item) => `<option value="${item.id}">${item.name}${item.roomNote ? ` · ${item.roomNote}` : ""}</option>`).join("") || '<option value="">Create a building first</option>';
+      $("survey").innerHTML = surveyData.surveys.map((item) => `<option value="${item.id}">#${item.id} · ${item.building_name} · ${item.status}</option>`).join("") || '<option value="">No surveys yet</option>';
+      $("devices").innerHTML = surveyData.devices.map((item) => `<li class="flex items-center justify-between gap-2 rounded border p-2"><span><b>${item.label}</b><br><span class="text-slate-500">${item.revoked_at ? "Revoked" : `Last seen: ${item.last_seen_at || "not connected yet"}`}</span></span>${item.revoked_at ? "" : `<button class="rounded border px-2 py-1 text-red-700" data-revoke-device="${item.id}">Revoke</button>`}</li>`).join("") || '<li class="text-slate-500">No paired devices.</li>';
+      $("devices").querySelectorAll("[data-revoke-device]").forEach((button) => button.addEventListener("click", async () => {
+        if (!confirm("Revoke this device token? The device will no longer connect.")) return;
+        try { await post("/api/survey/devices/revoke", { deviceId: button.dataset.revokeDevice }); await refresh(); showMessage("Device token revoked."); }
+        catch (error) { showMessage(error.message, true); }
+      }));
+      $("actions").innerHTML = surveyData.actions.map((item) => `<tr class="border-b"><td class="p-2">${new Date(item.created_at).toLocaleString()}</td><td class="p-2">${surveyData.surveyAdminEmail}</td><td class="p-2">${item.device_id || "—"}</td><td class="p-2">${item.survey_id || "—"}</td><td class="p-2">${item.action}</td></tr>`).join("");
+      $("versions").innerHTML = (surveyData.versions || []).map((item) => `<li class="rounded-lg border p-3"><b>Version ${item.version}</b> · ${item.source}<div class="mt-1 text-xs text-slate-500">${new Date(item.created_at).toLocaleString()} · ${item.created_by}${item.survey_id ? ` · Survey #${item.survey_id}` : ""}</div></li>`).join("") || '<li class="text-sm text-slate-500">Select a survey to view its building history.</li>';
+    }
+    async function refresh(surveyId = selectedSurveyId) {
+      const query = new URLSearchParams({ actorEmail }); if (surveyId) query.set("surveyId", surveyId);
+      surveyData = await request(`/api/survey/admin?${query}`);
+      fillChoices();
+      if (surveyId) { selectedSurveyId = Number(surveyId); $("survey").value = String(surveyId); editedPoints = surveyData.points.map((p) => ({ id: p.id, lat: Number(p.lat), lng: Number(p.lng), seq: p.seq, hdop: p.hdop, satellites: p.satellites, samples: p.samples, captured_at: p.captured_at })); }
+      else { selectedSurveyId = 0; editedPoints = []; }
+      drawPoints();
+    }
+    function drawPoints() {
+      markers.forEach((marker) => map.removeLayer(marker)); markers = [];
+      if (pointLayer) map.removeLayer(pointLayer); pointLayer = null;
+      if (editedPoints.length >= 3) {
+        pointLayer = L.polygon(editedPoints.map((p) => [p.lat, p.lng]), { color: "#0058be", fillOpacity: .12 }).addTo(map);
+        map.fitBounds(pointLayer.getBounds(), { padding: [24, 24] });
+      }
+      editedPoints.forEach((point, index) => {
+        const marker = L.marker([point.lat, point.lng], { draggable: true }).addTo(map).bindTooltip(`Corner ${point.seq}`);
+        marker.on("dragend", async (event) => { const pos = event.target.getLatLng(); editedPoints[index].lat = pos.lat; editedPoints[index].lng = pos.lng; drawPoints(); try { await post("/api/survey/points/move", { pointId: point.id, lat: pos.lat, lng: pos.lng }); await refresh(selectedSurveyId); } catch (error) { showMessage(error.message, true); } });
+        markers.push(marker);
+      });
+      if (editedPoints.length && editedPoints.length < 3) map.fitBounds(L.latLngBounds(editedPoints.map((p) => [p.lat, p.lng])), { padding: [24, 24] });
+      $("points").innerHTML = editedPoints.map((p, index) => `<li class="flex items-center justify-between gap-2 rounded border p-2"><span>Corner ${p.seq} · ${Number(p.hdop).toFixed(1)} HDOP · ${p.satellites} sats<br><span class="font-mono text-xs">${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}</span></span><button class="rounded border px-2 py-1 text-red-700" data-remove-point="${index}">Remove</button></li>`).join("") || '<li class="text-slate-500">Select a finished survey to review its points.</li>';
+      $("points").querySelectorAll("[data-remove-point]").forEach((button) => button.addEventListener("click", async () => {
+        const point = editedPoints[Number(button.dataset.removePoint)];
+        try { await post("/api/survey/points/delete", { pointId: point.id }); await refresh(selectedSurveyId); }
+        catch (error) { showMessage(error.message, true); }
+      }));
+      const survey = surveyData.surveys.find((item) => Number(item.id) === selectedSurveyId);
+      const reviewable = survey?.status === "review";
+      $("publish").disabled = !reviewable || editedPoints.length < 3;
+      $("publish").classList.toggle("opacity-50", $("publish").disabled);
+    }
+    $("pair-device").addEventListener("click", async () => {
+      try {
+        const data = await post("/api/survey/devices", { label: $("device-label").value });
+        $("pair-result").classList.remove("hidden"); $("pair-result").innerHTML = `<b>Copy this token now. It will not be shown again.</b><p class="my-2 font-mono">${data.deviceToken}</p><button id="copy-token" class="rounded border px-3 py-1">Copy token</button><p class="mt-2">On the device, hold the button 5 seconds to open setup; connect to <b>GeoAttend-Survey</b> (password <b>survey1234</b>), then open <b>192.168.4.1</b> and enter the server URL, Wi-Fi, and token.</p>`;
+        $("copy-token").addEventListener("click", () => navigator.clipboard?.writeText(data.deviceToken).catch(() => showMessage("Clipboard access is unavailable. Select and copy the token manually.")));
+        await refresh(); showMessage("Device paired. Save the token into the device setup page.");
+      } catch (error) { showMessage(error.message, true); }
+    });
+    $("start-survey").addEventListener("click", async () => {
+      try { const data = await post("/api/survey/start", { buildingId: $("building").value, deviceId: $("device").value }); await refresh(data.survey.id); showMessage(`Survey #${data.survey.id} started for ${data.survey.buildingName}.`); }
+      catch (error) { showMessage(error.message, true); }
+    });
+    $("survey").addEventListener("change", () => refresh(Number($("survey").value)));
+    $("buffer").addEventListener("input", () => { $("buffer-value").textContent = $("buffer").value; });
+    $("publish").addEventListener("click", async () => {
+      if (editedPoints.length < 3) return showMessage("Keep at least three corners to publish a polygon.", true);
+      try { const data = await post("/api/survey/publish", { surveyId: selectedSurveyId, bufferMeters: Number($("buffer").value), coordinates: editedPoints.map((p) => [p.lat, p.lng]) }); showMessage(`Published building geofence version ${data.version}. Future sessions use this boundary.`); await refresh(selectedSurveyId); }
+      catch (error) { showMessage(error.message, true); }
+    });
+    (async () => {
+      try { await refresh(); showMessage(`Survey admin: ${surveyData.surveyAdminEmail}.`); }
+      catch (error) { showMessage(error.message, true); }
+    })();
+  </script>
+</body>
+</html>

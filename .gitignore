@@ -32,6 +32,9 @@ Thumbs.db
 .vscode/
 .idea/
 
+# PlatformIO build output and locally downloaded libraries
+.pio/
+
 # Temporary files
 .tmp/
 tmp/
