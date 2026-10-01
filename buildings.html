@@ -25,7 +25,7 @@
         <div class="flex gap-2"><button id="save-building" class="rounded-lg bg-blue-700 px-4 py-3 font-bold text-white">Save building</button><button id="delete-building" class="rounded-lg border border-red-300 px-4 py-3 font-bold text-red-700" type="button">Delete</button><button id="clear-map" class="rounded-lg border px-4 py-3 font-bold" type="button">Clear points</button></div>
         <p id="message" class="text-sm font-semibold" role="status"></p>
       </div>
-      <div class="relative"><button id="locate-me" type="button" class="absolute right-3 top-3 z-[1000] rounded-lg bg-white px-4 py-2 text-sm font-bold text-blue-800 shadow-lg ring-1 ring-slate-300">Show my location</button><div id="building-map" class="min-h-[480px] overflow-hidden rounded-xl border"></div></div>
+      <div id="building-map" class="min-h-[480px] overflow-hidden rounded-xl border"></div>
     </section>
   </main>
   <script>
@@ -36,41 +36,9 @@
     let selectedId = "";
     let vertices = [];
     let boundaryLayer = null;
-    let currentLocationMarker = null;
     const akwaIbomBounds = L.latLngBounds([4.35, 7.35], [5.55, 8.35]);
     const map = L.map("building-map", { maxBounds: akwaIbomBounds, maxBoundsViscosity: 1, minZoom: 8, maxZoom: 19 }).fitBounds(akwaIbomBounds);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
-    byId("locate-me").addEventListener("click", () => {
-      const button = byId("locate-me");
-      if (!window.isSecureContext) { byId("message").textContent = "GPS requires a secure page. Open GeoAttend using its HTTPS link or http://localhost on this computer."; return; }
-      if (!navigator.geolocation) { byId("message").textContent = "This browser does not support location access."; return; }
-      button.disabled = true; button.textContent = "Finding location...";
-      navigator.geolocation.getCurrentPosition((position) => {
-        const location = L.latLng(position.coords.latitude, position.coords.longitude);
-        const withinAkwaIbomView = akwaIbomBounds.contains(location);
-        if (!withinAkwaIbomView) {
-          const expandedBounds = L.latLngBounds(akwaIbomBounds.getSouthWest(), akwaIbomBounds.getNorthEast()).extend(location).pad(0.15);
-          map.setMaxBounds(expandedBounds);
-        }
-        if (currentLocationMarker) map.removeLayer(currentLocationMarker);
-        currentLocationMarker = L.circleMarker(location, { radius: 9, color: "#fff", weight: 3, fillColor: "#dc2626", fillOpacity: 1 }).addTo(map).bindPopup(`Your current location (accuracy ±${Math.round(position.coords.accuracy)}m)`);
-        map.invalidateSize(); map.flyTo(location, 18, { animate: true, duration: 1.2 }); currentLocationMarker.openPopup();
-        if (withinAkwaIbomView) {
-          if (byId("shape").value === "circle") {
-            byId("latitude").value = location.lat.toFixed(7); byId("longitude").value = location.lng.toFixed(7); draw(geofenceFromForm(), false);
-          } else if (byId("shape").value === "rectangle") {
-            byId("rectangle-latitude").value = location.lat.toFixed(7); byId("rectangle-longitude").value = location.lng.toFixed(7); draw(geofenceFromForm(), false);
-          }
-          byId("message").textContent = "Your current location is shown on the map.";
-        } else {
-          byId("message").textContent = "Your current location is shown. It is outside the Akwa Ibom map area; choose an Akwa Ibom point for the building boundary.";
-        }
-        button.disabled = false; button.textContent = "Show my location";
-      }, (error) => {
-        byId("message").textContent = error.code === 1 ? "Location permission was denied. Allow location access for this site in your browser settings, then try again." : error.code === 2 ? "Your location could not be determined. Turn on GPS/location services and try again." : "Location request timed out. Move near a window or try again.";
-        button.disabled = false; button.textContent = "Show my location";
-      }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 30000 });
-    });
     function geofenceFromForm() {
       if (byId("shape").value === "polygon") return { type: "polygon", coordinates: vertices.length ? vertices : JSON.parse(byId("coordinates").value || "[]") };
       if (byId("shape").value === "rectangle") {
@@ -113,7 +81,7 @@
       const polygon = byId("shape").value === "polygon";
       const rectangle = byId("shape").value === "rectangle";
       byId("circle-fields").classList.toggle("hidden", polygon || rectangle); byId("rectangle-fields").classList.toggle("hidden", !rectangle); byId("polygon-field").classList.toggle("hidden", !polygon);
-      byId("map-hint").textContent = polygon ? "Click the map to add polygon corners. Add at least three points." : rectangle ? "Click the map to set the rectangle center, or use Show my location." : "Click the map to set the circle center.";
+      byId("map-hint").textContent = polygon ? "Click the map to add polygon corners. Add at least three points." : rectangle ? "Click the map to set the rectangle center." : "Click the map to set the circle center.";
     }
     map.on("click", (event) => {
       if (byId("shape").value === "polygon") { vertices.push([event.latlng.lat, event.latlng.lng]); byId("coordinates").value = JSON.stringify(vertices); draw(geofenceFromForm(), false); }
