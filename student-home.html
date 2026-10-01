@@ -224,7 +224,7 @@
       </div>
     </section>
 
-    <section class="grid grid-cols-2 gap-3 mt-3">
+    <section class="mt-3">
       <article class="bg-surface-container-lowest border border-outline-variant rounded-xl p-3 shadow-sm">
         <div class="flex items-center justify-between gap-3">
           <p class="text-xs uppercase tracking-wider text-on-surface-variant font-semibold">Identity</p>
@@ -233,14 +233,6 @@
         <p class="font-bold text-on-surface mt-2" id="identity-status">Fingerprint verified</p>
         <p class="text-sm text-on-surface-variant mt-2">Attendance requires your enrolled fingerprint.</p>
       </article>
-      <article class="bg-surface-container-lowest border border-outline-variant rounded-xl p-3 shadow-sm">
-        <div class="flex items-center justify-between gap-3">
-          <p class="text-xs uppercase tracking-wider text-on-surface-variant font-semibold">Location status</p>
-          <span class="material-symbols-outlined text-secondary" id="gps-icon">location_on</span>
-        </div>
-        <p class="font-bold text-on-surface mt-2" id="gps-status">Checking...</p>
-        <p class="text-xs text-on-surface-variant mt-2" id="gps-helper">Location support status</p>
-      </article>
     </section>
 
     <section class="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-sm mt-3" id="active-classes">
@@ -248,7 +240,7 @@
         <div class="min-w-0">
           <p class="text-xs uppercase tracking-wider text-on-surface-variant font-semibold">Active Classes</p>
           <h2 class="text-xl font-bold text-on-surface mt-1">Live attendance sessions</h2>
-          <p class="text-sm text-on-surface-variant mt-1">Choose a live class and check in while you are inside the session area.</p>
+          <p class="text-sm text-on-surface-variant mt-1">Choose a live class and check in during its attendance window.</p>
         </div>
         <div class="flex items-center gap-xs bg-secondary-container/20 text-secondary px-3 py-1 rounded-full h-fit">
           <span class="material-symbols-outlined text-[18px] orb-pulse" style="font-variation-settings: 'FILL' 1;">sensors</span>
@@ -360,22 +352,12 @@
     let checkinQrTimer = null;    let sessionCountdownInterval = null;
     let attendanceLogs = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]")
       .filter((item) => !email || item.email === email);
-    let isWithinGeofence = false;
-    let latestPosition = null;
-    let locationWatchId = null;
-    const TRUSTED_ADMIN_LOCATION_ACCURACY_METERS = 100;
-    const TRUSTED_STUDENT_LOCATION_ACCURACY_METERS = 30;
-    const STUDENT_LOCATION_TARGET_ACCURACY_METERS = 30;
 
     function getStudentSettings() {
       return JSON.parse(localStorage.getItem(`geoAttendStudentSettings:${email}`) || "{}");
     }
     function escapeHtml(value) {
       return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[char]));
-    }
-    function formatMeters(value) {
-      const meters = Number(value || 0);
-      return meters >= 1000 ? `${(meters / 1000).toFixed(2)}km` : `${Math.round(meters)}m`;
     }
     function formatDateTime(value) {
       const date = new Date(value || Date.now());
@@ -401,32 +383,6 @@
     function getSessionStartMessage(session) {
       const start = getSessionStartDate(session);
       return start ? `Check-in has not started yet. It opens at ${start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.` : "Check-in has not started yet.";
-    }
-    function isWeakAdminGeofence(geofence = {}) {
-      const accuracy = Number(geofence.accuracy || geofence.adminAccuracy || 0);
-      return accuracy > TRUSTED_ADMIN_LOCATION_ACCURACY_METERS;
-    }
-    function getAdminGeofenceWarning(geofence = {}) {
-      const accuracy = Math.round(Number(geofence.accuracy || geofence.adminAccuracy || 0)) || "unknown";
-      return `Admin GPS accuracy is too weak (${accuracy}m). The lecturer/admin should recreate the session with better GPS.`;
-    }
-    function normalizeBrowserLocation(position) {
-      const coords = position?.coords || position || {};
-      return {
-        lat: Number(coords.latitude ?? coords.lat),
-        lng: Number(coords.longitude ?? coords.lng),
-        accuracy: Number(coords.accuracy || 9999),
-        timestamp: Number(position?.timestamp || coords.timestamp || Date.now())
-      };
-    }
-    function isStudentGpsUsable(position) {
-      if (!position || !Number.isFinite(position.lat) || !Number.isFinite(position.lng)) return false;
-      const accuracy = Number(position.accuracy || 9999);
-      const ageMs = Date.now() - Number(position.timestamp || 0);
-      return accuracy > 0
-        && accuracy <= TRUSTED_STUDENT_LOCATION_ACCURACY_METERS
-        && ageMs >= 0
-        && ageMs <= 15000;
     }
     function syncActiveSession(preferred) {
       if (preferred) activeSession = preferred;
@@ -470,7 +426,7 @@
       const actionIcon = document.getElementById("primary-action-icon");
       const activeRecord = activeSession ? getExistingCheckin(activeSession.id) : null;
       const action = activeRecord && !activeRecord.checkedOutAt ? "check-out" : "check-in";
-      const ready = activeSession && (action === "check-out" || isSessionStarted(activeSession)) && !isWeakAdminGeofence(activeSession.geofence || {});
+      const ready = activeSession && (action === "check-out" || isSessionStarted(activeSession));
       const checkinTitle = document.getElementById("student-checkin-title");
       const checkinButton = document.getElementById("student-checkin-button");
       const checkinStart = document.getElementById("student-checkin-start");
@@ -485,10 +441,6 @@
       if (actionTitle) actionTitle.textContent = ready ? (action === "check-out" ? "Check out now" : "Check in now") : "View active classes";
       if (actionHelper) actionHelper.textContent = ready ? `Confirm your fingerprint to ${action === "check-out" ? "check out" : "check in"}` : "Fingerprint verification is required for attendance";
       if (actionIcon) actionIcon.textContent = ready ? "fingerprint" : "event_available";
-    }
-    function updateGpsReadiness() {
-      document.getElementById("gps-status").textContent = navigator.geolocation ? "Supported" : "Unsupported";
-      document.getElementById("gps-helper").textContent = navigator.geolocation ? "Location support ready" : "Use a browser with GPS support";
     }
     function renderRecentCheckins() {}
     function flashButtonFeedback(button, text) {
@@ -738,19 +690,7 @@
         const ownRecord = getExistingCheckin(session.id);
         const selected = sessions?.id === session.id;
         const sessionStarted = isSessionStarted(session);
-        let statusText = "GPS waiting";
-        const adminGeofenceWeak = isWeakAdminGeofence(geofence);
-        if (adminGeofenceWeak) {
-          statusText = `Admin GPS weak - ${Math.round(Number(geofence.accuracy || 0)) || "unknown"}m accuracy`;
-        } else if (latestPosition && !isStudentGpsUsable(latestPosition)) {
-          statusText = `Your GPS weak - ${Math.round(Number(latestPosition.accuracy || 0)) || "unknown"}m accuracy`;
-        } else if (latestPosition) {
-          const distance = geofence.type === "polygon" ? null : distanceInMeters(latestPosition, geofence);
-          const within = isInsideBuildingBoundary(latestPosition, geofence);
-          statusText = geofence.type === "polygon"
-            ? (within ? "Inside saved building boundary" : "Outside saved building boundary")
-            : (within ? `Within zone - ${formatMeters(distance)} away` : `Outside zone - ${formatMeters(distance)} away`);
-        }
+      const attendanceStatus = ownRecord?.checkedOutAt ? "Checked out" : ownRecord ? "Checked in" : sessionStarted ? "Ready to check in" : "Not started";
 
         return `
           <article class="rounded-xl border ${selected ? "border-secondary bg-secondary-fixed/20" : "border-outline-variant/50"} bg-surface-container-low p-md shadow-sm">
@@ -773,18 +713,14 @@
                 <p class="font-mono-data text-on-surface">${escapeHtml(formatSessionWindow(session))}</p>
               </div>
               <div class="rounded-lg bg-surface-container-lowest p-sm border border-outline-variant/30">
-                <p class="font-label-md text-on-surface-variant uppercase">Radius</p>
-                <p class="font-mono-data text-on-surface safe-wrap">${escapeHtml(formatMeters(geofence.radius || 75))}</p>
-              </div>
-              <div class="rounded-lg bg-surface-container-lowest p-sm border border-outline-variant/30 col-span-2">
-                <p class="font-label-md text-on-surface-variant uppercase">GPS</p>
-                <p class="font-mono-data text-on-surface">${escapeHtml(statusText)}</p>
+                <p class="font-label-md text-on-surface-variant uppercase">Attendance</p>
+                <p class="font-mono-data text-on-surface">${escapeHtml(attendanceStatus)}</p>
               </div>
             </div>
             ${ownRecord ? `<p class="mt-sm rounded-lg bg-surface-container-lowest px-sm py-xs text-xs font-mono-data text-on-surface-variant">Checked in ${escapeHtml(formatDateTime(ownRecord.checkedInAt))}${ownRecord.checkedOutAt ? ` | Checked out ${escapeHtml(formatDateTime(ownRecord.checkedOutAt))}` : ` | Elapsed ${getElapsedMinutes(ownRecord)} min`}</p>` : ""}
             <div class="flex flex-wrap gap-sm mt-md">
-              <button class="flex-1 min-w-[120px] touch-manipulation rounded-lg px-md py-sm font-bold transition-all ${adminGeofenceWeak || (!sessionStarted && !ownRecord) ? "bg-surface-container-high text-on-surface-variant cursor-not-allowed" : "bg-secondary text-on-primary hover:opacity-95 active:scale-95"}" data-open-checkin="${escapeHtml(session.id)}" type="button" ${adminGeofenceWeak || (!sessionStarted && !ownRecord) || ownRecord?.checkedOutAt ? "disabled" : ""}>
-                ${adminGeofenceWeak ? "Admin GPS Too Weak" : ownRecord?.checkedOutAt ? `Complete · ${getElapsedMinutes(ownRecord)} min` : !sessionStarted && !ownRecord ? "Not Started Yet" : ownRecord ? `Check Out · ${getElapsedMinutes(ownRecord)} min elapsed` : "Check In"}
+              <button class="flex-1 min-w-[120px] touch-manipulation rounded-lg px-md py-sm font-bold transition-all ${(!sessionStarted && !ownRecord) ? "bg-surface-container-high text-on-surface-variant cursor-not-allowed" : "bg-secondary text-on-primary hover:opacity-95 active:scale-95"}" data-open-checkin="${escapeHtml(session.id)}" type="button" ${(!sessionStarted && !ownRecord) || ownRecord?.checkedOutAt ? "disabled" : ""}>
+                ${ownRecord?.checkedOutAt ? `Complete · ${getElapsedMinutes(ownRecord)} min` : !sessionStarted && !ownRecord ? "Not Started Yet" : ownRecord ? `Check Out · ${getElapsedMinutes(ownRecord)} min elapsed` : "Check In"}
               </button>
             </div>
           </article>
