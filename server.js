@@ -2348,9 +2348,9 @@ async function saveAttendance(res, record) {
     const scheduledMinutes = classStart && classEnd ? Math.max(0, Math.floor((classEnd - classStart) / 60000)) : 0;
     const minimumPercent = Number(session.minimumDurationPercent || 0);
     const meetsMinimum = !minimumPercent || !scheduledMinutes || durationMinutes >= scheduledMinutes * minimumPercent / 100;
-    const { checkInLocation: _checkInLocation, checkOutLocation: _checkOutLocation, position: _position, gpsVerification: _gpsVerification, checkOutGpsVerification: _checkOutGpsVerification, ...existingWithoutGps } = existing;
+    const { checkInLocation: _legacyCheckInLocation, checkOutLocation: _legacyCheckOutLocation, position: _legacyPosition, gpsVerification: _legacyVerification, checkOutGpsVerification: _legacyCheckOutVerification, ...existingWithoutLocation } = existing;
     const normalizedRecord = {
-      ...existingWithoutGps,
+      ...existingWithoutLocation,
       checkedOutAt,
       durationMinutes,
       status: meetsMinimum ? "present" : "incomplete",
@@ -2365,9 +2365,9 @@ async function saveAttendance(res, record) {
   }
 
   const checkedInAt = now.toISOString();
-  const { position: _position, geofence: _geofence, checkInLocation: _checkInLocation, checkOutLocation: _checkOutLocation, gpsVerification: _gpsVerification, checkOutGpsVerification: _checkOutGpsVerification, ...recordWithoutGps } = record;
+  const { position: _legacyPosition, geofence: _legacyGeofence, checkInLocation: _legacyCheckInLocation, checkOutLocation: _legacyCheckOutLocation, gpsVerification: _legacyVerification, checkOutGpsVerification: _legacyCheckOutVerification, ...recordWithoutLocation } = record;
   const normalizedRecord = {
-    ...recordWithoutGps,
+    ...recordWithoutLocation,
     id,
     email,
     sessionId,
