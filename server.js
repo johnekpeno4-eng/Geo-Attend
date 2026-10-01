@@ -815,12 +815,6 @@ async function initDatabase() {
     status TEXT NOT NULL DEFAULT 'present',
     checked_in_at TEXT,
     checked_out_at TEXT,
-    check_in_latitude REAL,
-    check_in_longitude REAL,
-    check_in_accuracy REAL,
-    check_out_latitude REAL,
-    check_out_longitude REAL,
-    check_out_accuracy REAL,
     saved_at TEXT,
     attendance_json TEXT NOT NULL
   )`);
@@ -829,12 +823,6 @@ async function initDatabase() {
   await dbRun("CREATE INDEX IF NOT EXISTS idx_attendance_checked_in ON attendance(checked_in_at)");
   await ensureColumn("attendance", "academic_session", "TEXT DEFAULT ''");
   await ensureColumn("attendance", "checked_out_at", "TEXT");
-  await ensureColumn("attendance", "check_in_latitude", "REAL");
-  await ensureColumn("attendance", "check_in_longitude", "REAL");
-  await ensureColumn("attendance", "check_in_accuracy", "REAL");
-  await ensureColumn("attendance", "check_out_latitude", "REAL");
-  await ensureColumn("attendance", "check_out_longitude", "REAL");
-  await ensureColumn("attendance", "check_out_accuracy", "REAL");
   await fingerprintCheckin.initialize();
   await dbRun(`CREATE TABLE IF NOT EXISTS attendance_reports (
     id TEXT PRIMARY KEY,
@@ -1065,8 +1053,8 @@ async function writeSqliteSessions(sessions) {
 async function upsertSqliteAttendance(record) {
   const academicSession = normalizeAcademicSession(record.academicSession) || await getCurrentAcademicSession();
   const normalized = { ...record, academicSession };
-  await dbRun(`INSERT INTO attendance (id, session_id, email, reg_number, full_name, status, checked_in_at, checked_out_at, check_in_latitude, check_in_longitude, check_in_accuracy, check_out_latitude, check_out_longitude, check_out_accuracy, saved_at, academic_session, student_id, match_score, ip, "timestamp", attendance_json)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  await dbRun(`INSERT INTO attendance (id, session_id, email, reg_number, full_name, status, checked_in_at, checked_out_at, saved_at, academic_session, student_id, match_score, ip, "timestamp", attendance_json)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       session_id = excluded.session_id,
       email = excluded.email,
@@ -1075,12 +1063,6 @@ async function upsertSqliteAttendance(record) {
       status = excluded.status,
       checked_in_at = excluded.checked_in_at,
       checked_out_at = excluded.checked_out_at,
-      check_in_latitude = excluded.check_in_latitude,
-      check_in_longitude = excluded.check_in_longitude,
-      check_in_accuracy = excluded.check_in_accuracy,
-      check_out_latitude = excluded.check_out_latitude,
-      check_out_longitude = excluded.check_out_longitude,
-      check_out_accuracy = excluded.check_out_accuracy,
       saved_at = excluded.saved_at,
       academic_session = excluded.academic_session,
       student_id = excluded.student_id,
@@ -1096,12 +1078,6 @@ async function upsertSqliteAttendance(record) {
     record.status || "present",
     record.checkedInAt || null,
     record.checkedOutAt || null,
-    null,
-    null,
-    null,
-    null,
-    null,
-    null,
     record.savedAt || new Date().toISOString(),
     academicSession,
     record.studentId || null,
