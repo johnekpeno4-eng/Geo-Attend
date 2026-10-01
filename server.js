@@ -1720,21 +1720,6 @@ async function getLiveSessions(req, res) {
   });
 }
 
-function distanceBetweenCoordinatesMeters(first, second) {
-  const lat1 = Number(first?.lat);
-  const lng1 = Number(first?.lng);
-  const lat2 = Number(second?.lat);
-  const lng2 = Number(second?.lng);
-  if (![lat1, lng1, lat2, lng2].every(Number.isFinite)) return Number.NaN;
-  const radians = (value) => value * Math.PI / 180;
-  const earthRadiusMeters = 6371000;
-  const deltaLat = radians(lat2 - lat1);
-  const deltaLng = radians(lng2 - lng1);
-  const haversine = Math.sin(deltaLat / 2) ** 2
-    + Math.cos(radians(lat1)) * Math.cos(radians(lat2)) * Math.sin(deltaLng / 2) ** 2;
-  return 2 * earthRadiusMeters * Math.asin(Math.sqrt(haversine));
-}
-
 function validateSessionGeofence(geofence) {
   if (String(geofence?.type || "circle").toLowerCase() === "polygon") {
     const coordinates = geofence?.coordinates;
@@ -1760,30 +1745,6 @@ function validateSessionGeofence(geofence) {
     return { ok: false, error: `Session radius must be between ${MIN_GEOFENCE_RADIUS_METERS}m and ${MAX_GEOFENCE_RADIUS_METERS}m.` };
   }
   return { ok: true, geofence: { type: "circle", lat, lng, radius } };
-}
-
-function isInsideGeofence(point, geofence) {
-  if (geofence?.type !== "polygon") return distanceBetweenCoordinatesMeters(point, geofence) <= Number(geofence?.radius);
-  const [lat, lng] = [Number(point?.lat), Number(point?.lng)];
-  const vertices = geofence.coordinates || [];
-  let inside = false;
-  for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
-    const [yi, xi] = vertices[i];
-    const [yj, xj] = vertices[j];
-    if ((yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
-  }
-  return inside;
-}
-
-function getGeofenceRadius(geofence) {
-  if (geofence?.type !== "polygon") return Number(geofence?.radius || 0);
-  const vertices = geofence.coordinates || [];
-  if (!vertices.length) return 0;
-  const center = {
-    lat: vertices.reduce((sum, point) => sum + point[0], 0) / vertices.length,
-    lng: vertices.reduce((sum, point) => sum + point[1], 0) / vertices.length
-  };
-  return Math.ceil(Math.max(...vertices.map(([lat, lng]) => distanceBetweenCoordinatesMeters(center, { lat, lng }))));
 }
 
 async function getBuildings(req, res) {

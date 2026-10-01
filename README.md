@@ -177,7 +177,7 @@ git push
 
 Localhost only works while the computer running the server is on.
 
-For real public use, deploy GeoAttend to a VPS or cloud server, connect a domain, and enable HTTPS/SSL. HTTPS is important for browser features such as geolocation and biometric-related flows.
+For real public use, deploy GeoAttend to a VPS or cloud server, connect a domain, and enable HTTPS/SSL for secure browser and biometric-related flows.
 
 A production deployment should include:
 
