@@ -341,80 +341,12 @@
       throw error;
     }
 
-    function captureAdminGpsForAudit() {
-      return new Promise((resolve) => {
-        if (!navigator.geolocation) {
-          resolve({ gpsStatus: "unsupported", gps: null });
-          return;
-        }
-
-        let finished = false;
-        const finish = (result) => {
-          if (finished) return;
-          finished = true;
-          window.clearTimeout(timeout);
-          resolve(result);
-        };
-        const timeout = window.setTimeout(() => {
-          finish({ gpsStatus: "timeout", gps: null });
-        }, 9000);
-
-        navigator.geolocation.getCurrentPosition((position) => {
-          finish({
-            gpsStatus: "captured",
-            gps: {
-              lat: position.coords.latitude,
-              lng: position.coords.longitude,
-              accuracy: Math.round(position.coords.accuracy || 0),
-              capturedAt: new Date(position.timestamp || Date.now()).toISOString()
-            }
-          });
-        }, (error) => {
-          finish({
-            gpsStatus: error.code === error.PERMISSION_DENIED ? "denied" : "failed",
-            gps: null,
-            gpsError: error.message || "Location capture failed."
-          });
-        }, {
-          enableHighAccuracy: true,
-          maximumAge: 0,
-          timeout: 8000
-        });
-      });
-    }
-
-    async function getIpLocationForAudit() {
-      try {
-        const response = await fetch("https://ipapi.co/json/", { cache: "no-store" });
-        if (!response.ok) return null;
-        const data = await response.json();
-        return {
-          ip: data.ip || null,
-          city: data.city || null,
-          region: data.region || null,
-          country: data.country_name || data.country || null,
-          latitude: data.latitude || null,
-          longitude: data.longitude || null,
-          source: "ipapi"
-        };
-      } catch {
-        return null;
-      }
-    }
-
     async function sendAdminLoginAudit(email) {
       if (!email || sessionStorage.getItem("geoAttendAdminAuditSent") === "true") return;
       sessionStorage.setItem("geoAttendAdminAuditSent", "true");
-      const [gpsResult, ipLocation] = await Promise.all([
-        captureAdminGpsForAudit(),
-        getIpLocationForAudit()
-      ]);
-
       try {
         await postJson("/api/admin-login-audit", {
           email,
-          ...gpsResult,
-          ipLocation,
           device: {
             userAgent: navigator.userAgent,
             platform: navigator.platform,
@@ -426,7 +358,6 @@
         sessionStorage.removeItem("geoAttendAdminAuditSent");
       }
     }
-
     function showLoginMessage(text, isError = false) {
       const message = document.getElementById("login-message");
       if (!message) return;

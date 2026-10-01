@@ -3,7 +3,7 @@
 const crypto = require("crypto");
 
 function createFingerprintCheckin(deps) {
-  const { dbRun, dbGet, dbAll, ensureColumn, readLiveSessionsStore, writeAttendanceStore, json, verifyAdminCredentials, validateSessionGeofence, readFreshStudentLocation, isInsideGeofence } = deps;
+  const { dbRun, dbGet, dbAll, ensureColumn, readLiveSessionsStore, writeAttendanceStore, json, verifyAdminCredentials } = deps;
   const threshold = Number(process.env.FINGERPRINT_SCORE_THRESHOLD || 40);
   const matcherUrl = (process.env.FINGERPRINT_MATCHER_URL || "http://127.0.0.1:5512").replace(/\/$/, "");
 
@@ -86,8 +86,6 @@ function createFingerprintCheckin(deps) {
     studentId = student.id;
     const session = await sessionById(sessionId);
     if (!isOpen(session, new Date())) return json(res, 403, { error: "This class is outside its check-in window. Ask the lecturer if you are present." });
-    const geofence = validateSessionGeofence(session.geofence);
-    if (!geofence.ok) return json(res, 403, { error: geofence.error });
     if (await dbGet("SELECT id FROM attendance WHERE session_id = ? AND student_id = ? LIMIT 1", [sessionId, studentId])) return json(res, 409, { error: "You already checked in for this session." });
     const attempts = await dbGet("SELECT COUNT(*) count FROM failed_attempts WHERE student_id = ? AND session_id = ?", [studentId, sessionId]);
     if (Number(attempts && attempts.count || 0) >= 3) return json(res, 429, { error: "You have used three scan attempts. Ask the lecturer to record your attendance." });
@@ -111,11 +109,6 @@ function createFingerprintCheckin(deps) {
     if (!student) return rejected(404, "Student account not found. Ask the lecturer.", "student-not-found");
     const session = await sessionById(sessionId);
     if (!isOpen(session, new Date())) return rejected(403, "This class is outside its check-in window. Ask the lecturer if you are present.", "outside-window");
-    const geofence = validateSessionGeofence(session.geofence);
-    if (!geofence.ok) return rejected(403, geofence.error, "invalid-geofence");
-    const location = readFreshStudentLocation(body.position);
-    if (!location.ok) return rejected(403, location.error, "gps-unavailable");
-    if (!isInsideGeofence(location.location, geofence.geofence)) return rejected(403, "You are outside the saved building geofence. Move to the class location and retry.", "outside-geofence");
     if (await dbGet("SELECT id FROM attendance WHERE session_id = ? AND student_id = ? LIMIT 1", [sessionId, studentId])) return rejected(409, "Attendance is already recorded for this session.", "duplicate-checkin");
     const attempts = await dbGet("SELECT COUNT(*) count FROM failed_attempts WHERE student_id = ? AND session_id = ?", [studentId, sessionId]);
     if (Number(attempts && attempts.count || 0) >= 3) return rejected(429, "You have used three scan attempts. Ask the lecturer to record your attendance.", "rate-limit");
@@ -129,7 +122,7 @@ function createFingerprintCheckin(deps) {
       const score = Number(result.score);
       if (!Number.isFinite(score) || score < Number(process.env.FINGERPRINT_SCORE_THRESHOLD || 40)) return rejected(401, "Fingerprint did not match. Clean the camera, steady your finger, and retry.", "fingerprint-mismatch");
       const checkedInAt = new Date().toISOString();
-      const record = { id: crypto.randomUUID(), studentId, sessionId, email: student.email, regNumber: student.reg_number, fullName: student.full_name, course: session.course || "Class", status: "incomplete", checkedInAt, timestamp: checkedInAt, checkedOutAt: null, checkInLocation: { ...location.location, timestamp: Date.now() }, position: location.location, matchScore: score, ip: clientIp(req), savedAt: checkedInAt };
+      const record = { id: crypto.randomUUID(), studentId, sessionId, email: student.email, regNumber: student.reg_number, fullName: student.full_name, course: session.course || "Class", status: "incomplete", checkedInAt, timestamp: checkedInAt, checkedOutAt: null, matchScore: score, ip: clientIp(req), savedAt: checkedInAt };
       const all = (await dbAll("SELECT attendance_json FROM attendance ORDER BY datetime(checked_in_at) DESC")).map((r) => { try { return JSON.parse(r.attendance_json); } catch { return null; } }).filter(Boolean);
       await writeAttendanceStore([record, ...all]);
       return json(res, 200, { ok: true, record: { id: record.id, sessionId, checkedInAt, matchScore: score, status: record.status } });

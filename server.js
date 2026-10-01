@@ -41,12 +41,9 @@ const totpSetupStore = new Map();
 const webAuthnChallengeStore = new Map();
 const attendanceAuthorizationStore = new Map();
 const attendanceActionLocks = new Set();
-const fingerprintCheckin = createFingerprintCheckin({ dbRun, dbGet, dbAll, ensureColumn, readLiveSessionsStore, writeAttendanceStore, json, verifyAdminCredentials, validateSessionGeofence, readFreshStudentLocation, isInsideGeofence });
+const fingerprintCheckin = createFingerprintCheckin({ dbRun, dbGet, dbAll, ensureColumn, readLiveSessionsStore, writeAttendanceStore, json, verifyAdminCredentials });
 
 
-const ADMIN_GEOFENCE_MAX_ACCURACY_METERS = 20;
-const STUDENT_GPS_MAX_ACCURACY_METERS = 30;
-const STUDENT_GPS_MAX_AGE_MS = 15 * 1000;
 const MIN_GEOFENCE_RADIUS_METERS = 20;
 const MAX_GEOFENCE_RADIUS_METERS = 5000;
 function getDefaultAcademicSession(date = new Date()) {
@@ -1203,12 +1200,12 @@ async function upsertSqliteAttendance(record) {
     record.status || "present",
     record.checkedInAt || null,
     record.checkedOutAt || null,
-    Number.isFinite(Number(record.checkInLocation?.lat ?? record.position?.lat)) ? Number(record.checkInLocation?.lat ?? record.position?.lat) : null,
-    Number.isFinite(Number(record.checkInLocation?.lng ?? record.position?.lng)) ? Number(record.checkInLocation?.lng ?? record.position?.lng) : null,
-    Number.isFinite(Number(record.checkInLocation?.accuracy ?? record.position?.accuracy)) ? Number(record.checkInLocation?.accuracy ?? record.position?.accuracy) : null,
-    Number.isFinite(Number(record.checkOutLocation?.lat)) ? Number(record.checkOutLocation.lat) : null,
-    Number.isFinite(Number(record.checkOutLocation?.lng)) ? Number(record.checkOutLocation.lng) : null,
-    Number.isFinite(Number(record.checkOutLocation?.accuracy)) ? Number(record.checkOutLocation.accuracy) : null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
     record.savedAt || new Date().toISOString(),
     academicSession,
     record.studentId || null,
@@ -1864,24 +1861,6 @@ function distanceBetweenCoordinatesMeters(first, second) {
   const haversine = Math.sin(deltaLat / 2) ** 2
     + Math.cos(radians(lat1)) * Math.cos(radians(lat2)) * Math.sin(deltaLng / 2) ** 2;
   return 2 * earthRadiusMeters * Math.asin(Math.sqrt(haversine));
-}
-
-function readFreshStudentLocation(position) {
-  const lat = Number(position?.lat);
-  const lng = Number(position?.lng);
-  const accuracy = Number(position?.accuracy);
-  const timestamp = new Date(position?.timestamp || 0).getTime();
-  if (![lat, lng, accuracy, timestamp].every(Number.isFinite) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
-    return { ok: false, error: "A current GPS location is required before checking in." };
-  }
-  if (accuracy <= 0 || accuracy > STUDENT_GPS_MAX_ACCURACY_METERS) {
-    return { ok: false, error: `Phone GPS accuracy must be ${STUDENT_GPS_MAX_ACCURACY_METERS}m or better. Current accuracy: ${Math.round(accuracy)}m.` };
-  }
-  const ageMs = Math.abs(Date.now() - timestamp);
-  if (ageMs > STUDENT_GPS_MAX_AGE_MS) {
-    return { ok: false, error: "Your GPS reading is older than 15 seconds. Wait for a fresh location and try again." };
-  }
-  return { ok: true, location: { lat, lng, accuracy, timestamp }, ageMs };
 }
 
 function validateSessionGeofence(geofence) {
@@ -2670,23 +2649,6 @@ async function saveAttendance(res, record) {
     json(res, 403, { error: "This attendance session is not active." });
     return;
   }
-  const geofenceCheck = validateSessionGeofence(session.geofence);
-  if (!geofenceCheck.ok) {
-    json(res, 403, { error: geofenceCheck.error });
-    return;
-  }
-  const locationCheck = readFreshStudentLocation(record.position);
-  if (!locationCheck.ok) {
-    json(res, 403, { error: locationCheck.error });
-    return;
-  }
-  const insideGeofence = isInsideGeofence(locationCheck.location, geofenceCheck.geofence);
-  const distanceMeters = geofenceCheck.geofence.type === "polygon" ? (insideGeofence ? 0 : Number.NaN) : distanceBetweenCoordinatesMeters(locationCheck.location, geofenceCheck.geofence);
-  if (!insideGeofence) {
-    const distanceLabel = Number.isFinite(distanceMeters) ? `${Math.round(distanceMeters)}m` : "outside the saved building boundary";
-    json(res, 403, { error: `You are ${distanceLabel} from the class location. You must be inside the saved building geofence (${getGeofenceRadius(geofenceCheck.geofence)}m approximate radius).` });
-    return;
-  }
   const isAssisted = record.checkinType === "assisted-student" || record.assisted === true;
   if (isAssisted || record.assistedByRegNumber || record.targetRegNumber) {
     json(res, 403, { error: "Student-assisted check-in is disabled. Each student must check in personally." });
@@ -2770,14 +2732,10 @@ async function saveAttendance(res, record) {
     const scheduledMinutes = classStart && classEnd ? Math.max(0, Math.floor((classEnd - classStart) / 60000)) : 0;
     const minimumPercent = Number(session.minimumDurationPercent || 0);
     const meetsMinimum = !minimumPercent || !scheduledMinutes || durationMinutes >= scheduledMinutes * minimumPercent / 100;
+    const { checkInLocation: _checkInLocation, checkOutLocation: _checkOutLocation, position: _position, gpsVerification: _gpsVerification, checkOutGpsVerification: _checkOutGpsVerification, ...existingWithoutGps } = existing;
     const normalizedRecord = {
-      ...existing,
+      ...existingWithoutGps,
       checkedOutAt,
-      checkOutLocation: { ...locationCheck.location, timestamp: now.getTime() },
-      checkOutGpsVerification: {
-        distanceMeters: Math.round(distanceMeters), radiusMeters: getGeofenceRadius(geofenceCheck.geofence),
-        accuracyMeters: Math.round(locationCheck.location.accuracy), locationAgeMs: locationCheck.ageMs, verifiedAt: checkedOutAt
-      },
       durationMinutes,
       status: meetsMinimum ? "present" : "incomplete",
       savedAt: checkedOutAt
@@ -2791,8 +2749,9 @@ async function saveAttendance(res, record) {
   }
 
   const checkedInAt = now.toISOString();
+  const { position: _position, geofence: _geofence, checkInLocation: _checkInLocation, checkOutLocation: _checkOutLocation, gpsVerification: _gpsVerification, checkOutGpsVerification: _checkOutGpsVerification, ...recordWithoutGps } = record;
   const normalizedRecord = {
-    ...record,
+    ...recordWithoutGps,
     id,
     email,
     sessionId,
@@ -2810,14 +2769,6 @@ async function saveAttendance(res, record) {
     signatureDataUrl: normalizeSignatureDataUrl(record.signatureDataUrl || studentForSignature?.signatureDataUrl || ""),
     signatureStrokes: normalizeSignatureStrokes(record.signatureStrokes || studentForSignature?.signatureStrokes || []),
     status: "incomplete",
-    checkInLocation: { ...locationCheck.location, timestamp: now.getTime() },
-    gpsVerification: {
-      distanceMeters: Math.round(distanceMeters),
-      radiusMeters: getGeofenceRadius(geofenceCheck.geofence),
-      accuracyMeters: Math.round(locationCheck.location.accuracy),
-      locationAgeMs: locationCheck.ageMs,
-      verifiedAt: new Date().toISOString()
-    },
     checkedInAt,
     checkedOutAt: null,
     durationMinutes: null,
@@ -3287,30 +3238,11 @@ function saveAdminLoginAudit(req, res, body) {
 
   fs.mkdirSync(DATA_DIR, { recursive: true });
   const audits = readJsonFile(ADMIN_LOGIN_AUDIT_FILE, []);
-  const gps = body.gps && typeof body.gps === "object" ? {
-    lat: Number(body.gps.lat),
-    lng: Number(body.gps.lng),
-    accuracy: Number(body.gps.accuracy || 0),
-    capturedAt: body.gps.capturedAt || null
-  } : null;
-  const ipLocation = body.ipLocation && typeof body.ipLocation === "object" ? {
-    ip: body.ipLocation.ip || null,
-    city: body.ipLocation.city || null,
-    region: body.ipLocation.region || null,
-    country: body.ipLocation.country || body.ipLocation.country_name || null,
-    lat: body.ipLocation.latitude || body.ipLocation.lat || null,
-    lng: body.ipLocation.longitude || body.ipLocation.lng || null,
-    source: body.ipLocation.source || "ip-lookup"
-  } : null;
-
   const audit = {
     id: `admin-audit-${Date.now()}`,
     email,
     loginTime: new Date().toISOString(),
-    gpsStatus: body.gpsStatus || (gps ? "captured" : "not-captured"),
-    gps,
     ipAddress: getClientIp(req),
-    ipLocation,
     device: {
       userAgent: req.headers["user-agent"] || body.device?.userAgent || "",
       platform: body.device?.platform || "",
