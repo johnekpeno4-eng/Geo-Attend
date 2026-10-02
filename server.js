@@ -1495,8 +1495,8 @@ function appendLog(filePath, message) {
   fs.appendFile(filePath, line, () => {});
 }
 
-function requireDeviceAdmin(req, res) {
-  const actorEmail = new URL(req.url, "http://127.0.0.1").searchParams.get("actorEmail") || "";
+function requireDeviceAdmin(req, res, body = {}) {
+  const actorEmail = body.actorEmail || new URL(req.url, "http://127.0.0.1").searchParams.get("actorEmail") || "";
   const admin = findAdminByIdentifier(actorEmail);
   if (!admin || normalizeAdminRole(admin.adminRole || admin.role) !== "overall_admin") {
     json(res, 403, { error: "Overall Admin access is required to manage fingerprint devices." });
@@ -1535,12 +1535,12 @@ function sessionWindow(session) {
 async function handleFingerprintDeviceApi(req, res, body) {
   const url = new URL(req.url, "http://127.0.0.1");
   if (req.url === "/api/devices" && req.method === "GET") {
-    if (!requireDeviceAdmin(req, res)) return;
+    if (!requireDeviceAdmin(req, res, body)) return;
     const devices = await dbAll("SELECT esp_id AS espId, name, enabled, created_at AS createdAt FROM fingerprint_devices ORDER BY name COLLATE NOCASE");
     json(res, 200, { ok: true, devices }); return;
   }
   if (req.url === "/api/devices" && req.method === "POST") {
-    if (!requireDeviceAdmin(req, res)) return;
+    if (!requireDeviceAdmin(req, res, body)) return;
     const espId = String(body.espId || "").trim();
     const name = String(body.name || espId).trim().slice(0, 80);
     if (!/^[A-Za-z0-9_-]{3,64}$/.test(espId) || !name) { json(res, 400, { error: "Enter a device ID (3–64 letters, numbers, _ or -) and name." }); return; }
@@ -1550,7 +1550,7 @@ async function handleFingerprintDeviceApi(req, res, body) {
     json(res, 201, { ok: true, device: { espId, name }, apiKey }); return;
   }
   if (req.url === "/api/devices/disable" && req.method === "POST") {
-    if (!requireDeviceAdmin(req, res)) return;
+    if (!requireDeviceAdmin(req, res, body)) return;
     await dbRun("UPDATE fingerprint_devices SET enabled = 0 WHERE esp_id = ?", [String(body.espId || "")]);
     json(res, 200, { ok: true }); return;
   }
