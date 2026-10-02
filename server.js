@@ -1159,7 +1159,7 @@ async function readSqliteAttendance() {
   const rows = await dbAll("SELECT attendance_json FROM attendance ORDER BY datetime(checked_in_at) DESC");
   return rows.map((row) => parseJsonColumn(row.attendance_json, null)).filter(Boolean).map((record) => ({
     ...record,
-    status: record.manuallyEditedAt || record.status === "absent" ? record.status : record.checkedOutAt ? record.status : "incomplete"
+    status: ["fingerprint", "phone-token"].includes(record.method) || record.manuallyEditedAt || record.status === "absent" ? record.status : record.checkedOutAt ? record.status : "incomplete"
   }));
 }
 
@@ -1676,10 +1676,11 @@ async function handleFingerprintDeviceApi(req, res, body) {
     if (!session || !["active", "ended"].includes(session.status) || !window || timestamp.getTime() < window.start || timestamp.getTime() > window.end) { await fail(403, "No valid attendance session window."); return; }
     const slot = await dbGet("SELECT s.id, s.full_name, s.reg_number, s.email, s.department_id, s.department_name, s.faculty_id, s.faculty_name, s.level_id, s.level_name FROM fingerprint_slots f JOIN students s ON s.id = f.student_id WHERE f.esp_id = ? AND f.slot_id = ?", [espId, slotId]);
     if (!slot) { await fail(404, "Fingerprint slot is not registered to a student."); return; }
+    if (await dbGet("SELECT id FROM attendance WHERE session_id = ? AND student_id = ?", [sessionId, slot.id])) { json(res, 200, { ok: true, status: "duplicate", student: { name: slot.full_name, matricNo: slot.reg_number } }); return; }
     const rowId = crypto.randomUUID();
     const insert = await dbRun("INSERT OR IGNORE INTO device_attendance (id, esp_id, session_id, student_id, attended_at, method) VALUES (?, ?, ?, ?, ?, 'fingerprint')", [rowId, espId, sessionId, slot.id, timestamp.toISOString()]);
     if (!insert.changes) { json(res, 200, { ok: true, status: "duplicate", student: { name: slot.full_name, matricNo: slot.reg_number } }); return; }
-    const record = { id: rowId, sessionId, studentId: slot.id, email: slot.email, fullName: slot.full_name, regNumber: slot.reg_number, departmentId: slot.department_id, departmentName: slot.department_name, facultyId: slot.faculty_id, facultyName: slot.faculty_name, levelId: slot.level_id, levelName: slot.level_name, status: "present", method: "fingerprint", deviceId: espId, checkedInAt: timestamp.toISOString(), savedAt: attemptedAt, academicSession: session.academicSession || DEFAULT_ACADEMIC_SESSION };
+    const record = { id: rowId, sessionId, course: session.course || "Lecture", studentId: slot.id, email: slot.email, fullName: slot.full_name, regNumber: slot.reg_number, departmentId: slot.department_id, departmentName: slot.department_name, facultyId: slot.faculty_id, facultyName: slot.faculty_name, levelId: slot.level_id, levelName: slot.level_name, status: "present", method: "fingerprint", verificationMethod: "Fingerprint sensor", deviceId: espId, checkedInAt: timestamp.toISOString(), savedAt: attemptedAt, academicSession: session.academicSession || DEFAULT_ACADEMIC_SESSION };
     try {
       const attendance = (await readAttendanceStore()).items;
       await writeAttendanceStore([record, ...attendance]);
@@ -1711,10 +1712,11 @@ async function handleFingerprintDeviceApi(req, res, body) {
       await dbRun("INSERT INTO device_rejected_attempts (esp_id, session_id, slot_id, reason, attempted_at) VALUES (?, ?, NULL, ?, ?)", [espId, sessionId, "Phone scan outside session window.", timestamp.toISOString()]);
       json(res, 403, { ok: false, status: "rejected", reason: "No valid attendance session window." }); return;
     }
+    if (await dbGet("SELECT id FROM attendance WHERE session_id = ? AND student_id = ?", [sessionId, student.id])) { json(res, 200, { ok: true, status: "duplicate", student: { name: student.full_name, matricNo: student.reg_number } }); return; }
     const rowId = crypto.randomUUID();
     const inserted = await dbRun("INSERT OR IGNORE INTO device_attendance (id, esp_id, session_id, student_id, attended_at, method) VALUES (?, ?, ?, ?, ?, 'phone')", [rowId, espId, sessionId, student.id, timestamp.toISOString()]);
     if (!inserted.changes) { json(res, 200, { ok: true, status: "duplicate", student: { name: student.full_name, matricNo: student.reg_number } }); return; }
-    const record = { id: rowId, sessionId, studentId: student.id, email: student.email, fullName: student.full_name, regNumber: student.reg_number, departmentId: student.department_id, departmentName: student.department_name, facultyId: student.faculty_id, facultyName: student.faculty_name, levelId: student.level_id, levelName: student.level_name, status: "present", method: "phone-token", deviceId: espId, checkedInAt: timestamp.toISOString(), savedAt: timestamp.toISOString(), academicSession: session.academicSession || DEFAULT_ACADEMIC_SESSION };
+    const record = { id: rowId, sessionId, course: session.course || "Lecture", studentId: student.id, email: student.email, fullName: student.full_name, regNumber: student.reg_number, departmentId: student.department_id, departmentName: student.department_name, facultyId: student.faculty_id, facultyName: student.faculty_name, levelId: student.level_id, levelName: student.level_name, status: "present", method: "phone-token", verificationMethod: "Phone via attendance Wi-Fi", deviceId: espId, checkedInAt: timestamp.toISOString(), savedAt: timestamp.toISOString(), academicSession: session.academicSession || DEFAULT_ACADEMIC_SESSION };
     try { const attendance = (await readAttendanceStore()).items; await writeAttendanceStore([record, ...attendance]); }
     catch (error) { await dbRun("DELETE FROM device_attendance WHERE id = ?", [rowId]); throw error; }
     json(res, 201, { ok: true, status: "accepted", student: { name: student.full_name, matricNo: student.reg_number } }); return;
@@ -2216,7 +2218,7 @@ function getAttendancePdfPayload(sessionId, academicSession = "") {
   const attendance = readJsonFile(ATTENDANCE_LOG_FILE, [])
     .filter((entry) => entry && (!sessionId || entry.sessionId === sessionId))
     .filter((entry) => !academicSession || (entry.academicSession || DEFAULT_ACADEMIC_SESSION) === academicSession)
-    .map((entry) => ({ ...entry, status: entry.manuallyEditedAt || entry.status === "absent" ? entry.status : entry.checkedOutAt ? entry.status : "incomplete" }))
+    .map((entry) => ({ ...entry, status: ["fingerprint", "phone-token"].includes(entry.method) || entry.manuallyEditedAt || entry.status === "absent" ? entry.status : entry.checkedOutAt ? entry.status : "incomplete" }))
     .sort((a, b) => new Date(a.checkedInAt || 0) - new Date(b.checkedInAt || 0));
   const title = session?.course || attendance[0]?.course || (sessionId ? "Session Attendance Report" : "Attendance Report");
   const fileSafeTitle = title.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase() || "attendance-report";

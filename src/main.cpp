@@ -35,6 +35,7 @@ ESP8266WebServer phoneServer(80);
 Adafruit_SSD1306 display(128, 64, &Wire, -1);
 RTC_DS3231 rtc;
 bool displayReady = false, rtcReady = false, sensorReady = false;
+bool rtcSyncedThisBoot = false;
 String activeSessionId;
 uint16_t lastSeenSlot = 0;
 uint32_t lastPollAt = 0, lastEnrollPollAt = 0, lastQueueAt = 0, lastMatchAt = 0;
@@ -318,7 +319,7 @@ void setup() {
   LittleFS.begin();
   sensorSerial.begin(SENSOR_BAUD); finger.begin(SENSOR_BAUD); sensorReady = finger.verifyPassword();
   if (USE_OLED) { Wire.begin(12, 14); displayReady = display.begin(SSD1306_SWITCHCAPVCC, 0x3C); }
-  if (USE_RTC && rtc.begin()) { rtcReady = true; if (rtc.lostPower()) rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); }
+  if (USE_RTC && rtc.begin()) { rtcReady = true; if (rtc.lostPower()) screen("RTC RESET", "waiting for NTP"); }
   WiFi.mode(WIFI_AP_STA);
   WiFi.begin(ROUTER_SSID, ROUTER_PASSWORD);
   // In ESP8266 AP+STA mode the AP must share the station radio channel; the SDK moves the AP to the router's channel after STA association.
@@ -335,6 +336,8 @@ void setup() {
 
 void loop() {
   phoneServer.handleClient();
+  const time_t clockNow = time(nullptr);
+  if (rtcReady && !rtcSyncedThisBoot && clockNow > 1700000000) { rtc.adjust(DateTime(static_cast<uint32_t>(clockNow))); rtcSyncedThisBoot = true; }
   if (WiFi.status() == WL_CONNECTED && millis() - lastPollAt >= POLL_MS) { lastPollAt = millis(); updateSession(); }
   pollEnrollment();
   pollCommands();
