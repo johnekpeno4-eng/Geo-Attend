@@ -51,6 +51,7 @@ function getDefaultAcademicSession(date = new Date()) {
   return `${year}/${year + 1}`;
 }
 const DEFAULT_ACADEMIC_SESSION = getDefaultAcademicSession();
+const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET || crypto.randomBytes(32).toString("hex");
 let mailTransporter = null;
 let sqliteDb = null;
 
@@ -1515,14 +1516,37 @@ function appendLog(filePath, message) {
   fs.appendFile(filePath, line, () => {});
 }
 
-function requireDeviceAdmin(req, res, body = {}) {
-  const actorEmail = body.actorEmail || new URL(req.url, "http://127.0.0.1").searchParams.get("actorEmail") || "";
-  const admin = findAdminByIdentifier(actorEmail);
+function requireDeviceAdmin(req, res) {
+  const auth = String(req.headers.authorization || "");
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  const admin = verifyAdminApiToken(token);
   if (!admin || normalizeAdminRole(admin.adminRole || admin.role) !== "overall_admin") {
-    json(res, 403, { error: "Overall Admin access is required to manage fingerprint devices." });
+    json(res, 401, { error: "Sign in again as Overall Admin to manage fingerprint devices." });
     return null;
   }
   return admin;
+}
+
+function createAdminApiToken(admin) {
+  const now = Math.floor(Date.now() / 1000);
+  const encode = (value) => Buffer.from(JSON.stringify(value)).toString("base64url");
+  const unsigned = `${encode({ alg: "HS256", typ: "JWT" })}.${encode({ sub: admin.email, role: normalizeAdminRole(admin.adminRole || admin.role), iat: now, exp: now + 8 * 60 * 60 })}`;
+  const signature = crypto.createHmac("sha256", ADMIN_JWT_SECRET).update(unsigned).digest("base64url");
+  return `${unsigned}.${signature}`;
+}
+
+function verifyAdminApiToken(token) {
+  const parts = String(token || "").split(".");
+  if (parts.length !== 3) return null;
+  const unsigned = `${parts[0]}.${parts[1]}`;
+  const expected = crypto.createHmac("sha256", ADMIN_JWT_SECRET).update(unsigned).digest("base64url");
+  if (!timingSafeTextEqual(expected, parts[2])) return null;
+  try {
+    const claims = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+    if (!claims.sub || !Number.isFinite(claims.exp) || claims.exp <= Date.now() / 1000) return null;
+    const admin = findAdminByIdentifier(claims.sub);
+    return admin && normalizeAdminRole(admin.adminRole || admin.role) === claims.role ? admin : null;
+  } catch { return null; }
 }
 
 function timingSafeTextEqual(left, right) {
