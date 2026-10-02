@@ -37,6 +37,7 @@ const A4_PDF_HEIGHT = 841.89;
 const otpStore = new Map();
 const otpAttemptStore = new Map();
 const loginAttemptStore = new Map();
+const fingerprintDeviceRateLimitStore = new Map();
 const totpSetupStore = new Map();
 const webAuthnChallengeStore = new Map();
 const attendanceAuthorizationStore = new Map();
@@ -312,7 +313,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "POST" && req.url === "/api/student-device/bind") {
       const body = await readJson(req);
-      if (!await authenticateFingerprintDevice(req, String(body.espId || ""))) { json(res, 401, { error: "Invalid or disabled device credentials." }); return; }
+      if (!await authenticateFingerprintDevice(req, String(body.espId || ""))) { deviceAuthFailure(req, res); return; }
       await bindStudentDevice(res, body);
       return;
     }
@@ -1566,7 +1567,14 @@ async function authenticateFingerprintDevice(req, espId) {
   if (!device) return null;
   const supplied = String(req.headers["x-device-key"] || "");
   const suppliedHash = crypto.createHash("sha256").update(supplied).digest("hex");
-  return timingSafeTextEqual(suppliedHash, device.api_key_hash) ? device : null;
+  if (!timingSafeTextEqual(suppliedHash, device.api_key_hash)) return null;
+  const ip = String(req.socket?.remoteAddress || "unknown").slice(0, 64);
+  if (isRateLimited(fingerprintDeviceRateLimitStore, `${espId}:${ip}`, 120, 60 * 1000)) { req.deviceRateLimited = true; return null; }
+  return device;
+}
+
+function deviceAuthFailure(req, res) {
+  json(res, req.deviceRateLimited ? 429 : 401, { error: req.deviceRateLimited ? "Device request rate limit exceeded." : "Invalid or disabled device credentials." });
 }
 
 function sessionWindow(session) {
@@ -1637,13 +1645,14 @@ async function handleFingerprintDeviceApi(req, res, body) {
     for (const item of assigned) await dbRun("INSERT INTO fingerprint_device_commands (id, esp_id, command, slot_id, status, created_at, updated_at) VALUES (?, ?, 'delete-slot', ?, 'pending', ?, ?)", [crypto.randomUUID(), item.esp_id, item.slot_id, now, now]);
     await dbRun("DELETE FROM fingerprint_slots WHERE student_id = ?", [studentId]);
     await dbRun("DELETE FROM fingerprint_enrollments WHERE student_id = ?", [studentId]);
+    await dbRun("DELETE FROM fingerprint_templates WHERE student_id = ?", [studentId]);
     await dbRun("DELETE FROM biometric_profiles WHERE email = (SELECT email FROM students WHERE id = ?)", [studentId]);
     await dbRun("DELETE FROM webauthn_credentials WHERE student_id = ?", [studentId]);
     json(res, 200, { ok: true, pendingSensorDeletes: assigned.length, message: "Server-side fingerprint mapping, stored biometric profile, and passkey credentials deleted. The sensor will clear enrolled templates the next time it connects." }); return;
   }
   if (url.pathname === "/api/device/session" && req.method === "GET") {
     const espId = url.searchParams.get("espId") || "";
-    if (!await authenticateFingerprintDevice(req, espId)) { json(res, 401, { error: "Invalid or disabled device credentials." }); return; }
+    if (!await authenticateFingerprintDevice(req, espId)) { deviceAuthFailure(req, res); return; }
     const { items } = await readLiveSessionsStore();
     const dateParts = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
     const today = `${dateParts.find((part) => part.type === "year")?.value}-${dateParts.find((part) => part.type === "month")?.value}-${dateParts.find((part) => part.type === "day")?.value}`;
@@ -1653,7 +1662,7 @@ async function handleFingerprintDeviceApi(req, res, body) {
   }
   if (url.pathname === "/api/device/enrollment" && req.method === "GET") {
     const espId = url.searchParams.get("espId") || "";
-    if (!await authenticateFingerprintDevice(req, espId)) { json(res, 401, { error: "Invalid or disabled device credentials." }); return; }
+    if (!await authenticateFingerprintDevice(req, espId)) { deviceAuthFailure(req, res); return; }
     const enrollment = await dbGet(`SELECT e.id, e.slot_id AS slotId, s.id AS studentId, s.full_name AS name, s.reg_number AS matricNo
       FROM fingerprint_enrollments e JOIN students s ON s.id = e.student_id
       WHERE e.esp_id = ? AND e.status = 'pending' ORDER BY e.created_at LIMIT 1`, [espId]);
@@ -1661,20 +1670,20 @@ async function handleFingerprintDeviceApi(req, res, body) {
   }
   if (url.pathname === "/api/device/commands" && req.method === "GET") {
     const espId = url.searchParams.get("espId") || "";
-    if (!await authenticateFingerprintDevice(req, espId)) { json(res, 401, { error: "Invalid or disabled device credentials." }); return; }
+    if (!await authenticateFingerprintDevice(req, espId)) { deviceAuthFailure(req, res); return; }
     const command = await dbGet("SELECT id, command, slot_id AS slotId FROM fingerprint_device_commands WHERE esp_id = ? AND status = 'pending' ORDER BY created_at LIMIT 1", [espId]);
     json(res, 200, { ok: true, command: command || null }); return;
   }
   if (url.pathname === "/api/device/commands/result" && req.method === "POST") {
     const espId = String(body.espId || "");
-    if (!await authenticateFingerprintDevice(req, espId)) { json(res, 401, { error: "Invalid or disabled device credentials." }); return; }
+    if (!await authenticateFingerprintDevice(req, espId)) { deviceAuthFailure(req, res); return; }
     const now = new Date().toISOString();
     const result = await dbRun("UPDATE fingerprint_device_commands SET status = ?, updated_at = ? WHERE id = ? AND esp_id = ? AND status = 'pending'", [body.ok === true ? "complete" : "failed", now, String(body.commandId || ""), espId]);
     json(res, result.changes ? 200 : 404, { ok: Boolean(result.changes) }); return;
   }
   if (url.pathname === "/api/device/enrollment/result" && req.method === "POST") {
     const espId = String(body.espId || "");
-    if (!await authenticateFingerprintDevice(req, espId)) { json(res, 401, { error: "Invalid or disabled device credentials." }); return; }
+    if (!await authenticateFingerprintDevice(req, espId)) { deviceAuthFailure(req, res); return; }
     const enrollment = await dbGet("SELECT * FROM fingerprint_enrollments WHERE id = ? AND esp_id = ? AND status = 'pending'", [String(body.enrollmentId || ""), espId]);
     if (!enrollment) { json(res, 404, { error: "Enrollment request was not found or has expired." }); return; }
     if (body.ok === true) {
@@ -1690,7 +1699,7 @@ async function handleFingerprintDeviceApi(req, res, body) {
   if (url.pathname === "/api/device/checkin" && req.method === "POST") {
     const espId = String(body.espId || "");
     const device = await authenticateFingerprintDevice(req, espId);
-    if (!device) { json(res, 401, { error: "Invalid or disabled device credentials." }); return; }
+    if (!device) { deviceAuthFailure(req, res); return; }
     const attemptedAt = new Date().toISOString();
     const sessionId = String(body.sessionId || "");
     const slotId = Number(body.slotId);
@@ -1722,7 +1731,7 @@ async function handleFingerprintDeviceApi(req, res, body) {
   }
   if (url.pathname === "/api/device/phone-checkin" && req.method === "POST") {
     const espId = String(body.espId || "");
-    if (!await authenticateFingerprintDevice(req, espId)) { json(res, 401, { error: "Invalid or disabled device credentials." }); return; }
+    if (!await authenticateFingerprintDevice(req, espId)) { deviceAuthFailure(req, res); return; }
     const email = String(body.email || "").trim().toLowerCase();
     const student = await dbGet("SELECT s.* FROM students s JOIN student_device_bindings b ON b.student_id = s.id WHERE s.email = ? COLLATE NOCASE AND b.device_id = ?", [email, String(body.deviceId || "")]);
     const suppliedSlot = Number(body.timeSlot);
