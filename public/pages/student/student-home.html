@@ -127,10 +127,10 @@
       color: #eaf1ff !important;
     }
   </style>
-  <link rel="stylesheet" href="mobile-student.css?v=20260924-mobilefix" />
+  <link rel="stylesheet" href="mobile-student.css?v=20261002-camera-checkin" />
 </head>
 <body class="bg-background text-on-background min-h-screen" data-role-required="student">
-  <script src="role-access.js?v=20260924-loginfix"></script>
+  <script src="role-access.js?v=20261002-camera-checkin"></script>
   <header class="bg-background border-b border-outline-variant flex justify-between items-center w-full px-4 py-2 fixed top-0 z-50 h-14">
     <a class="text-xl font-bold text-primary" href="student-home.html">GeoAttend</a>
     <a class="flex items-center gap-2 rounded-full px-2 py-1" href="student-profile.html" aria-label="Account">
@@ -258,7 +258,7 @@
           <div class="min-w-0">
             <p class="text-xs uppercase tracking-wider text-on-surface-variant font-semibold">Check In</p>
             <h3 class="text-xl font-bold text-on-surface mt-1" id="checkin-modal-session-name">Select a class</h3>
-            <p class="text-sm text-on-surface-variant mt-1" id="checkin-modal-session-meta">Confirm your fingerprint to continue.</p>
+            <p class="text-sm text-on-surface-variant mt-1" id="checkin-modal-session-meta">Scan your fingertip with the rear camera to check in.</p>
           </div>
           <button class="p-2 rounded-full hover:bg-surface-container-low" type="button" data-dismiss-checkin aria-label="Close check-in dialog">
             <span class="material-symbols-outlined">close</span>
@@ -273,7 +273,7 @@
             <video class="hidden mt-3 w-full rounded-xl bg-black object-cover" id="checkin-fingerprint-video" playsinline muted></video>
             <canvas class="hidden" id="checkin-fingerprint-canvas"></canvas>
             <div class="grid gap-3 mt-3">
-              <button class="w-full rounded-xl bg-secondary text-on-primary p-4 font-bold" type="button" id="checkin-option"><span class="material-symbols-outlined align-middle">fingerprint</span> Scan fingertip to check in</button>
+              <button class="w-full rounded-xl bg-secondary text-on-primary p-4 font-bold" type="button" id="checkin-option"><span class="material-symbols-outlined align-middle">photo_camera</span> Scan fingertip with camera</button>
             </div>
           </div>
 
@@ -454,8 +454,8 @@
         checkinButton.textContent = ready ? (action === "check-out" ? "Check Out" : "Check In") : activeSession ? "Attendance unavailable" : "Waiting for a live class";
       }
       if (actionTitle) actionTitle.textContent = ready ? (action === "check-out" ? "Check out now" : "Check in now") : "View active classes";
-      if (actionHelper) actionHelper.textContent = ready ? `Confirm your fingerprint to ${action === "check-out" ? "check out" : "check in"}` : "Fingerprint verification is required for attendance";
-      if (actionIcon) actionIcon.textContent = ready ? "fingerprint" : "event_available";
+      if (actionHelper) actionHelper.textContent = ready ? (action === "check-out" ? "Verify to check out" : "Scan fingertip with the rear camera") : "Camera fingerprint scan required for check-in";
+      if (actionIcon) actionIcon.textContent = ready ? (action === "check-out" ? "logout" : "photo_camera") : "event_available";
     }
     function renderRecentCheckins() {}
     function flashButtonFeedback(button, text) {
@@ -485,12 +485,6 @@
       clearCheckinMessage();
       checkinInProgress = false;
     }
-    function decodeBase64Url(value) {
-      const text = String(value || "");
-      const padded = text.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(text.length / 4) * 4, "=");
-      const binary = atob(padded);
-      return Uint8Array.from(binary, (character) => character.charCodeAt(0)).buffer;
-    }
     function encodeBase64Url(value) {
       const bytes = new Uint8Array(value);
       let binary = "";
@@ -498,30 +492,23 @@
       return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
     }
     function prepareAuthenticationOptions(options) {
-      return {
-        ...options,
-        challenge: decodeBase64Url(options.challenge),
-        allowCredentials: (options.allowCredentials || []).map((item) => ({ ...item, id: decodeBase64Url(item.id) }))
-      };
+      const text = String(options.challenge || "");
+      const padded = text.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(text.length / 4) * 4, "=");
+      const binary = atob(padded);
+      return { ...options, challenge: Uint8Array.from(binary, (character) => character.charCodeAt(0)).buffer,
+        allowCredentials: (options.allowCredentials || []).map((item) => {
+          const encoded = String(item.id || "");
+          const value = atob(encoded.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(encoded.length / 4) * 4, "="));
+          return { ...item, id: Uint8Array.from(value, (character) => character.charCodeAt(0)).buffer };
+        }) };
     }
     function serializeAuthenticationResponse(credential) {
-      return {
-        id: credential.id,
-        rawId: encodeBase64Url(credential.rawId),
-        type: credential.type,
-        response: {
-          authenticatorData: encodeBase64Url(credential.response.authenticatorData),
-          clientDataJSON: encodeBase64Url(credential.response.clientDataJSON),
-          signature: encodeBase64Url(credential.response.signature),
-          userHandle: credential.response.userHandle ? encodeBase64Url(credential.response.userHandle) : null
-        }
-      };
+      return { id: credential.id, rawId: encodeBase64Url(credential.rawId), type: credential.type,
+        response: { authenticatorData: encodeBase64Url(credential.response.authenticatorData), clientDataJSON: encodeBase64Url(credential.response.clientDataJSON), signature: encodeBase64Url(credential.response.signature), userHandle: credential.response.userHandle ? encodeBase64Url(credential.response.userHandle) : null } };
     }
-    async function verifyFingerprintAndCheckIn() {
-      if (checkinInProgress || !selectedCheckinSession) return;
-      if (selectedAttendanceAction === "check-in") return verifyCameraFingerprintAndCheckIn();
+    async function verifyFingerprintAndCheckOut() {
       if (!window.isSecureContext || !navigator.credentials?.get) {
-        setCheckinMessage("Fingerprint check-in requires the HTTPS GeoAttend address.", true);
+        setCheckinMessage("Device verification for check-out requires the HTTPS GeoAttend address.", true);
         return;
       }
       checkinInProgress = true;
@@ -531,7 +518,7 @@
         const credential = await navigator.credentials.get({ publicKey: prepareAuthenticationOptions(optionsData.options) });
         if (!credential) throw new Error("Fingerprint verification was cancelled.");
         const verified = await postJson("/api/webauthn/login-verify", { email, challengeId: optionsData.challengeId, response: serializeAuthenticationResponse(credential) });
-        await showSuccess(verified.checkinToken);
+        await completeCheckOut(verified.checkinToken);
         closeCheckinModal();
       } catch (error) {
         const detail = String(error?.message || "").toLowerCase();
@@ -640,18 +627,21 @@
     }
     function setupCheckinModal() {
       document.querySelectorAll("[data-dismiss-checkin]").forEach((button) => button.addEventListener("click", closeCheckinModal));
-      document.getElementById("checkin-option")?.addEventListener("click", verifyFingerprintAndCheckIn);
+      document.getElementById("checkin-option")?.addEventListener("click", () => {
+        if (selectedAttendanceAction === "check-in") verifyCameraFingerprintAndCheckIn();
+        else verifyFingerprintAndCheckOut();
+      });
     }
 
     function openCheckinModal(sessionId) {
       const session = getLiveSessions().find((item) => item.id === sessionId);
-      if (!session) return;
+      if (!session) return false;
       const existing = getExistingCheckin(session.id);
       if (!existing && !isSessionStarted(session)) {
         setCheckinMessage(getSessionStartMessage(session), true);
-        return;
+        return false;
       }
-      if (existing?.checkedOutAt) { alert(`This session is complete. You checked in at ${formatDateTime(existing.checkedInAt)} and checked out at ${formatDateTime(existing.checkedOutAt)}.`); return; }
+      if (existing?.checkedOutAt) { alert(`This session is complete. You checked in at ${formatDateTime(existing.checkedInAt)} and checked out at ${formatDateTime(existing.checkedOutAt)}.`); return false; }
       syncActiveSession(session);
       selectedCheckinSession = session;
       selectedAttendanceAction = existing ? "check-out" : "check-in";
@@ -665,8 +655,8 @@
       resetCheckinModal();
       selectedCheckinSession = session;
       if (methodButton) methodButton.innerHTML = selectedAttendanceAction === "check-in"
-        ? '<span class="material-symbols-outlined align-middle">fingerprint</span> Scan fingertip with camera'
-        : '<span class="material-symbols-outlined align-middle">fingerprint</span> Verify to check out';
+        ? '<span class="material-symbols-outlined align-middle">photo_camera</span> Scan fingertip with camera'
+        : '<span class="material-symbols-outlined align-middle">logout</span> Verify to check out';
       if (modalHeading) modalHeading.textContent = existing ? "Check Out" : "Check In";
       if (sessionMeta) {
         const locationLabel = session.locationName || session.geofence?.name || "Selected location";
@@ -677,6 +667,20 @@
       modal?.classList.remove("hidden");
       modal?.classList.add("flex");
       modal?.setAttribute("aria-hidden", "false");
+      return true;
+    }
+
+    function startAttendanceAction(sessionId) {
+      if (!openCheckinModal(sessionId) || selectedAttendanceAction !== "check-in") return;
+      const tokenInput = document.getElementById("checkin-hotspot-token");
+      const hotspotToken = tokenInput?.value.trim() || window.prompt("Enter the hotspot token provided by your lecturer:")?.trim() || "";
+      if (!hotspotToken) {
+        setCheckinMessage("Enter the hotspot token provided by your lecturer to start the camera scan.", true);
+        tokenInput?.focus();
+        return;
+      }
+      if (tokenInput) tokenInput.value = hotspotToken;
+      verifyCameraFingerprintAndCheckIn();
     }
 
     function closeCheckinModal() {
@@ -759,7 +763,7 @@
       grid.querySelectorAll("[data-open-checkin]").forEach((button) => {
         button.addEventListener("click", () => {
           const session = liveSessions.find((item) => item.id === button.dataset.openCheckin);
-          if (session) openCheckinModal(session.id);
+          if (session) startAttendanceAction(session.id);
         });
       });
     }
@@ -772,102 +776,25 @@
       if (title) title.textContent = session.course || "Attendance workflow";
     }
 
-    function completeStep(stepNum) {
-      if (!checkinToken) {
-        throw new Error("Fingerprint verification is required before attendance check-in.");
-      }
-
-      const currentStep = document.getElementById(`step-${stepNum}`);
-      const nextStep = document.getElementById(`step-${stepNum + 1}`);
-      if (!currentStep || !nextStep) return;
-
-      transition(currentStep, nextStep);
-    }
-
-    async function showSuccess(checkinToken) {
-      if (!checkinToken) {
-        throw new Error("Fingerprint verification is required before attendance check-in.");
-      }
+    async function completeCheckOut(checkinToken) {
       const session = activeSession || {
         id: "default-session",
         course: "Active Class"
       };
       const allAttendance = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]");
-      if (selectedAttendanceAction === "check-out") {
-        const existing = getExistingCheckin(session.id);
-        if (!existing || existing.checkedOutAt) throw new Error("Check-out is unavailable for this session.");
-        const result = await postJson("/api/attendance", {
-          action: "check-out", sessionId: session.id, email, regNumber: existing.regNumber, checkinToken
-        });
-        const updated = result.record;
-        const index = allAttendance.findIndex((item) => item.id === updated.id);
-        if (index >= 0) allAttendance[index] = updated;
-        else allAttendance.push(updated);
-        localStorage.setItem("geoAttendAttendanceLog", JSON.stringify(allAttendance));
-        attendanceLogs = allAttendance.filter((item) => !email || item.email === email);
-        window.alert(`Checked out at ${formatDateTime(updated.checkedOutAt)}. Elapsed ${updated.durationMinutes} minutes. Status: ${updated.status}.`);
-        updateSummary(); updateTodayStatus(); updateSession(); renderActiveClasses();
-        return;
-      }
-      const accounts = JSON.parse(localStorage.getItem("geoAttendAccounts") || "[]");
-      const account = accounts.find((savedAccount) => savedAccount.email === email);
-      const checkedInAt = new Date();
-      const displayName = account?.fullName || (isAdminUser ? `Admin ${email}` : email || "Unknown Student");
-      const displayRegNumber = account?.regNumber || (isAdminUser ? "ADMIN" : "--");
-      const record = {
-        email,
-        fullName: displayName,
-        regNumber: displayRegNumber,
-        signature: displayName,
-        signatureDataUrl: account?.signatureDataUrl || "",
-        signatureStrokes: Array.isArray(account?.signatureStrokes) ? account.signatureStrokes : [],
-        attendeeRole: isAdminUser ? "admin" : "student",
-        sessionId: session.id || "default-session",
-        course: session.course || "Active Class",
-        checkedInAt: checkedInAt.toISOString(),
-        checkinToken,
-        action: "check-in",
-        status: "incomplete",
-      };
-
-      try { await postJson("/api/attendance", record); } catch (error) { throw error; }
-      allAttendance.push(record);
+      const existing = getExistingCheckin(session.id);
+      if (!existing || existing.checkedOutAt) throw new Error("Check-out is unavailable for this session.");
+      const result = await postJson("/api/attendance", {
+        action: "check-out", sessionId: session.id, email, regNumber: existing.regNumber, checkinToken
+      });
+      const updated = result.record;
+      const index = allAttendance.findIndex((item) => item.id === updated.id);
+      if (index >= 0) allAttendance[index] = updated;
+      else allAttendance.push(updated);
       localStorage.setItem("geoAttendAttendanceLog", JSON.stringify(allAttendance));
-      attendanceLogs.push(record);
-
-      const successMessage = document.getElementById("checkin-success-message");
-      if (successMessage) {
-        successMessage.textContent = `Your attendance for ${record.course} has been securely logged at ${checkedInAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`;
-      }
-
-      const actionLink = document.getElementById("primary-action-link");
-      const actionTitle = document.getElementById("primary-action-title");
-      const actionHelper = document.getElementById("primary-action-helper");
-      const actionIcon = document.getElementById("primary-action-icon");
-      if (actionLink) actionLink.href = "#active-classes";
-      if (actionTitle) actionTitle.textContent = "View active classes";
-      if (actionHelper) actionHelper.textContent = "Tap a live class, then verify your fingerprint";
-      if (actionIcon) actionIcon.textContent = "event_available";
-
-      updateSummary();
-      updateTodayStatus();
-      updateSession();
-      renderRecentCheckins();
-      transition(document.getElementById("step-3"), document.getElementById("success-state"));
-    }
-
-    function transition(from, to) {
-      if (!from || !to) return;
-      from.classList.add("opacity-0", "transition-opacity", "duration-300");
-      setTimeout(() => {
-        from.classList.add("hidden-step");
-        to.classList.remove("hidden-step");
-        to.classList.add("opacity-0");
-        setTimeout(() => {
-          to.classList.remove("opacity-0");
-          to.classList.add("opacity-100", "transition-opacity", "duration-500");
-        }, 50);
-      }, 300);
+      attendanceLogs = allAttendance.filter((item) => !email || item.email === email);
+      window.alert(`Checked out at ${formatDateTime(updated.checkedOutAt)}. Elapsed ${updated.durationMinutes} minutes. Status: ${updated.status}.`);
+      updateSummary(); updateTodayStatus(); updateSession(); renderActiveClasses();
     }
 
     document.getElementById("student-email").textContent = email;
@@ -881,14 +808,14 @@
     document.getElementById("student-checkin-button")?.addEventListener("click", () => {
       const session = syncActiveSession();
       if (session && isSessionStarted(session)) {
-        openCheckinModal(session.id);
+        startAttendanceAction(session.id);
       }
     });
     document.getElementById("primary-action-link")?.addEventListener("click", (event) => {
       const session = getLiveSessions()[0];
       if (!session || !isSessionStarted(session)) return;
       event.preventDefault();
-      openCheckinModal(session.id);
+      startAttendanceAction(session.id);
     });
     refreshLiveSessionsFromServer();
     setInterval(refreshLiveSessionsFromServer, 5000);

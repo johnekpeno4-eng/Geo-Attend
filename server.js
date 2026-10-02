@@ -2043,6 +2043,7 @@ async function removeWebAuthnCredential(res, body) {
 }
 
 async function getWebAuthnLoginOptions(req, res, body) {
+  if (body.purpose === "attendance" && body.action !== "check-out") return json(res, 400, { error: "Student check-in uses the rear camera scan." });
   const context = getWebAuthnContext(req);
   const conditional = body.mediation === "conditional";
   const row = conditional ? null : await findWebAuthnStudent(body.email || body.regNumber);
@@ -2079,7 +2080,7 @@ async function verifyWebAuthnLogin(req, res, body) {
     await dbRun("UPDATE webauthn_credentials SET sign_count = ? WHERE id = ?", [newCounter, stored.id]);
     webAuthnChallengeStore.delete(key);
     let checkinToken = null;
-    if (saved.purpose === "attendance" && saved.sessionId) {
+    if (saved.purpose === "attendance" && saved.action === "check-out" && saved.sessionId) {
       checkinToken = crypto.randomBytes(32).toString("base64url");
       attendanceAuthorizationStore.set(checkinToken, { email, sessionId: saved.sessionId, action: saved.action || "check-in", expiresAt: Date.now() + 2 * 60 * 1000 });
     }
