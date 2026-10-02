@@ -311,6 +311,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "POST" && req.url === "/api/student-device/bind") {
       const body = await readJson(req);
+      if (!await authenticateFingerprintDevice(req, String(body.espId || ""))) { json(res, 401, { error: "Invalid or disabled device credentials." }); return; }
       await bindStudentDevice(res, body);
       return;
     }
@@ -1672,11 +1673,17 @@ async function handleFingerprintDeviceApi(req, res, body) {
     const message = `${sessionId}|${suppliedSlot}`;
     const expected = secret ? crypto.createHmac("sha256", secret).update(message).digest("hex").slice(0, 8) : "";
     const currentSlot = Math.floor(Date.now() / 30000);
-    if (!student || !secret || !timingSafeTextEqual(expected, String(body.token || "").toLowerCase()) || ![currentSlot, currentSlot - 1].includes(suppliedSlot)) { json(res, 401, { ok: false, status: "rejected", reason: "Invalid token or phone is not bound to this student." }); return; }
+    if (!student || !secret || !timingSafeTextEqual(expected, String(body.token || "").toLowerCase()) || ![currentSlot, currentSlot - 1].includes(suppliedSlot)) {
+      await dbRun("INSERT INTO device_rejected_attempts (esp_id, session_id, slot_id, reason, attempted_at) VALUES (?, ?, NULL, ?, ?)", [espId, sessionId, "Invalid phone token or unbound phone.", new Date().toISOString()]);
+      json(res, 401, { ok: false, status: "rejected", reason: "Invalid token or phone is not bound to this student." }); return;
+    }
     const session = (await readLiveSessionsStore()).items.find((item) => item.id === sessionId && item.status === "active");
     const window = sessionWindow(session);
     const timestamp = new Date();
-    if (!window || timestamp.getTime() < window.start || timestamp.getTime() > window.end) { json(res, 403, { ok: false, status: "rejected", reason: "No valid attendance session window." }); return; }
+    if (!window || timestamp.getTime() < window.start || timestamp.getTime() > window.end) {
+      await dbRun("INSERT INTO device_rejected_attempts (esp_id, session_id, slot_id, reason, attempted_at) VALUES (?, ?, NULL, ?, ?)", [espId, sessionId, "Phone scan outside session window.", timestamp.toISOString()]);
+      json(res, 403, { ok: false, status: "rejected", reason: "No valid attendance session window." }); return;
+    }
     const rowId = crypto.randomUUID();
     const inserted = await dbRun("INSERT OR IGNORE INTO device_attendance (id, esp_id, session_id, student_id, attended_at, method) VALUES (?, ?, ?, ?, ?, 'phone')", [rowId, espId, sessionId, student.id, timestamp.toISOString()]);
     if (!inserted.changes) { json(res, 200, { ok: true, status: "duplicate", student: { name: student.full_name, matricNo: student.reg_number } }); return; }
@@ -1692,7 +1699,7 @@ async function bindStudentDevice(res, body) {
   const email = String(body.email || "").trim().toLowerCase();
   const password = String(body.password || "");
   const deviceId = String(body.deviceId || "").trim();
-  if (!email || password.length < 1 || !/^[A-Za-z0-0_-]{8,100}$/.test(deviceId)) { json(res, 400, { error: "Enter your account login and a phone device ID (8–100 letters/numbers)." }); return; }
+  if (!email || password.length < 1 || !/^[A-Za-z0-9_-]{8,100}$/.test(deviceId)) { json(res, 400, { error: "Enter your account login and a phone device ID (8–100 letters/numbers)." }); return; }
   const key = `bind-device:${email}`;
   if (isRateLimited(loginAttemptStore, key, 5, 10 * 60 * 1000)) { json(res, 429, { error: "Too many attempts. Try again later." }); return; }
   const row = await dbGet("SELECT * FROM students WHERE email = ? COLLATE NOCASE LIMIT 1", [email]);
