@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fingerprint devices | GeoAttend</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="role-access.js" defer></script>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-900" data-role-required="admin">
+  <main class="mx-auto max-w-5xl space-y-6 p-5 md:p-8">
+    <header class="flex items-center justify-between gap-4"><div><p class="text-sm font-bold uppercase tracking-widest text-blue-700">GeoAttend admin</p><h1 class="text-3xl font-extrabold">Fingerprint devices</h1><p class="mt-1 text-slate-600">Register ESP units and enroll student fingerprint slots.</p></div><a class="rounded-lg border bg-white px-4 py-2 font-bold" href="dashboard.html">Dashboard</a></header>
+    <p id="message" class="hidden rounded-lg p-3 text-sm font-semibold" role="status"></p>
+    <section class="grid gap-5 md:grid-cols-2">
+      <form id="device-form" class="space-y-3 rounded-xl border bg-white p-5 shadow-sm"><h2 class="text-xl font-bold">Register / rotate device key</h2><label class="block text-sm font-semibold">ESP ID<input id="esp-id" required pattern="[A-Za-z0-9_-]{3,64}" class="mt-1 w-full rounded-lg border p-3" placeholder="lecture-room-1" /></label><label class="block text-sm font-semibold">Device name<input id="device-name" required class="mt-1 w-full rounded-lg border p-3" placeholder="Lecture Room 1" /></label><button class="rounded-lg bg-blue-700 px-4 py-3 font-bold text-white">Create device key</button><div id="key-result" class="hidden break-all rounded-lg bg-amber-50 p-3 text-sm"></div></form>
+      <form id="enroll-form" class="space-y-3 rounded-xl border bg-white p-5 shadow-sm"><h2 class="text-xl font-bold">Enroll student</h2><label class="block text-sm font-semibold">ESP device<select id="device-select" required class="mt-1 w-full rounded-lg border p-3"></select></label><label class="block text-sm font-semibold">Student<select id="student-select" required class="mt-1 w-full rounded-lg border p-3"></select></label><button class="rounded-lg bg-blue-700 px-4 py-3 font-bold text-white">Queue fingerprint enrollment</button><p class="text-xs text-slate-500">The student must place the same finger twice when the ESP signals enrollment.</p></form>
+    </section>
+    <section class="rounded-xl border bg-white p-5 shadow-sm"><div class="flex items-center justify-between gap-3"><h2 class="text-xl font-bold">Devices and assigned slots</h2><button id="refresh" class="rounded-lg border px-4 py-2 font-bold">Refresh</button></div><div id="device-list" class="mt-4 space-y-4"></div></section>
+  </main>
+  <script>
+    const adminEmail = localStorage.getItem("geoAttendAdminEmail") || "";
+    const msg = document.getElementById("message");
+    const api = async (url, options = {}) => {
+      const response = await fetch(url, { ...options, headers: { "Content-Type": "application/json", ...(options.headers || {}) } });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Request failed.");
+      return result;
+    };
+    const post = (url, values) => api(url, { method: "POST", body: JSON.stringify({ ...values, actorEmail: adminEmail }) });
+    const show = (text, error = false) => { msg.textContent = text; msg.className = `rounded-lg p-3 text-sm font-semibold ${error ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"}`; };
+    const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
+    async function load() {
+      try {
+        const [deviceData, roster, assignment] = await Promise.all([
+          api(`/api/devices?actorEmail=${encodeURIComponent(adminEmail)}`),
+          api(`/api/students?actorEmail=${encodeURIComponent(adminEmail)}`),
+          api(`/api/devices/enrollments?actorEmail=${encodeURIComponent(adminEmail)}`)
+        ]);
+        const enabled = deviceData.devices.filter((item) => item.enabled);
+        document.getElementById("device-select").innerHTML = enabled.map((item) => `<option value="${escapeHtml(item.espId)}">${escapeHtml(item.name)} (${escapeHtml(item.espId)})</option>`).join("");
+        document.getElementById("student-select").innerHTML = roster.students.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.fullName)} — ${escapeHtml(item.regNumber)}</option>`).join("");
+        document.getElementById("device-list").innerHTML = deviceData.devices.map((device) => {
+          const slots = assignment.slots.filter((slot) => slot.espId === device.espId);
+          const pending = assignment.enrollments.filter((item) => item.espId === device.espId);
+          return `<article class="rounded-lg border p-4"><div class="flex flex-wrap items-center justify-between gap-3"><div><h3 class="font-bold">${escapeHtml(device.name)}</h3><p class="font-mono text-sm text-slate-600">${escapeHtml(device.espId)} · ${device.enabled ? "Enabled" : "Disabled"} · ${slots.length}/127 slots</p></div>${device.enabled ? `<button data-disable="${escapeHtml(device.espId)}" class="rounded-lg border border-red-300 px-3 py-2 text-sm font-bold text-red-700">Disable</button>` : ""}</div>${pending.map((item) => `<p class="mt-3 rounded bg-amber-50 p-2 text-sm">Waiting for ESP: slot ${item.slotId} · ${escapeHtml(item.name)} (${escapeHtml(item.matricNo)})</p>`).join("")}${slots.length ? `<div class="mt-3 grid gap-2 sm:grid-cols-2">${slots.map((slot) => `<div class="flex items-center justify-between rounded bg-slate-50 p-2 text-sm"><span>Slot ${slot.slotId}: ${escapeHtml(slot.name)} (${escapeHtml(slot.matricNo)})</span><button data-delete-biometric="${escapeHtml(slot.studentId)}" class="text-xs font-bold text-red-700">Delete data</button></div>`).join("")}</div>` : "<p class='mt-3 text-sm text-slate-500'>No student slots assigned.</p>"}</article>`;
+        }).join("") || "<p class='text-slate-500'>No ESP devices registered.</p>";
+      } catch (error) { show(error.message, true); }
+    }
+    document.getElementById("device-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try { const result = await post("/api/devices", { espId: document.getElementById("esp-id").value.trim(), name: document.getElementById("device-name").value.trim() }); document.getElementById("key-result").textContent = `Copy this key to the device firmware now. It is shown only once: ${result.apiKey}`; document.getElementById("key-result").classList.remove("hidden"); show("Device key created. Rotating a key disables the previous key immediately."); await load(); }
+      catch (error) { show(error.message, true); }
+    });
+    document.getElementById("enroll-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try { const result = await post("/api/devices/enrollment-request", { espId: document.getElementById("device-select").value, studentId: document.getElementById("student-select").value }); show(`Enrollment queued for sensor slot ${result.enrollment.slotId}.`); await load(); }
+      catch (error) { show(error.message, true); }
+    });
+    document.getElementById("refresh").addEventListener("click", load);
+    document.getElementById("device-list").addEventListener("click", async (event) => {
+      const disableId = event.target.dataset.disable, studentId = event.target.dataset.deleteBiometric;
+      try { if (disableId) { await post("/api/devices/disable", { espId: disableId }); show("Device disabled."); } if (studentId && confirm("Delete this student's fingerprint slot and stored biometric/passkey data?")) { await post("/api/devices/biometric-delete", { studentId }); show("Student biometric data deleted."); } if (disableId || studentId) await load(); }
+      catch (error) { show(error.message, true); }
+    });
+    load();
+  </script>
+</body>
+</html>
