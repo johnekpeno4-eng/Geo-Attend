@@ -6,6 +6,7 @@
 #define DEVICE_TOKEN_SECRET "set-the-same-random-secret-as-DEVICE_TOKEN_SECRET-in-server-env"
 #define SERVER_BASE_URL "https://your-domain.example"
 #define SERVER_TLS_INSECURE false
+#define SERVER_ROOT_CA_PEM "-----BEGIN CERTIFICATE-----\nPASTE_ROOT_CERTIFICATE_HERE\n-----END CERTIFICATE-----\n"
 
 #define ROUTER_SSID "your-router-ssid"
 #define ROUTER_PASSWORD "your-router-password"

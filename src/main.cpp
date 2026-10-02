@@ -90,6 +90,7 @@ int httpRequest(const String& method, const String& path, const String& payload,
   if (url.startsWith("https://")) {
     BearSSL::WiFiClientSecure secure;
     if (SERVER_TLS_INSECURE) secure.setInsecure();
+    else { BearSSL::X509List rootCa(SERVER_ROOT_CA_PEM); secure.setTrustAnchors(&rootCa); }
     started = http.begin(secure, url);
     if (started) {
       http.addHeader("X-Device-Key", DEVICE_API_KEY);
