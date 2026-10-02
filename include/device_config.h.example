@@ -1,0 +1,17 @@
+#pragma once
+
+// Copy this file to device_config.h and configure each unit before flashing.
+#define DEVICE_ID "lecture-room-1"
+#define DEVICE_API_KEY "paste-the-one-time-key-from-device-admin"
+#define DEVICE_TOKEN_SECRET "set-the-same-random-secret-as-DEVICE_TOKEN_SECRET-in-server-env"
+#define SERVER_BASE_URL "https://your-domain.example"
+#define SERVER_TLS_INSECURE false
+
+#define ROUTER_SSID "your-router-ssid"
+#define ROUTER_PASSWORD "your-router-password"
+#define STUDENT_AP_SSID "UUY-Attendance-1"
+#define STUDENT_AP_PASSWORD "change-this-8-char-password"
+
+#define SENSOR_BAUD 57600
+#define USE_OLED true
+#define USE_RTC true
