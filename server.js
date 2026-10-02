@@ -1554,6 +1554,40 @@ async function handleFingerprintDeviceApi(req, res, body) {
     await dbRun("UPDATE fingerprint_devices SET enabled = 0 WHERE esp_id = ?", [String(body.espId || "")]);
     json(res, 200, { ok: true }); return;
   }
+  if (url.pathname === "/api/devices/enrollments" && req.method === "GET") {
+    if (!requireDeviceAdmin(req, res, body)) return;
+    const espId = url.searchParams.get("espId") || "";
+    const slots = await dbAll("SELECT f.esp_id AS espId, f.slot_id AS slotId, s.id AS studentId, s.full_name AS name, s.reg_number AS matricNo, f.enrolled_at AS enrolledAt FROM fingerprint_slots f JOIN students s ON s.id = f.student_id WHERE (? = '' OR f.esp_id = ?) ORDER BY f.esp_id, f.slot_id", [espId, espId]);
+    const enrollments = await dbAll("SELECT e.id, e.esp_id AS espId, e.slot_id AS slotId, s.full_name AS name, s.reg_number AS matricNo, e.status, e.created_at AS createdAt FROM fingerprint_enrollments e JOIN students s ON s.id = e.student_id WHERE e.status = 'pending' AND (? = '' OR e.esp_id = ?) ORDER BY e.created_at", [espId, espId]);
+    json(res, 200, { ok: true, slots, enrollments }); return;
+  }
+  if (req.url === "/api/devices/enrollment-request" && req.method === "POST") {
+    if (!requireDeviceAdmin(req, res, body)) return;
+    const espId = String(body.espId || "").trim();
+    const studentId = String(body.studentId || "").trim();
+    if (!await dbGet("SELECT esp_id FROM fingerprint_devices WHERE esp_id = ? AND enabled = 1", [espId])) { json(res, 404, { error: "Enabled ESP device not found." }); return; }
+    if (!await dbGet("SELECT id FROM students WHERE id = ?", [studentId])) { json(res, 404, { error: "Student not found." }); return; }
+    if (await dbGet("SELECT slot_id FROM fingerprint_slots WHERE esp_id = ? AND student_id = ?", [espId, studentId])) { json(res, 409, { error: "This student already has a fingerprint slot on that device." }); return; }
+    if (await dbGet("SELECT id FROM fingerprint_enrollments WHERE esp_id = ? AND student_id = ? AND status = 'pending'", [espId, studentId])) { json(res, 409, { error: "An enrollment request is already pending." }); return; }
+    const occupied = new Set((await dbAll("SELECT slot_id AS slotId FROM fingerprint_slots WHERE esp_id = ? UNION SELECT slot_id AS slotId FROM fingerprint_enrollments WHERE esp_id = ? AND status = 'pending'", [espId, espId])).map((item) => Number(item.slotId)));
+    let slotId = 0;
+    for (let candidate = 1; candidate <= 127; candidate += 1) if (!occupied.has(candidate)) { slotId = candidate; break; }
+    if (!slotId) { json(res, 409, { error: "The device has reached its configured 127-slot capacity." }); return; }
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+    await dbRun("INSERT INTO fingerprint_enrollments (id, esp_id, student_id, slot_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, 'pending', ?, ?)", [id, espId, studentId, slotId, now, now]);
+    json(res, 201, { ok: true, enrollment: { id, espId, slotId, status: "pending" } }); return;
+  }
+  if (req.url === "/api/devices/biometric-delete" && req.method === "POST") {
+    if (!requireDeviceAdmin(req, res, body)) return;
+    const studentId = String(body.studentId || "");
+    if (!await dbGet("SELECT id FROM students WHERE id = ?", [studentId])) { json(res, 404, { error: "Student not found." }); return; }
+    await dbRun("DELETE FROM fingerprint_slots WHERE student_id = ?", [studentId]);
+    await dbRun("DELETE FROM fingerprint_enrollments WHERE student_id = ?", [studentId]);
+    await dbRun("DELETE FROM biometric_profiles WHERE email = (SELECT email FROM students WHERE id = ?)", [studentId]);
+    await dbRun("DELETE FROM webauthn_credentials WHERE student_id = ?", [studentId]);
+    json(res, 200, { ok: true, message: "The fingerprint slot data, stored biometric profile, and passkey credentials were deleted." }); return;
+  }
   if (url.pathname === "/api/device/session" && req.method === "GET") {
     const espId = url.searchParams.get("espId") || "";
     if (!await authenticateFingerprintDevice(req, espId)) { json(res, 401, { error: "Invalid or disabled device credentials." }); return; }
@@ -1685,7 +1719,7 @@ function getCorsHeaders() {
   return {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type"
+    "Access-Control-Allow-Headers": "Content-Type, X-Device-Key"
   };
 }
 
