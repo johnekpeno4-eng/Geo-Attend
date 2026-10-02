@@ -15,6 +15,8 @@ GeoAttend is a web-based attendance management system for institution/class atte
 - Student profile editing and signature capture.
 - SQLite database storage.
 - Mobile-friendly admin and student views.
+- ESP-12F + R307 attendance over a device-key authenticated API.
+- Offline device check-ins and phone check-in through the ESP access point.
 
 ## Tech Stack
 
@@ -37,6 +39,9 @@ GeoAttend is a web-based attendance management system for institution/class atte
 ├── records.html              # Attendance records and reports
 ├── students.html             # Registered students/admin-assisted check-in
 ├── admin-management.html     # Admin role/scope management
+├── device-admin.html         # ESP setup and fingerprint slot enrollment
+├── src/main.cpp              # GPS-free ESP attendance firmware
+├── include/device_config.h.example # Per-device configuration template
 ├── role-access.js            # Shared auth, role, UI, and API logic
 ├── mobile-admin.css          # Admin mobile styles
 ├── mobile-student.css        # Student mobile styles
@@ -96,6 +101,8 @@ For Gmail, use a 16-character App Password, not your normal Gmail password.
 
 The real `.env` file is ignored by Git to protect passwords and private configuration.
 
+Add `DEVICE_TOKEN_SECRET` to `.env` for phone check-in. Generate a random value of at least 32 characters, for example with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. Copy the same secret into the private firmware configuration file. Do not commit device credentials.
+
 ## Run Locally
 
 Start the server:
@@ -125,6 +132,29 @@ data/geoattend.db
 This file is ignored by Git because it contains real student/admin/session data.
 
 For safety, back up the `data/` folder regularly, especially before deployment or major updates.
+
+## ESP fingerprint attendance setup
+
+This workspace uses its existing Node.js and SQLite backend rather than adding a separate Python database. Attendance records are stored on the server. The ESP stores its R307 templates and a bounded LittleFS queue of attendance events while offline. The server stores only each device's API-key hash and the student-to-slot mapping. The R307 template is not uploaded and no raw fingerprint image is stored. Existing camera fingerprint templates use AES-GCM encryption with `FINGERPRINT_TEMPLATE_KEY`.
+
+1. Install PlatformIO Core and the ESP8266 platform. From the workspace root, run `pio pkg install` to fetch the dependencies in `platformio.ini`.
+2. Copy `include/device_config.h.example` to `include/device_config.h`. Set a unique `DEVICE_ID`, server URL, router credentials, student AP credentials, shared token secret, and device API key. Keep HTTPS certificate validation enabled in production; `SERVER_TLS_INSECURE` is only for local development.
+3. Start GeoAttend with `npm.cmd start`, sign in as Overall Admin, and open **Fingerprint Devices**. Register the ESP ID and copy its one-time API key into the private device configuration.
+4. Wire R307 TX to GPIO4 and RX to GPIO5 at 57600 baud; buzzer to GPIO13; green LED to GPIO16; active-low red LED to GPIO2. Optional OLED and DS3231 share SDA GPIO12 and SCL GPIO14. Make sure external circuits do not hold boot-strapping pins at the wrong level.
+5. Flash with `pio run -t upload`. ESP8266 AP+STA uses one radio, so after the station joins a router the AP follows that router's Wi-Fi channel. The student AP is configured for up to four clients.
+6. In Fingerprint Devices, queue an enrollment for a student. The ESP polls for requests; have the student place and remove the same finger when prompted. Sensor slot IDs are allocated from 1 through 127.
+7. Create a lecture session in the dashboard. The ESP polls for today's active session every five seconds. For phone check-in, connect to the device AP and open `http://192.168.4.1/`; bind the phone with student account credentials, then use the session token check-in.
+
+NTP provides UTC time. A DS3231 is used as fallback after it has been synchronized from NTP; a reset or unsynchronized RTC does not produce check-in timestamps. Offline check-ins upload in order and are deduplicated by session and student. The LittleFS queue is limited to 4 KB; explicitly rejected events are removed after the server logs them. Deleting biometric data removes server mappings immediately and queues a sensor template deletion for the next device connection.
+
+## Device workflow verification plan
+
+- Server: verify device creation stores only an API-key hash; reject a bad key and unknown slot; accept a valid scan in the session window; report a repeat scan as duplicate; reject an out-of-window scan and confirm it is logged.
+- Enrollment: queue a student, complete two finger placements, confirm the slot mapping, delete the student's biometric data, and confirm the sensor clears its template after reconnecting.
+- Hardware: sensor missing, enrollment, accepted/duplicate/rejected LED and buzzer patterns, router outage and queue recovery, restart while events are queued, NTP failure with a synchronized RTC, and router channel change.
+- Phone: bind with valid credentials, reject invalid credentials, accept an in-window token for a bound phone, reject expired/replayed tokens, and confirm a different phone cannot reuse that binding.
+
+R307 template capacity varies by module firmware; this setup caps allocation at 127 slots. ESP8266 has limited RAM and only a few stable AP clients, and it has no secure element. Use validated HTTPS in production and a dedicated access point or multiple ESP units for larger lectures. Calibrate the exact reader and timing setup before production use.
 
 ## Git Safety
 
