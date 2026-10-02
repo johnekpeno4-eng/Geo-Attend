@@ -13,10 +13,9 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <RTClib.h>
-#include <mbedtls/md.h>
 #include "device_config.h"
 
-#if !defined(DEVICE_ID) || !defined(DEVICE_API_KEY) || !defined(DEVICE_TOKEN_SECRET) || !defined(SERVER_BASE_URL)
+#if !defined(DEVICE_ID) || !defined(DEVICE_API_KEY) || !defined(SERVER_BASE_URL)
 #error "Copy include/device_config.h.example to include/device_config.h and fill in the device settings."
 #endif
 
@@ -36,6 +35,7 @@ Adafruit_SSD1306 display(128, 64, &Wire, -1);
 RTC_DS3231 rtc;
 bool displayReady = false, rtcReady = false, sensorReady = false;
 bool rtcSyncedThisBoot = false;
+bool serverReachable = false;
 String activeSessionId;
 String lastAttendanceMessage = "Place your finger on the reader to check in.";
 String lastAttendanceState = "ready";
@@ -181,9 +181,10 @@ void uploadQueue() {
 void updateSession() {
   String response;
   int code = httpRequest("GET", apiPath("/api/device/session"), "", response);
-  if (code <= 0 || code >= 300) { WiFi.setAutoReconnect(true); return; }
+  if (code <= 0 || code >= 300) { serverReachable = false; WiFi.setAutoReconnect(true); return; }
   JsonDocument result;
-  if (deserializeJson(result, response) != DeserializationError::Ok) return;
+  if (deserializeJson(result, response) != DeserializationError::Ok) { serverReachable = false; return; }
+  serverReachable = true;
   JsonVariant session = result["session"];
   activeSessionId = session.isNull() ? "" : String(session["id"] | "");
   File file = LittleFS.open("/session.txt", "w"); if (file) { file.print(activeSessionId); file.close(); }
@@ -286,7 +287,8 @@ void servePortalStatus() {
   status["sessionActive"] = activeSessionId.length() > 0;
   status["sessionId"] = activeSessionId;
   status["sensorReady"] = sensorReady;
-  status["internetConnected"] = WiFi.isConnected();
+  status["routerConnected"] = WiFi.isConnected();
+  status["serverReachable"] = serverReachable;
   status["queuedCheckins"] = queuedAttendanceCount();
   status["lastState"] = lastAttendanceState;
   status["lastMessage"] = lastAttendanceMessage;
@@ -305,7 +307,7 @@ const char PHONE_PAGE[] PROGMEM = R"HTML(
 <section class="card offline"><strong>Offline attendance</strong><p class="muted">When the internet is unavailable, this device stores accepted fingerprint check-ins locally and uploads them when its internet connection returns.</p></section></main>
 <footer>Device <span id="device">—</span> · This page uses no external website or CDN.</footer>
 <script>
-const el=id=>document.getElementById(id);async function refresh(){try{const r=await fetch('/status',{cache:'no-store'});if(!r.ok)throw Error();const s=await r.json();el('device').textContent=s.deviceId||'—';el('session').textContent=s.sessionActive?'Attendance session is active.':'No active session is currently available.';el('session').className=s.sessionActive?'ok':'warn';el('sensor').textContent=s.sensorReady?'Fingerprint reader is ready.':'Fingerprint reader is not detected.';el('sensor').className=s.sensorReady?'ok':'warn';el('internet').textContent=s.internetConnected?'Internet link is available.':'Internet is offline; queued check-ins stay on this device.';el('internet').className=s.internetConnected?'':'warn';el('queue').textContent=s.queuedCheckins;el('last').textContent=s.lastMessage||'Place your enrolled finger on the reader to check in.';el('last').className=s.lastState==='rejected'?'warn':s.lastState==='accepted'?'ok':''}catch(e){el('session').textContent='Device status is temporarily unavailable. Stay connected to the attendance Wi-Fi.';el('last').textContent='This page is stored on the ESP and remains open offline.'}}refresh();setInterval(refresh,2500);
+const el=id=>document.getElementById(id);async function refresh(){try{const r=await fetch('/status',{cache:'no-store'});if(!r.ok)throw Error();const s=await r.json();el('device').textContent=s.deviceId||'—';el('session').textContent=s.sessionActive?'Attendance session is active.':'No active session is currently available.';el('session').className=s.sessionActive?'ok':'warn';el('sensor').textContent=s.sensorReady?'Fingerprint reader is ready.':'Fingerprint reader is not detected.';el('sensor').className=s.sensorReady?'ok':'warn';el('internet').textContent=s.serverReachable?'Attendance server is reachable.':s.routerConnected?'Router connected; attendance server is offline.':'No router link; offline check-ins stay on this device.';el('internet').className=s.serverReachable?'':'warn';el('queue').textContent=s.queuedCheckins;el('last').textContent=s.lastMessage||'Place your enrolled finger on the reader to check in.';el('last').className=s.lastState==='rejected'?'warn':s.lastState==='accepted'?'ok':''}catch(e){el('session').textContent='Device status is temporarily unavailable. Stay connected to the attendance Wi-Fi.';el('last').textContent='This page is stored on the ESP and remains open offline.'}}refresh();setInterval(refresh,2500);
 </script></body></html>)HTML";
 
 void setup() {
