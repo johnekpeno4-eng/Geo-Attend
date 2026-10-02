@@ -881,6 +881,15 @@ async function initDatabase() {
     reason TEXT NOT NULL,
     attempted_at TEXT NOT NULL
   )`);
+  await dbRun(`CREATE TABLE IF NOT EXISTS fingerprint_device_commands (
+    id TEXT PRIMARY KEY,
+    esp_id TEXT NOT NULL,
+    command TEXT NOT NULL,
+    slot_id INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`);
   await fingerprintCheckin.initialize();
   await dbRun(`CREATE TABLE IF NOT EXISTS attendance_reports (
     id TEXT PRIMARY KEY,
@@ -1580,7 +1589,7 @@ async function handleFingerprintDeviceApi(req, res, body) {
     if (!await dbGet("SELECT id FROM students WHERE id = ?", [studentId])) { json(res, 404, { error: "Student not found." }); return; }
     if (await dbGet("SELECT slot_id FROM fingerprint_slots WHERE esp_id = ? AND student_id = ?", [espId, studentId])) { json(res, 409, { error: "This student already has a fingerprint slot on that device." }); return; }
     if (await dbGet("SELECT id FROM fingerprint_enrollments WHERE esp_id = ? AND student_id = ? AND status = 'pending'", [espId, studentId])) { json(res, 409, { error: "An enrollment request is already pending." }); return; }
-    const occupied = new Set((await dbAll("SELECT slot_id AS slotId FROM fingerprint_slots WHERE esp_id = ? UNION SELECT slot_id AS slotId FROM fingerprint_enrollments WHERE esp_id = ? AND status = 'pending'", [espId, espId])).map((item) => Number(item.slotId)));
+    const occupied = new Set((await dbAll("SELECT slot_id AS slotId FROM fingerprint_slots WHERE esp_id = ? UNION SELECT slot_id AS slotId FROM fingerprint_enrollments WHERE esp_id = ? AND status = 'pending' UNION SELECT slot_id AS slotId FROM fingerprint_device_commands WHERE esp_id = ? AND status = 'pending'", [espId, espId, espId])).map((item) => Number(item.slotId)));
     let slotId = 0;
     for (let candidate = 1; candidate <= 127; candidate += 1) if (!occupied.has(candidate)) { slotId = candidate; break; }
     if (!slotId) { json(res, 409, { error: "The device has reached its configured 127-slot capacity." }); return; }
@@ -1593,17 +1602,22 @@ async function handleFingerprintDeviceApi(req, res, body) {
     if (!requireDeviceAdmin(req, res, body)) return;
     const studentId = String(body.studentId || "");
     if (!await dbGet("SELECT id FROM students WHERE id = ?", [studentId])) { json(res, 404, { error: "Student not found." }); return; }
+    const assigned = await dbAll("SELECT esp_id, slot_id FROM fingerprint_slots WHERE student_id = ?", [studentId]);
+    const now = new Date().toISOString();
+    for (const item of assigned) await dbRun("INSERT INTO fingerprint_device_commands (id, esp_id, command, slot_id, status, created_at, updated_at) VALUES (?, ?, 'delete-slot', ?, 'pending', ?, ?)", [crypto.randomUUID(), item.esp_id, item.slot_id, now, now]);
     await dbRun("DELETE FROM fingerprint_slots WHERE student_id = ?", [studentId]);
     await dbRun("DELETE FROM fingerprint_enrollments WHERE student_id = ?", [studentId]);
     await dbRun("DELETE FROM biometric_profiles WHERE email = (SELECT email FROM students WHERE id = ?)", [studentId]);
     await dbRun("DELETE FROM webauthn_credentials WHERE student_id = ?", [studentId]);
-    json(res, 200, { ok: true, message: "The fingerprint slot data, stored biometric profile, and passkey credentials were deleted." }); return;
+    json(res, 200, { ok: true, pendingSensorDeletes: assigned.length, message: "Server-side fingerprint mapping, stored biometric profile, and passkey credentials deleted. The sensor will clear enrolled templates the next time it connects." }); return;
   }
   if (url.pathname === "/api/device/session" && req.method === "GET") {
     const espId = url.searchParams.get("espId") || "";
     if (!await authenticateFingerprintDevice(req, espId)) { json(res, 401, { error: "Invalid or disabled device credentials." }); return; }
     const { items } = await readLiveSessionsStore();
-    const active = items.filter((session) => session.status === "active" && (session.date || "") === new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Lagos" }));
+    const dateParts = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+    const today = `${dateParts.find((part) => part.type === "year")?.value}-${dateParts.find((part) => part.type === "month")?.value}-${dateParts.find((part) => part.type === "day")?.value}`;
+    const active = items.filter((session) => session.status === "active" && (session.date || "") === today);
     const session = active.sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")))[0] || null;
     json(res, 200, { ok: true, session: session ? { id: session.id, course: session.course, date: session.date, startTime: session.startTime, endTime: session.endTime, attendanceStart: session.attendanceStart || session.checkInStartTime, attendanceEnd: session.attendanceEnd || session.checkInEndTime } : null, serverTime: new Date().toISOString() }); return;
   }
@@ -1614,6 +1628,19 @@ async function handleFingerprintDeviceApi(req, res, body) {
       FROM fingerprint_enrollments e JOIN students s ON s.id = e.student_id
       WHERE e.esp_id = ? AND e.status = 'pending' ORDER BY e.created_at LIMIT 1`, [espId]);
     json(res, 200, { ok: true, enrollment: enrollment || null }); return;
+  }
+  if (url.pathname === "/api/device/commands" && req.method === "GET") {
+    const espId = url.searchParams.get("espId") || "";
+    if (!await authenticateFingerprintDevice(req, espId)) { json(res, 401, { error: "Invalid or disabled device credentials." }); return; }
+    const command = await dbGet("SELECT id, command, slot_id AS slotId FROM fingerprint_device_commands WHERE esp_id = ? AND status = 'pending' ORDER BY created_at LIMIT 1", [espId]);
+    json(res, 200, { ok: true, command: command || null }); return;
+  }
+  if (url.pathname === "/api/device/commands/result" && req.method === "POST") {
+    const espId = String(body.espId || "");
+    if (!await authenticateFingerprintDevice(req, espId)) { json(res, 401, { error: "Invalid or disabled device credentials." }); return; }
+    const now = new Date().toISOString();
+    const result = await dbRun("UPDATE fingerprint_device_commands SET status = ?, updated_at = ? WHERE id = ? AND esp_id = ? AND status = 'pending'", [body.ok === true ? "complete" : "failed", now, String(body.commandId || ""), espId]);
+    json(res, result.changes ? 200 : 404, { ok: Boolean(result.changes) }); return;
   }
   if (url.pathname === "/api/device/enrollment/result" && req.method === "POST") {
     const espId = String(body.espId || "");
@@ -1646,7 +1673,7 @@ async function handleFingerprintDeviceApi(req, res, body) {
     const sessionRows = await readLiveSessionsStore();
     const session = sessionRows.items.find((item) => item.id === sessionId);
     const window = sessionWindow(session);
-    if (!session || !window || timestamp.getTime() < window.start || timestamp.getTime() > window.end) { await fail(403, "No valid attendance session window."); return; }
+    if (!session || !["active", "ended"].includes(session.status) || !window || timestamp.getTime() < window.start || timestamp.getTime() > window.end) { await fail(403, "No valid attendance session window."); return; }
     const slot = await dbGet("SELECT s.id, s.full_name, s.reg_number, s.email, s.department_id, s.department_name, s.faculty_id, s.faculty_name, s.level_id, s.level_name FROM fingerprint_slots f JOIN students s ON s.id = f.student_id WHERE f.esp_id = ? AND f.slot_id = ?", [espId, slotId]);
     if (!slot) { await fail(404, "Fingerprint slot is not registered to a student."); return; }
     const rowId = crypto.randomUUID();
