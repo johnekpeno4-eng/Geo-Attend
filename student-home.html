@@ -274,10 +274,14 @@
         </div>
 
         <div class="p-4 space-y-4">
-                    <div id="checkin-method-choice">
-            <p class="text-sm text-on-surface-variant" id="checkin-security-copy">Use your enrolled fingerprint and remain inside the GPS session area.</p>
+          <div id="checkin-method-choice">
+            <p class="text-sm text-on-surface-variant" id="checkin-security-copy">Enter the lecturer's hotspot token, then scan your fingertip with the rear camera.</p>
+            <label class="block mt-3 text-sm font-semibold text-on-surface" for="checkin-hotspot-token">Hotspot token</label>
+            <input class="mt-1 w-full rounded-xl border border-outline-variant bg-surface p-3" id="checkin-hotspot-token" type="password" autocomplete="off" inputmode="text" placeholder="Ask your lecturer for the token">
+            <video class="hidden mt-3 w-full rounded-xl bg-black object-cover" id="checkin-fingerprint-video" playsinline muted></video>
+            <canvas class="hidden" id="checkin-fingerprint-canvas"></canvas>
             <div class="grid gap-3 mt-3">
-              <button class="w-full rounded-xl bg-secondary text-on-primary p-4 font-bold" type="button" id="checkin-option"><span class="material-symbols-outlined align-middle">fingerprint</span> Check in with fingerprint</button>
+              <button class="w-full rounded-xl bg-secondary text-on-primary p-4 font-bold" type="button" id="checkin-option"><span class="material-symbols-outlined align-middle">fingerprint</span> Scan fingertip to check in</button>
             </div>
           </div>
 
@@ -548,6 +552,7 @@
     }
     async function verifyFingerprintAndCheckIn() {
       if (checkinInProgress || !selectedCheckinSession) return;
+      if (selectedAttendanceAction === "check-in") return verifyCameraFingerprintAndCheckIn();
       if (!window.isSecureContext || !navigator.credentials?.get) {
         setCheckinMessage("Fingerprint check-in requires the HTTPS GeoAttend address.", true);
         return;
@@ -570,6 +575,82 @@
             : "We could not verify device security. Please try again.";
         setCheckinMessage(message, true);
       } finally {
+        checkinInProgress = false;
+      }
+    }
+    async function verifyCameraFingerprintAndCheckIn() {
+      if (checkinInProgress || !selectedCheckinSession) return;
+      const hotspotToken = document.getElementById("checkin-hotspot-token")?.value.trim() || "";
+      if (!hotspotToken) { setCheckinMessage("Enter the hotspot token provided by your lecturer.", true); return; }
+      if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+        setCheckinMessage("Camera fingerprint check-in needs the HTTPS GeoAttend address and a supported browser.", true);
+        return;
+      }
+      checkinInProgress = true;
+      let stream = null;
+      let capturedFrames = [];
+      const video = document.getElementById("checkin-fingerprint-video");
+      const canvas = document.getElementById("checkin-fingerprint-canvas");
+      try {
+        setCheckinMessage("Preparing a single-use scan request…");
+        const issued = await postJson("/api/checkin/challenge", {
+          student_id: localStorage.getItem("geoAttendStudentId") || "",
+          email,
+          session_id: selectedCheckinSession.id,
+          hotspot_token: hotspotToken
+        });
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+        } catch {
+          stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+        }
+        const track = stream.getVideoTracks()[0];
+        if (track?.applyConstraints) {
+          try { await track.applyConstraints({ advanced: [{ torch: true }] }); }
+          catch { throw new Error("This camera or browser cannot turn on its flash. Use a supported phone browser or ask the lecturer."); }
+        } else {
+          throw new Error("This camera does not support flash control in the browser. Ask the lecturer for help.");
+        }
+        video.srcObject = stream;
+        video.classList.remove("hidden");
+        await new Promise((resolve, reject) => {
+          if (video.readyState >= 2) return resolve();
+          video.onloadedmetadata = resolve;
+          video.onerror = () => reject(new Error("Could not start the rear camera."));
+          setTimeout(() => reject(new Error("Camera did not start. Retry and allow camera access.")), 8000);
+        });
+        await video.play();
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const context = canvas.getContext("2d", { willReadFrequently: false });
+        if (!context || !canvas.width || !canvas.height) throw new Error("Camera did not provide an image. Retry the scan.");
+        for (let index = 0; index < 8; index++) {
+          setCheckinMessage(`Hold your fingertip steady over the rear camera — frame ${index + 1} of 8.`);
+          context.drawImage(video, 0, 0, canvas.width, canvas.height);
+          capturedFrames.push(canvas.toDataURL("image/jpeg", 0.92));
+          await new Promise((resolve) => setTimeout(resolve, 180));
+        }
+        setCheckinMessage("Checking the fingerprint…");
+        const result = await postJson("/api/checkin/scan", {
+          challenge_id: issued.challenge_id,
+          challenge: issued.challenge,
+          student_id: issued.student_id,
+          session_id: selectedCheckinSession.id,
+          hotspot_token: hotspotToken,
+          position: latestPosition,
+          frames: capturedFrames
+        });
+        await refreshLiveSessionsFromServer();
+        setCheckinMessage(`Check-in saved at ${formatDateTime(result.record.checkedInAt)}. Match score ${Number(result.record.matchScore).toFixed(1)}.`, false);
+        setTimeout(closeCheckinModal, 1200);
+      } catch (error) {
+        setCheckinMessage(error?.message || "Camera fingerprint check-in failed. Retry or ask the lecturer.", true);
+      } finally {
+        capturedFrames.length = 0;
+        if (video) { video.pause(); video.srcObject = null; video.classList.add("hidden"); }
+        if (canvas) { canvas.width = 0; canvas.height = 0; }
+        stream?.getTracks?.().forEach((track) => track.stop());
         checkinInProgress = false;
       }
     }
@@ -599,7 +680,9 @@
       clearCheckinMessage();
       resetCheckinModal();
       selectedCheckinSession = session;
-      if (methodButton) methodButton.innerHTML = `<span class="material-symbols-outlined align-middle">fingerprint</span> Check ${existing ? "out" : "in"} with fingerprint`;
+      if (methodButton) methodButton.innerHTML = selectedAttendanceAction === "check-in"
+        ? '<span class="material-symbols-outlined align-middle">fingerprint</span> Scan fingertip with camera'
+        : '<span class="material-symbols-outlined align-middle">fingerprint</span> Verify to check out';
       if (modalHeading) modalHeading.textContent = existing ? "Check Out" : "Check In";
       if (sessionMeta) {
         const locationLabel = session.locationName || session.geofence?.name || "Selected location";
@@ -621,6 +704,8 @@
       modal?.classList.add("hidden");
       modal?.classList.remove("flex");
       modal?.setAttribute("aria-hidden", "true");
+      const tokenInput = document.getElementById("checkin-hotspot-token");
+      if (tokenInput) tokenInput.value = "";
       resetCheckinModal();
     }
 

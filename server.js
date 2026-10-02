@@ -7,6 +7,7 @@ const nodemailer = require("nodemailer");
 const sqlite3 = require("sqlite3").verbose();
 const QRCode = require("qrcode");
 const { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } = require("@simplewebauthn/server");
+const { createFingerprintCheckin } = require("./fingerprint-checkin");
 
 
 const ROOT = __dirname;
@@ -40,6 +41,7 @@ const totpSetupStore = new Map();
 const webAuthnChallengeStore = new Map();
 const attendanceAuthorizationStore = new Map();
 const attendanceActionLocks = new Set();
+const fingerprintCheckin = createFingerprintCheckin({ dbRun, dbGet, dbAll, ensureColumn, readLiveSessionsStore, writeAttendanceStore, json, verifyAdminCredentials, validateSessionGeofence, readFreshStudentLocation, isInsideGeofence });
 
 
 const ADMIN_GEOFENCE_MAX_ACCURACY_METERS = 20;
@@ -286,6 +288,22 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && req.url.startsWith("/api/attendance-pdf")) {
       serveAttendancePdf(req, res);
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/api/checkin/challenge") {
+      const body = await readJson(req);
+      await fingerprintCheckin.challenge(req, res, body);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/checkin/scan") {
+      const body = await readJson(req);
+      await fingerprintCheckin.scan(req, res, body);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/fingerprint/enroll") {
+      const body = await readJson(req);
+      await fingerprintCheckin.enroll(req, res, body);
       return;
     }
 
@@ -924,6 +942,7 @@ async function initDatabase() {
   await ensureColumn("attendance", "check_out_latitude", "REAL");
   await ensureColumn("attendance", "check_out_longitude", "REAL");
   await ensureColumn("attendance", "check_out_accuracy", "REAL");
+  await fingerprintCheckin.initialize();
   await dbRun(`CREATE TABLE IF NOT EXISTS attendance_reports (
     id TEXT PRIMARY KEY,
     session_id TEXT,
@@ -1153,8 +1172,8 @@ async function writeSqliteSessions(sessions) {
 async function upsertSqliteAttendance(record) {
   const academicSession = normalizeAcademicSession(record.academicSession) || await getCurrentAcademicSession();
   const normalized = { ...record, academicSession };
-  await dbRun(`INSERT INTO attendance (id, session_id, email, reg_number, full_name, status, checked_in_at, checked_out_at, check_in_latitude, check_in_longitude, check_in_accuracy, check_out_latitude, check_out_longitude, check_out_accuracy, saved_at, academic_session, attendance_json)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  await dbRun(`INSERT INTO attendance (id, session_id, email, reg_number, full_name, status, checked_in_at, checked_out_at, check_in_latitude, check_in_longitude, check_in_accuracy, check_out_latitude, check_out_longitude, check_out_accuracy, saved_at, academic_session, student_id, match_score, ip, "timestamp", attendance_json)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       session_id = excluded.session_id,
       email = excluded.email,
@@ -1171,6 +1190,10 @@ async function upsertSqliteAttendance(record) {
       check_out_accuracy = excluded.check_out_accuracy,
       saved_at = excluded.saved_at,
       academic_session = excluded.academic_session,
+      student_id = excluded.student_id,
+      match_score = excluded.match_score,
+      ip = excluded.ip,
+      "timestamp" = excluded."timestamp",
       attendance_json = excluded.attendance_json`, [
     record.id,
     record.sessionId,
@@ -1188,6 +1211,10 @@ async function upsertSqliteAttendance(record) {
     Number.isFinite(Number(record.checkOutLocation?.accuracy)) ? Number(record.checkOutLocation.accuracy) : null,
     record.savedAt || new Date().toISOString(),
     academicSession,
+    record.studentId || null,
+    Number.isFinite(Number(record.matchScore)) ? Number(record.matchScore) : null,
+    record.ip || null,
+    record.timestamp || record.checkedInAt || null,
     JSON.stringify(normalized)
   ]);
 }
@@ -1587,7 +1614,7 @@ function readJson(req) {
     let data = "";
     req.on("data", (chunk) => {
       data += chunk;
-      if (data.length > 8e6) {
+      if (data.length > 16e6) {
         req.destroy();
         reject(new Error("Request body too large."));
       }
@@ -2623,6 +2650,11 @@ async function sendAttendancePdf(res, body) {
 async function saveAttendance(res, record) {
   if (!record || typeof record !== "object") {
     json(res, 400, { error: "A valid attendance record is required." });
+    return;
+  }
+
+  if (record.action !== "check-out") {
+    json(res, 403, { error: "Camera fingerprint verification is required for every check-in. Use the student Check In camera scan." });
     return;
   }
 

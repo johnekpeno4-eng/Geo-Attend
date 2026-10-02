@@ -48,3 +48,13 @@ tmp-node.out
 *.err
 *.out
 
+
+# Java matcher build output
+fingerprint-matcher/target/
+
+# Local Java/Maven tools
+.tools/
+
+
+.env
+

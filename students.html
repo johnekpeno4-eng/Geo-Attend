@@ -231,11 +231,64 @@
           <td class="py-md pr-md text-right">
             <div class="flex justify-end gap-sm">
               <button class="rounded-lg bg-secondary text-on-primary px-md py-sm font-bold active:scale-95 transition-all" data-checkin-student="${escapeHtml(student.email)}" type="button">Check In</button>
+              <button class="rounded-lg bg-surface-container-high text-on-surface px-md py-sm font-bold active:scale-95 transition-all" data-enroll-fingerprint="${escapeHtml(student.id || "")}" type="button" ${student.id ? "" : "disabled"}>Enroll fingerprint</button>
               <button class="rounded-lg bg-red-600 text-white px-md py-sm font-bold active:scale-95 transition-all" data-delete-student="${escapeHtml(student.email)}" data-delete-reg="${escapeHtml(student.regNumber || "")}" type="button">Delete</button>
             </div>
           </td>
         </tr>
       `).join("");
+    }
+
+    async function enrollFingerprint(studentId) {
+      const student = students.find((item) => String(item.id) === String(studentId));
+      if (!student || !window.confirm("Have the student place their fingertip over the phone's rear camera. Continue with fingerprint enrollment?")) return;
+      const actorEmail = localStorage.getItem("geoAttendCurrentUser") || "";
+      const adminPassword = window.prompt("Enter your admin password to enroll this fingerprint:");
+      if (!adminPassword) return;
+      if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) return showMessage("Fingerprint enrollment requires HTTPS and a browser camera.", true);
+      let stream = null;
+      const frames = [];
+      const overlay = document.createElement("div");
+      overlay.className = "fixed inset-0 z-[120] flex items-center justify-center bg-black/80 p-4";
+      const video = document.createElement("video");
+      video.autoplay = true; video.playsInline = true; video.muted = true;
+      video.className = "w-full max-w-md rounded-xl bg-black";
+      const message = document.createElement("p"); message.className = "mt-3 text-white"; message.textContent = "Place the fingertip steadily over the camera.";
+      const card = document.createElement("div"); card.className = "w-full max-w-md rounded-2xl bg-slate-900 p-4";
+      card.append(video, message); overlay.append(card); document.body.append(overlay);
+      const canvas = document.createElement("canvas");
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+        const track = stream.getVideoTracks()[0];
+        if (!track?.applyConstraints) throw new Error("This browser cannot enable the camera flash.");
+        try { await track.applyConstraints({ advanced: [{ torch: true }] }); } catch { throw new Error("This camera cannot turn on its flash. Use a supported phone browser."); }
+        video.srcObject = stream;
+        await new Promise((resolve, reject) => { video.onloadedmetadata = resolve; video.onerror = reject; setTimeout(() => reject(new Error("Camera did not start.")), 8000); });
+        await video.play(); await new Promise((resolve) => setTimeout(resolve, 500));
+        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+        const context = canvas.getContext("2d");
+        if (!context || !canvas.width || !canvas.height) throw new Error("Camera did not provide an image.");
+        for (let index = 0; index < 8; index++) {
+          message.textContent = `Hold still — enrollment frame ${index + 1} of 8.`;
+          context.drawImage(video, 0, 0, canvas.width, canvas.height);
+          frames.push(canvas.toDataURL("image/jpeg", 0.92));
+          await new Promise((resolve) => setTimeout(resolve, 180));
+        }
+        message.textContent = "Extracting and encrypting fingerprint template…";
+        const response = await fetch("/api/fingerprint/enroll", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ student_id: student.id, actorEmail, adminPassword, frames })
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || "Fingerprint enrollment failed.");
+        showMessage(`Fingerprint template enrolled for ${student.fullName || student.email}.`);
+      } catch (error) {
+        showMessage(error.message || "Fingerprint enrollment failed.", true);
+      } finally {
+        frames.length = 0; canvas.width = 0; canvas.height = 0;
+        stream?.getTracks?.().forEach((track) => track.stop());
+        video.srcObject = null; overlay.remove();
+      }
     }
 
     function getSessionStartDate(session) {
@@ -332,6 +385,8 @@
       loadStudents();
     });
     document.getElementById("students-body")?.addEventListener("click", (event) => {
+      const enrollButton = event.target.closest("[data-enroll-fingerprint]");
+      if (enrollButton) enrollFingerprint(enrollButton.dataset.enrollFingerprint);
       const checkinButton = event.target.closest("[data-checkin-student]");
       if (checkinButton) checkInStudent(checkinButton.dataset.checkinStudent);
       const deleteButton = event.target.closest("[data-delete-student]");
