@@ -304,6 +304,12 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.url.startsWith("/api/devices") || req.url.startsWith("/api/device/")) {
+      const body = ["POST", "PUT", "DELETE"].includes(req.method) ? await readJson(req) : {};
+      await handleFingerprintDeviceApi(req, res, body);
+      return;
+    }
+
     if (req.method === "GET" && req.url.startsWith("/api/attendance")) {
       await getAttendance(req, res);
       return;
@@ -823,6 +829,47 @@ async function initDatabase() {
   await dbRun("CREATE INDEX IF NOT EXISTS idx_attendance_checked_in ON attendance(checked_in_at)");
   await ensureColumn("attendance", "academic_session", "TEXT DEFAULT ''");
   await ensureColumn("attendance", "checked_out_at", "TEXT");
+  await dbRun(`CREATE TABLE IF NOT EXISTS fingerprint_devices (
+    esp_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    api_key_hash TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL
+  )`);
+  await dbRun(`CREATE TABLE IF NOT EXISTS fingerprint_slots (
+    esp_id TEXT NOT NULL,
+    slot_id INTEGER NOT NULL,
+    student_id TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    enrolled_at TEXT NOT NULL,
+    PRIMARY KEY (esp_id, slot_id),
+    UNIQUE (esp_id, student_id)
+  )`);
+  await dbRun(`CREATE TABLE IF NOT EXISTS fingerprint_enrollments (
+    id TEXT PRIMARY KEY,
+    esp_id TEXT NOT NULL,
+    student_id TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    slot_id INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`);
+  await dbRun(`CREATE TABLE IF NOT EXISTS device_attendance (
+    id TEXT PRIMARY KEY,
+    esp_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    student_id TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    attended_at TEXT NOT NULL,
+    method TEXT NOT NULL DEFAULT 'fingerprint',
+    UNIQUE(session_id, student_id)
+  )`);
+  await dbRun(`CREATE TABLE IF NOT EXISTS device_rejected_attempts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    esp_id TEXT NOT NULL,
+    session_id TEXT,
+    slot_id INTEGER,
+    reason TEXT NOT NULL,
+    attempted_at TEXT NOT NULL
+  )`);
   await fingerprintCheckin.initialize();
   await dbRun(`CREATE TABLE IF NOT EXISTS attendance_reports (
     id TEXT PRIMARY KEY,
