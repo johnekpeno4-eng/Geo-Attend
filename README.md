@@ -30,22 +30,22 @@ GeoAttend is a web-based attendance management system for institution/class atte
 ```text
 .
 ├── server.js                 # Node.js server and API routes
-├── package.json              # Project scripts and dependencies
-├── login.html                # Login page
-├── register.html             # Student registration page
-├── dashboard.html            # Admin dashboard
-├── create-session.html       # Admin session creation
-├── live-monitor.html         # Live attendance monitoring
-├── records.html              # Attendance records and reports
-├── students.html             # Registered students/admin-assisted check-in
-├── admin-management.html     # Admin role/scope management
-├── device-admin.html         # ESP setup and fingerprint slot enrollment
-├── src/main.cpp              # GPS-free ESP attendance firmware
-├── include/device_config.h.example # Per-device configuration template
-├── role-access.js            # Shared auth, role, UI, and API logic
-├── mobile-admin.css          # Admin mobile styles
-├── mobile-student.css        # Student mobile styles
-└── data/                     # Local runtime database/reports, ignored by Git
+├── backend/                  # Server-side feature modules
+├── public/
+│   ├── pages/auth/            # Login, registration, password reset
+│   ├── pages/admin/           # Admin dashboards and management pages
+│   ├── pages/student/         # Student pages
+│   ├── pages/security/        # Security information page
+│   └── assets/                # Shared CSS and JavaScript
+├── src/                       # ESP firmware source
+├── include/                   # Firmware headers and config template
+├── firmware/archive/          # Inactive legacy firmware
+├── scripts/                   # Local maintenance and startup scripts
+├── fingerprint-matcher/       # Optional loopback fingerprint matcher
+├── tools/                      # Local development tools
+├── data/                       # Ignored database, reports, and logs
+├── .env                       # Private runtime secrets (ignored by Git)
+└── .env.example               # Safe placeholders only
 ```
 
 ## Requirements
@@ -101,7 +101,7 @@ For Gmail, use a 16-character App Password, not your normal Gmail password.
 
 The real `.env` file is ignored by Git to protect passwords and private configuration.
 
-Set `DEVICE_TOKEN_SECRET` and `ADMIN_JWT_SECRET` in `.env` to separate random values of at least 32 characters. Generate each with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. Copy `DEVICE_TOKEN_SECRET` into the private firmware configuration. Admin device-management endpoints require the signed token issued by admin login. Keep both server secrets stable across restarts and never commit device credentials.
+Keep all server secrets and service credentials in the ignored `.env` file. The committed `.env.example` contains placeholders only. Set `DEVICE_TOKEN_SECRET` and `ADMIN_JWT_SECRET` to separate random values of at least 32 characters. Generate each with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. Keep secrets stable across restarts and never commit `.env` or per-device credentials. An ESP must still receive its device API key and network configuration before firmware is flashed; these values are device-specific.
 
 ## Run Locally
 
@@ -138,7 +138,7 @@ For safety, back up the `data/` folder regularly, especially before deployment o
 This workspace uses its existing Node.js and SQLite backend rather than adding a separate Python database. Attendance records are stored on the server. The ESP stores its R307 templates and a bounded LittleFS queue of attendance events while offline. The server stores only each device's API-key hash and the student-to-slot mapping. The R307 template is not uploaded and no raw fingerprint image is stored. Existing camera fingerprint templates use AES-GCM encryption with `FINGERPRINT_TEMPLATE_KEY`.
 
 1. Install PlatformIO Core and the ESP8266 platform. From the workspace root, run `pio pkg install` to fetch the dependencies in `platformio.ini`.
-2. Copy `include/device_config.h.example` to `include/device_config.h`. Set a unique `DEVICE_ID`, server URL, router credentials, student AP credentials, shared token secret, device API key, and the PEM root certificate that validates your server. Keep certificate validation enabled in production; `SERVER_TLS_INSECURE` is only for local development.
+2. Provision each ESP with a unique `DEVICE_ID`, server URL, router credentials, student AP credentials, the shared token secret from `.env`, its one-time device API key, and the PEM root certificate that validates your server. The private `include/device_config.h` is ignored by Git; `include/device_config.h.example` is a template only. Keep certificate validation enabled in production; `SERVER_TLS_INSECURE` is only for local development.
 3. Start GeoAttend with `npm.cmd start`, sign in as Overall Admin, and open **Fingerprint Devices**. Register the ESP ID and copy its one-time API key into the private device configuration.
 4. Wire R307 TX to GPIO4 and RX to GPIO5 at 57600 baud; buzzer to GPIO13; green LED to GPIO16; active-low red LED to GPIO2. Optional OLED and DS3231 share SDA GPIO12 and SCL GPIO14. Make sure external circuits do not hold boot-strapping pins at the wrong level.
 5. Flash with `pio run -t upload`. ESP8266 AP+STA uses one radio, so after the station joins a router the AP follows that router's Wi-Fi channel. The student AP is configured for up to four clients.

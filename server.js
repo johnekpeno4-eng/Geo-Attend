@@ -135,6 +135,12 @@ const STATIC_ROUTE_FILES = {
   "/mobile-student.css": "assets/css/mobile-student.css",
   "/form-controls.css": "assets/css/form-controls.css"
 };
+const STATIC_ASSET_FILES = {
+  "/role-access.js": "assets/js/role-access.js",
+  "/mobile-admin.css": "assets/css/mobile-admin.css",
+  "/mobile-student.css": "assets/css/mobile-student.css",
+  "/form-controls.css": "assets/css/form-controls.css"
+};
 
 const server = http.createServer(async (req, res) => {
   try {
@@ -1812,7 +1818,8 @@ async function bindStudentDevice(res, body) {
 
 function serveStatic(req, res) {
   const urlPath = decodeURIComponent(new URL(req.url, `http://${req.headers.host}`).pathname).replaceAll("\\", "/");
-  const relativePath = STATIC_ROUTE_FILES[urlPath === "/" ? "/login.html" : urlPath];
+  const normalizedPath = urlPath === "/" ? "/login.html" : urlPath;
+  const relativePath = STATIC_ROUTE_FILES[normalizedPath] || STATIC_ASSET_FILES[path.posix.normalize(normalizedPath)];
   if (!relativePath) {
     res.writeHead(404, getCorsHeaders());
     res.end("Not found");

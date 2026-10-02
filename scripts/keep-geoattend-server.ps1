@@ -1,10 +1,14 @@
 $RootPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+$LogPath = Join-Path $RootPath "data\logs"
+$StdoutLog = Join-Path $LogPath "server-live.out.log"
+$StderrLog = Join-Path $LogPath "server-live.err.log"
 $Port = 5501
 $HealthUrl = "http://localhost:$Port/login.html"
 $SyncIntervalSeconds = 60
 $lastSyncAttempt = [datetime]::MinValue
 
 Set-Location $RootPath
+New-Item -ItemType Directory -Path $LogPath -Force | Out-Null
 
 while ($true) {
   if (((Get-Date) - $lastSyncAttempt).TotalSeconds -ge $SyncIntervalSeconds) {
@@ -31,7 +35,7 @@ while ($true) {
     $listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
     if (-not $listener) {
 
-      Start-Process -FilePath node -ArgumentList "--no-warnings", "server.js" -WorkingDirectory $RootPath -RedirectStandardOutput "server-live.out.log" -RedirectStandardError "server-live.err.log" -WindowStyle Hidden
+      Start-Process -FilePath node -ArgumentList "--no-warnings", "server.js" -WorkingDirectory $RootPath -RedirectStandardOutput $StdoutLog -RedirectStandardError $StderrLog -WindowStyle Hidden
       Start-Sleep -Seconds 2
     }
   }
