@@ -101,7 +101,7 @@ For Gmail, use a 16-character App Password, not your normal Gmail password.
 
 The real `.env` file is ignored by Git to protect passwords and private configuration.
 
-Add `DEVICE_TOKEN_SECRET` to `.env` for phone check-in. Generate a random value of at least 32 characters, for example with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. Copy the same secret into the private firmware configuration file. Do not commit device credentials.
+Set `DEVICE_TOKEN_SECRET` and `ADMIN_JWT_SECRET` in `.env` to separate random values of at least 32 characters. Generate each with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. Copy `DEVICE_TOKEN_SECRET` into the private firmware configuration. Admin device-management endpoints require the signed token issued by admin login. Keep both server secrets stable across restarts and never commit device credentials.
 
 ## Run Locally
 

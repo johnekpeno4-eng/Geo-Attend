@@ -85,6 +85,7 @@
     localStorage.removeItem("geoAttendView");
     localStorage.removeItem("geoAttendCurrentUser");
     localStorage.removeItem("geoAttendAdminEmail");
+    localStorage.removeItem("geoAttendAdminToken");
     go("login.html");
     return;
   }
@@ -172,6 +173,7 @@
           localStorage.setItem("geoAttendRole", role);
           localStorage.setItem("geoAttendView", role === "admin" ? "admin" : "student");
           localStorage.removeItem("geoAttendAdminEmail");
+          localStorage.removeItem("geoAttendAdminToken");
           localStorage.removeItem("geoAttendAdminRole");
           localStorage.removeItem("geoAttendAdminName");
           localStorage.removeItem("geoAttendAdminFacultyId");
@@ -201,6 +203,7 @@
           const adminResult = await postJson("/api/admin-login", { email, password });
           localStorage.setItem("geoAttendCurrentUser", adminResult.user.email);
           localStorage.setItem("geoAttendAdminEmail", adminResult.user.email);
+          localStorage.setItem("geoAttendAdminToken", adminResult.accessToken || "");
           localStorage.setItem("geoAttendAdminRole", adminResult.user.adminRole || "admin");
           localStorage.setItem("geoAttendAdminName", adminResult.user.fullName || "");
           localStorage.setItem("geoAttendAdminFacultyId", adminResult.user.facultyId || "");
@@ -485,6 +488,7 @@
           localStorage.removeItem("geoAttendView");
           localStorage.removeItem("geoAttendCurrentUser");
           localStorage.removeItem("geoAttendAdminEmail");
+          localStorage.removeItem("geoAttendAdminToken");
           localStorage.removeItem("geoAttendAdminRole");
           localStorage.removeItem("geoAttendAdminName");
           localStorage.removeItem("geoAttendAdminFacultyId");

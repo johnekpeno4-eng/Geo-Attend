@@ -18,23 +18,23 @@
     <section class="rounded-xl border bg-white p-5 shadow-sm"><div class="flex items-center justify-between gap-3"><h2 class="text-xl font-bold">Devices and assigned slots</h2><button id="refresh" class="rounded-lg border px-4 py-2 font-bold">Refresh</button></div><div id="device-list" class="mt-4 space-y-4"></div></section>
   </main>
   <script>
-    const adminEmail = localStorage.getItem("geoAttendAdminEmail") || "";
+    const adminToken = localStorage.getItem("geoAttendAdminToken") || "";
     const msg = document.getElementById("message");
     const api = async (url, options = {}) => {
-      const response = await fetch(url, { ...options, headers: { "Content-Type": "application/json", ...(options.headers || {}) } });
+      const response = await fetch(url, { ...options, headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}`, ...(options.headers || {}) } });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Request failed.");
       return result;
     };
-    const post = (url, values) => api(url, { method: "POST", body: JSON.stringify({ ...values, actorEmail: adminEmail }) });
+    const post = (url, values) => api(url, { method: "POST", body: JSON.stringify(values) });
     const show = (text, error = false) => { msg.textContent = text; msg.className = `rounded-lg p-3 text-sm font-semibold ${error ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"}`; };
     const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
     async function load() {
       try {
         const [deviceData, roster, assignment] = await Promise.all([
-          api(`/api/devices?actorEmail=${encodeURIComponent(adminEmail)}`),
-          api(`/api/students?actorEmail=${encodeURIComponent(adminEmail)}`),
-          api(`/api/devices/enrollments?actorEmail=${encodeURIComponent(adminEmail)}`)
+          api("/api/devices"),
+          api(`/api/students?actorEmail=${encodeURIComponent(localStorage.getItem("geoAttendAdminEmail") || "")}`),
+          api("/api/devices/enrollments")
         ]);
         const enabled = deviceData.devices.filter((item) => item.enabled);
         document.getElementById("device-select").innerHTML = enabled.map((item) => `<option value="${escapeHtml(item.espId)}">${escapeHtml(item.name)} (${escapeHtml(item.espId)})</option>`).join("");

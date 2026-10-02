@@ -1826,7 +1826,7 @@ function getCorsHeaders() {
   return {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, X-Device-Key"
+    "Access-Control-Allow-Headers": "Content-Type, X-Device-Key, Authorization"
   };
 }
 
@@ -3145,6 +3145,7 @@ async function adminLogin(res, body) {
   const publicAdmin = adminPublicView(admin);
   json(res, 200, {
     ok: true,
+    accessToken: createAdminApiToken(admin),
     user: {
       ...publicAdmin,
       role: "admin",

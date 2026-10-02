@@ -1,6 +1,7 @@
 ﻿.env
 .env.*
 !.env.example
+include/device_config.h
 
 node_modules/
 npm-debug.log*
