@@ -349,6 +349,21 @@
     let faceCameraStream = null;
     let faceCaptureImage = null;
     let checkinInProgress = false;
+    let activeCameraStream = null;
+    let activeCapturedFrames = null;
+    let activeScanController = null;
+    function releaseCameraScan() {
+      if (activeCapturedFrames) activeCapturedFrames.length = 0;
+      activeCapturedFrames = null;
+      activeScanController?.abort();
+      activeScanController = null;
+      const video = document.getElementById("checkin-fingerprint-video");
+      const canvas = document.getElementById("checkin-fingerprint-canvas");
+      if (video) { video.pause(); video.srcObject = null; video.classList.add("hidden"); }
+      if (canvas) { canvas.width = 0; canvas.height = 0; }
+      activeCameraStream?.getTracks?.().forEach((track) => { try { track.applyConstraints?.({ advanced: [{ torch: false }] }).catch?.(() => {}); } catch {} track.stop(); });
+      activeCameraStream = null;
+    }
     let checkinQrTimer = null;    let sessionCountdownInterval = null;
     let attendanceLogs = JSON.parse(localStorage.getItem("geoAttendAttendanceLog") || "[]")
       .filter((item) => !email || item.email === email);
@@ -541,6 +556,9 @@
       checkinInProgress = true;
       let stream = null;
       let capturedFrames = [];
+      activeCapturedFrames = capturedFrames;
+      const scanController = new AbortController();
+      activeScanController = scanController;
       const video = document.getElementById("checkin-fingerprint-video");
       const canvas = document.getElementById("checkin-fingerprint-canvas");
       try {
@@ -551,11 +569,18 @@
           session_id: selectedCheckinSession.id,
           hotspot_token: hotspotToken
         });
+        if (scanController.signal.aborted || document.hidden) throw new Error("Scan cancelled. Tap Check In to retry.");
         try {
           stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
         } catch {
           stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
         }
+        if (scanController.signal.aborted || document.hidden) {
+          stream.getTracks().forEach((track) => track.stop());
+          stream = null;
+          throw new Error("Scan cancelled. Tap Check In to retry.");
+        }
+        activeCameraStream = stream;
         const track = stream.getVideoTracks()[0];
         if (track?.applyConstraints) {
           try { await track.applyConstraints({ advanced: [{ torch: true }] }); }
@@ -584,14 +609,24 @@
           await new Promise((resolve) => setTimeout(resolve, 180));
         }
         setCheckinMessage("Checking the fingerprint…");
-        const result = await postJson("/api/checkin/scan", {
+        const payload = {
           challenge_id: issued.challenge_id,
           challenge: issued.challenge,
           student_id: issued.student_id,
           session_id: selectedCheckinSession.id,
           hotspot_token: hotspotToken,
           frames: capturedFrames
+        };
+        const responsePromise = fetch("/api/checkin/scan", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload), signal: scanController.signal
         });
+        capturedFrames.length = 0;
+        activeCapturedFrames = null;
+        payload.frames = null;
+        const response = await responsePromise;
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || "Camera fingerprint check-in failed. Retry or ask the lecturer.");
         await refreshLiveSessionsFromServer();
         setCheckinMessage(`Check-in saved at ${formatDateTime(result.record.checkedInAt)}. Match score ${Number(result.record.matchScore).toFixed(1)}.`, false);
         setTimeout(closeCheckinModal, 1200);
@@ -599,9 +634,7 @@
         setCheckinMessage(error?.message || "Camera fingerprint check-in failed. Retry or ask the lecturer.", true);
       } finally {
         capturedFrames.length = 0;
-        if (video) { video.pause(); video.srcObject = null; video.classList.add("hidden"); }
-        if (canvas) { canvas.width = 0; canvas.height = 0; }
-        stream?.getTracks?.().forEach((track) => track.stop());
+        releaseCameraScan();
         checkinInProgress = false;
       }
     }
@@ -647,6 +680,7 @@
     }
 
     function closeCheckinModal() {
+      releaseCameraScan();
       const modal = document.getElementById("checkin-modal");
       modal?.classList.add("hidden");
       modal?.classList.remove("flex");
@@ -869,8 +903,10 @@
     });
 
     document.addEventListener("visibilitychange", () => {
-      if (!document.hidden) refreshLiveSessionsFromServer();
+      if (document.hidden) releaseCameraScan();
+      else refreshLiveSessionsFromServer();
     });
+    window.addEventListener("pagehide", releaseCameraScan);
   </script>
 </body>
 </html>

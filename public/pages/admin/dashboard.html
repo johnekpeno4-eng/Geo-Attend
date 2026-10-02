@@ -880,6 +880,9 @@
 
     async function saveAssistedAttendance(student, verification) {
       if (!assistedCheckinSession) throw new Error("Select an active session first.");
+      const actorEmail = localStorage.getItem("geoAttendCurrentUser") || "";
+      const adminPassword = window.prompt("Enter your admin password to record this manual attendance entry:");
+      if (!adminPassword) throw new Error("Manual attendance entry was cancelled.");
       if (!isAssistSessionStarted(assistedCheckinSession)) {
         const start = getSessionStartDate(assistedCheckinSession);
         throw new Error(`Check-in opens at ${start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`);
@@ -897,7 +900,9 @@
         checkedInAt: new Date().toISOString(),
         status: "present",
         verificationMethod: verification.method,
-        faceCapture: verification.faceCapture || null
+        manualEntry: true,
+        actorEmail,
+        adminPassword
       };
       const response = await fetch("/api/attendance", {
         method: "POST",

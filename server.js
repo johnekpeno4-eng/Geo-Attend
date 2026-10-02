@@ -367,7 +367,7 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "POST" && req.url === "/api/attendance") {
       const body = await readJson(req);
-      await saveAttendance(res, body);
+      await saveAttendance(req, res, body);
       return;
     }
     if (req.method === "POST" && req.url === "/api/live-sessions/cancel") {
@@ -875,6 +875,13 @@ async function initDatabase() {
   await dbRun("CREATE INDEX IF NOT EXISTS idx_attendance_checked_in ON attendance(checked_in_at)");
   await ensureColumn("attendance", "academic_session", "TEXT DEFAULT ''");
   await ensureColumn("attendance", "checked_out_at", "TEXT");
+  await ensureColumn("attendance", "student_id", "TEXT");
+  await ensureColumn("attendance", "match_score", "REAL");
+  await ensureColumn("attendance", "ip", "TEXT");
+  await ensureColumn("attendance", "timestamp", "TEXT");
+  await ensureColumn("attendance", "method", "TEXT NOT NULL DEFAULT 'manual'");
+  await dbRun("UPDATE attendance SET method = 'manual' WHERE method IS NULL OR method = '' OR method NOT IN ('camera','manual')");
+  await backfillAttendanceVerificationJson();
   await dbRun(`CREATE TABLE IF NOT EXISTS fingerprint_devices (
     esp_id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -991,6 +998,9 @@ async function migrateJsonDataToSqlite() {
   const normalizedAttendance = (Array.isArray(attendance) ? attendance : []).map((record) => ({ ...record, academicSession: normalizeAcademicSession(record?.academicSession) || DEFAULT_ACADEMIC_SESSION }));
   for (const record of normalizedAttendance) {
     if (!record?.id || !record?.sessionId) continue;
+    const isSuccessfulCheckin = Boolean(record.checkedInAt) && record.status !== "absent";
+    const hasCameraMatch = record.matchScore !== null && record.matchScore !== undefined && record.matchScore !== "" && Number.isFinite(Number(record.matchScore));
+    if (isSuccessfulCheckin && !hasCameraMatch && !await dbGet("SELECT id FROM attendance WHERE id = ?", [record.id])) continue;
     await upsertSqliteAttendance(record);
   }
   if (JSON.stringify(attendance) !== JSON.stringify(normalizedAttendance)) writeLocalJson(ATTENDANCE_LOG_FILE, normalizedAttendance);
@@ -1159,9 +1169,10 @@ async function writeSqliteSessions(sessions) {
 
 async function upsertSqliteAttendance(record) {
   const academicSession = normalizeAcademicSession(record.academicSession) || await getCurrentAcademicSession();
-  const normalized = { ...record, academicSession };
-  await dbRun(`INSERT INTO attendance (id, session_id, email, reg_number, full_name, status, checked_in_at, checked_out_at, saved_at, academic_session, student_id, match_score, ip, "timestamp", attendance_json)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  const hasCameraMatch = record.matchScore !== null && record.matchScore !== undefined && record.matchScore !== "" && Number.isFinite(Number(record.matchScore));
+  const normalized = { ...record, academicSession, method: record.method === "camera" || hasCameraMatch ? "camera" : "manual" };
+  await dbRun(`INSERT INTO attendance (id, session_id, email, reg_number, full_name, status, checked_in_at, checked_out_at, saved_at, academic_session, student_id, match_score, ip, "timestamp", method, attendance_json)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       session_id = excluded.session_id,
       email = excluded.email,
@@ -1176,6 +1187,7 @@ async function upsertSqliteAttendance(record) {
       match_score = excluded.match_score,
       ip = excluded.ip,
       "timestamp" = excluded."timestamp",
+      method = excluded.method,
       attendance_json = excluded.attendance_json`, [
     record.id,
     record.sessionId,
@@ -1188,9 +1200,10 @@ async function upsertSqliteAttendance(record) {
     record.savedAt || new Date().toISOString(),
     academicSession,
     record.studentId || null,
-    Number.isFinite(Number(record.matchScore)) ? Number(record.matchScore) : null,
+    record.matchScore !== null && record.matchScore !== undefined && record.matchScore !== "" && Number.isFinite(Number(record.matchScore)) ? Number(record.matchScore) : null,
     record.ip || null,
     record.timestamp || record.checkedInAt || null,
+    normalized.method,
     JSON.stringify(normalized)
   ]);
 }
@@ -1631,6 +1644,9 @@ function sessionWindow(session) {
 
 async function handleFingerprintDeviceApi(req, res, body) {
   const url = new URL(req.url, "http://127.0.0.1");
+  if (req.method === "POST" && ["/api/device/checkin", "/api/device/phone-checkin"].includes(url.pathname)) {
+    json(res, 410, { ok: false, error: "Device and phone-token attendance are disabled. Each student must use the camera fingerprint scan." }); return;
+  }
   if (url.pathname === "/api/devices" && req.method === "GET") {
     if (!requireDeviceAdmin(req, res, body)) return;
     const devices = await dbAll("SELECT esp_id AS espId, name, enabled, created_at AS createdAt FROM fingerprint_devices ORDER BY name COLLATE NOCASE");
@@ -1736,71 +1752,34 @@ async function handleFingerprintDeviceApi(req, res, body) {
     }
     return;
   }
-  if (url.pathname === "/api/device/checkin" && req.method === "POST") {
-    const espId = String(body.espId || "");
-    const device = await authenticateFingerprintDevice(req, espId);
-    if (!device) { deviceAuthFailure(req, res); return; }
-    const attemptedAt = new Date().toISOString();
-    const sessionId = String(body.sessionId || "");
-    const slotId = Number(body.slotId);
-    const fail = async (status, reason) => {
-      await dbRun("INSERT INTO device_rejected_attempts (esp_id, session_id, slot_id, reason, attempted_at) VALUES (?, ?, ?, ?, ?)", [espId, sessionId, Number.isInteger(slotId) ? slotId : null, reason.slice(0, 160), attemptedAt]);
-      json(res, status, { ok: false, status: "rejected", reason });
-    };
-    const timestamp = new Date(body.timestamp || attemptedAt);
-    if (!Number.isInteger(slotId) || slotId < 1 || slotId > 127 || Number.isNaN(timestamp.getTime()) || timestamp.getTime() > Date.now() + 5 * 60 * 1000 || timestamp.getTime() < Date.now() - 48 * 60 * 60 * 1000) { await fail(400, "Invalid slot or timestamp."); return; }
-    const sessionRows = await readLiveSessionsStore();
-    const session = sessionRows.items.find((item) => item.id === sessionId);
-    const window = sessionWindow(session);
-    if (!session || !["active", "ended"].includes(session.status) || !window || timestamp.getTime() < window.start || timestamp.getTime() > window.end) { await fail(403, "No valid attendance session window."); return; }
-    const slot = await dbGet("SELECT s.id, s.full_name, s.reg_number, s.email, s.department_id, s.department_name, s.faculty_id, s.faculty_name, s.level_id, s.level_name FROM fingerprint_slots f JOIN students s ON s.id = f.student_id WHERE f.esp_id = ? AND f.slot_id = ?", [espId, slotId]);
-    if (!slot) { await fail(404, "Fingerprint slot is not registered to a student."); return; }
-    if (await dbGet("SELECT id FROM attendance WHERE session_id = ? AND student_id = ?", [sessionId, slot.id])) { json(res, 200, { ok: true, status: "duplicate", student: { name: slot.full_name, matricNo: slot.reg_number } }); return; }
-    const rowId = crypto.randomUUID();
-    const insert = await dbRun("INSERT OR IGNORE INTO device_attendance (id, esp_id, session_id, student_id, attended_at, method) VALUES (?, ?, ?, ?, ?, 'fingerprint')", [rowId, espId, sessionId, slot.id, timestamp.toISOString()]);
-    if (!insert.changes) { json(res, 200, { ok: true, status: "duplicate", student: { name: slot.full_name, matricNo: slot.reg_number } }); return; }
-    const record = { id: rowId, sessionId, course: session.course || "Lecture", studentId: slot.id, email: slot.email, fullName: slot.full_name, regNumber: slot.reg_number, departmentId: slot.department_id, departmentName: slot.department_name, facultyId: slot.faculty_id, facultyName: slot.faculty_name, levelId: slot.level_id, levelName: slot.level_name, status: "present", method: "fingerprint", verificationMethod: "Fingerprint sensor", deviceId: espId, checkedInAt: timestamp.toISOString(), savedAt: attemptedAt, academicSession: session.academicSession || DEFAULT_ACADEMIC_SESSION };
-    try {
-      await upsertSqliteAttendance(record);
-      updateAttendanceReportMirror(record);
-    } catch (error) {
-      await dbRun("DELETE FROM device_attendance WHERE id = ?", [rowId]);
-      throw error;
-    }
-    json(res, 201, { ok: true, status: "accepted", student: { name: slot.full_name, matricNo: slot.reg_number }, attendanceId: rowId }); return;
-  }
-  if (url.pathname === "/api/device/phone-checkin" && req.method === "POST") {
-    const espId = String(body.espId || "");
-    if (!await authenticateFingerprintDevice(req, espId)) { deviceAuthFailure(req, res); return; }
-    const email = String(body.email || "").trim().toLowerCase();
-    const student = await dbGet("SELECT s.* FROM students s JOIN student_device_bindings b ON b.student_id = s.id WHERE s.email = ? COLLATE NOCASE AND b.device_id = ?", [email, String(body.deviceId || "")]);
-    const suppliedSlot = Number(body.timeSlot);
-    const secret = String(process.env.DEVICE_TOKEN_SECRET || "");
-    const sessionId = String(body.sessionId || "");
-    const message = `${sessionId}|${suppliedSlot}`;
-    const expected = secret ? crypto.createHmac("sha256", secret).update(message).digest("hex").slice(0, 8) : "";
-    const currentSlot = Math.floor(Date.now() / 30000);
-    if (!student || !secret || !timingSafeTextEqual(expected, String(body.token || "").toLowerCase()) || ![currentSlot, currentSlot - 1].includes(suppliedSlot)) {
-      await dbRun("INSERT INTO device_rejected_attempts (esp_id, session_id, slot_id, reason, attempted_at) VALUES (?, ?, NULL, ?, ?)", [espId, sessionId, "Invalid phone token or unbound phone.", new Date().toISOString()]);
-      json(res, 401, { ok: false, status: "rejected", reason: "Invalid token or phone is not bound to this student." }); return;
-    }
-    const session = (await readLiveSessionsStore()).items.find((item) => item.id === sessionId && item.status === "active");
-    const window = sessionWindow(session);
-    const timestamp = new Date();
-    if (!window || timestamp.getTime() < window.start || timestamp.getTime() > window.end) {
-      await dbRun("INSERT INTO device_rejected_attempts (esp_id, session_id, slot_id, reason, attempted_at) VALUES (?, ?, NULL, ?, ?)", [espId, sessionId, "Phone scan outside session window.", timestamp.toISOString()]);
-      json(res, 403, { ok: false, status: "rejected", reason: "No valid attendance session window." }); return;
-    }
-    if (await dbGet("SELECT id FROM attendance WHERE session_id = ? AND student_id = ?", [sessionId, student.id])) { json(res, 200, { ok: true, status: "duplicate", student: { name: student.full_name, matricNo: student.reg_number } }); return; }
-    const rowId = crypto.randomUUID();
-    const inserted = await dbRun("INSERT OR IGNORE INTO device_attendance (id, esp_id, session_id, student_id, attended_at, method) VALUES (?, ?, ?, ?, ?, 'phone')", [rowId, espId, sessionId, student.id, timestamp.toISOString()]);
-    if (!inserted.changes) { json(res, 200, { ok: true, status: "duplicate", student: { name: student.full_name, matricNo: student.reg_number } }); return; }
-    const record = { id: rowId, sessionId, course: session.course || "Lecture", studentId: student.id, email: student.email, fullName: student.full_name, regNumber: student.reg_number, departmentId: student.department_id, departmentName: student.department_name, facultyId: student.faculty_id, facultyName: student.faculty_name, levelId: student.level_id, levelName: student.level_name, status: "present", method: "phone-token", verificationMethod: "Phone via attendance Wi-Fi", deviceId: espId, checkedInAt: timestamp.toISOString(), savedAt: timestamp.toISOString(), academicSession: session.academicSession || DEFAULT_ACADEMIC_SESSION };
-    try { await upsertSqliteAttendance(record); updateAttendanceReportMirror(record); }
-    catch (error) { await dbRun("DELETE FROM device_attendance WHERE id = ?", [rowId]); throw error; }
-    json(res, 201, { ok: true, status: "accepted", student: { name: student.full_name, matricNo: student.reg_number } }); return;
-  }
   json(res, 404, { error: "Fingerprint device endpoint not found." });
+}
+
+async function backfillAttendanceVerificationJson() {
+  const rows = await dbAll('SELECT id, student_id, match_score, ip, "timestamp", method, attendance_json FROM attendance');
+  for (const row of rows) {
+    const record = parseJsonColumn(row.attendance_json, null);
+    if (!record) continue;
+    const { adminPassword: _adminPassword, checkinToken: _checkinToken, faceCapture: _faceCapture, ...safeRecord } = record;
+    const scoreCandidate = row.match_score !== null && row.match_score !== undefined ? row.match_score : record.matchScore;
+    const score = Number(scoreCandidate);
+    const matchScore = scoreCandidate !== null && scoreCandidate !== undefined && scoreCandidate !== "" && Number.isFinite(score) ? score : null;
+    const studentId = row.student_id || record.studentId || null;
+    const ip = row.ip || record.ip || null;
+    const timestamp = row.timestamp || record.timestamp || record.checkedInAt || null;
+    const method = row.method === "camera" || record.method === "camera" || matchScore !== null ? "camera" : "manual";
+    const normalized = {
+      ...safeRecord,
+      studentId,
+      matchScore,
+      ip,
+      timestamp,
+      method
+    };
+    if (JSON.stringify(normalized) !== JSON.stringify(record)) {
+      await dbRun('UPDATE attendance SET student_id = ?, match_score = ?, ip = ?, "timestamp" = ?, method = ?, attendance_json = ? WHERE id = ?', [studentId, matchScore, ip, timestamp, method, JSON.stringify(normalized), row.id]);
+    }
+  }
 }
 
 async function bindStudentDevice(res, body) {
@@ -2248,6 +2227,7 @@ async function cancelLiveSession(res, body) {
   const cancelledIds = new Set([id, ...sessions.filter((item) => item?.seriesId && item.seriesId === (session.seriesId || id)).map((item) => item.id)]);
   const next = sessions.map((item) => item && cancelledIds.has(item.id) && item.status === "active" ? { ...item, status: "cancelled", cancelledAt, updatedAt: cancelledAt } : item);
   await writeLiveSessionsStore(next);
+  for (const cancelledId of cancelledIds) fingerprintCheckin.clearSessionAttempts(cancelledId);
   json(res, 200, { ok: true, sessions: next.filter((item) => item?.status === "active") });
 }
 
@@ -2267,6 +2247,7 @@ async function endLiveSession(res, sessionId) {
 
   const { source } = await writeLiveSessionsStore(nextSessions);
   if (endedSession) {
+    fingerprintCheckin.clearSessionAttempts(id);
     await ensureAbsentAttendance(endedSession);
     saveAttendanceReportFile({ ...endedSession, status: "ended", endedAt, updatedAt: endedAt }, "manual-end");
   }
@@ -2451,6 +2432,7 @@ async function autoFinalizeExpiredSessions() {
       updatedAt: now.toISOString()
     };
     ended.push(endedSession);
+    fingerprintCheckin.clearSessionAttempts(session.id);
     return endedSession;
   });
 
@@ -2616,16 +2598,15 @@ async function sendAttendancePdf(res, body) {
   json(res, 200, { ok: true, message: `PDF report sent to ${adminEmail}.`, sentTo: adminEmail, records: attendance.length });
 }
 
-async function saveAttendance(res, record) {
+async function saveAttendance(req, res, record) {
   if (!record || typeof record !== "object") {
     json(res, 400, { error: "A valid attendance record is required." });
     return;
   }
 
-  if (record.action !== "check-out") {
-    json(res, 403, { error: "Camera fingerprint verification is required for every check-in. Use the student Check In camera scan." });
-    return;
-  }
+  const isAdminManual = record.manualEntry === true || record.checkinType === "assisted-student" || record.assisted === true || Boolean(record.assistedByRegNumber || record.targetRegNumber);
+  if (record.action !== "check-out" && !isAdminManual) return json(res, 403, { error: "Camera fingerprint verification is required for every student check-in. Use the student Check In camera scan." });
+  if (record.action !== "check-out" && isAdminManual && !verifyAdminCredentials(record.actorEmail, record.adminPassword)) return json(res, 403, { error: "Valid admin credentials are required for a manual attendance entry." });
 
   const sessionId = String(record.sessionId || "").trim();
   if (!sessionId) {
@@ -2639,11 +2620,6 @@ async function saveAttendance(res, record) {
     json(res, 403, { error: "This attendance session is not active." });
     return;
   }
-  const isAssisted = record.checkinType === "assisted-student" || record.assisted === true;
-  if (isAssisted || record.assistedByRegNumber || record.targetRegNumber) {
-    json(res, 403, { error: "Student-assisted check-in is disabled. Each student must check in personally." });
-    return;
-  }
   let email = String(record.email || "").trim().toLowerCase();
   let fullName = String(record.fullName || "").trim();
   let regNumber = normalizeRegNumber(record.regNumber);
@@ -2651,6 +2627,7 @@ async function saveAttendance(res, record) {
   const studentForSignature = students.find((student) => (
     (email && student.email === email) || (regNumber && normalizeRegNumber(student.regNumber) === regNumber)
   )) || null;
+  if (record.action !== "check-out" && !studentForSignature) return json(res, 404, { error: "Student account was not found. Select a registered student before recording attendance." });
   if (studentForSignature) {
     email = String(studentForSignature.email || email).trim().toLowerCase();
     fullName = String(studentForSignature.fullName || fullName).trim();
@@ -2667,11 +2644,12 @@ async function saveAttendance(res, record) {
   const action = record.action === "check-out" ? "check-out" : "check-in";
   const checkinToken = String(record.checkinToken || "");
   const authorization = attendanceAuthorizationStore.get(checkinToken);
-  if (!authorization || authorization.expiresAt < Date.now() || authorization.email !== email || authorization.sessionId !== sessionId || authorization.action !== action) {
+  const validAuthorization = authorization && authorization.expiresAt >= Date.now() && authorization.email === email && authorization.sessionId === sessionId && authorization.action === action;
+  if ((action === "check-out" || !isAdminManual) && !validAuthorization) {
     json(res, 403, { error: `Verify your own fingerprint immediately before checking ${action === "check-out" ? "out" : "in"}.` });
     return;
   }
-  attendanceAuthorizationStore.delete(checkinToken);
+  if (validAuthorization) attendanceAuthorizationStore.delete(checkinToken);
   const { items: attendance } = await readAttendanceStore();
   const existing = attendance.find((entry) => entry && entry.sessionId === sessionId && (
     (regNumber !== "--" && normalizeRegNumber(entry.regNumber) === regNumber)
@@ -2739,7 +2717,7 @@ async function saveAttendance(res, record) {
   }
 
   const checkedInAt = now.toISOString();
-  const { position: _legacyPosition, geofence: _legacyGeofence, checkInLocation: _legacyCheckInLocation, checkOutLocation: _legacyCheckOutLocation, gpsVerification: _legacyVerification, checkOutGpsVerification: _legacyCheckOutVerification, ...recordWithoutLocation } = record;
+  const { position: _legacyPosition, geofence: _legacyGeofence, checkInLocation: _legacyCheckInLocation, checkOutLocation: _legacyCheckOutLocation, gpsVerification: _legacyVerification, checkOutGpsVerification: _legacyCheckOutVerification, faceCapture: _faceCapture, adminPassword: _adminPassword, actorEmail: _actorEmail, checkinToken: _checkinToken, manualEntry: _manualEntry, ...recordWithoutLocation } = record;
   const normalizedRecord = {
     ...recordWithoutLocation,
     id,
@@ -2758,6 +2736,11 @@ async function saveAttendance(res, record) {
     signature: record.signature || fullName || email || "",
     signatureDataUrl: normalizeSignatureDataUrl(record.signatureDataUrl || studentForSignature?.signatureDataUrl || ""),
     signatureStrokes: normalizeSignatureStrokes(record.signatureStrokes || studentForSignature?.signatureStrokes || []),
+    studentId: studentForSignature?.id || null,
+    matchScore: null,
+    ip: String(req.socket?.remoteAddress || "").slice(0, 64) || null,
+    timestamp: checkedInAt,
+    method: isAdminManual ? "manual" : "camera",
     status: "incomplete",
     checkedInAt,
     checkedOutAt: null,

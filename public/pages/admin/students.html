@@ -310,6 +310,9 @@
         return;
       }
       if (!student) return;
+      const actorEmail = localStorage.getItem("geoAttendCurrentUser") || "";
+      const adminPassword = window.prompt("Enter your admin password to record this manual attendance entry:");
+      if (!adminPassword) return;
       const start = getSessionStartDate(session);
       if (start && Date.now() < start.getTime()) {
         showMessage(`Check-in opens at ${start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`, true);
@@ -327,7 +330,10 @@
         geofence: session.geofence || null,
         checkedInAt: new Date().toISOString(),
         status: "present",
-        verificationMethod: "Admin assisted"
+        verificationMethod: "Admin assisted",
+        manualEntry: true,
+        actorEmail,
+        adminPassword
       };
       try {
         const response = await fetch("/api/attendance", {

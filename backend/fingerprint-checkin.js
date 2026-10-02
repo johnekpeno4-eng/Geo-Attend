@@ -6,17 +6,18 @@ function createFingerprintCheckin(deps) {
   const { dbRun, dbGet, dbAll, ensureColumn, readLiveSessionsStore, writeAttendanceStore, json, verifyAdminCredentials } = deps;
   const threshold = Number(process.env.FINGERPRINT_SCORE_THRESHOLD || 40);
   const matcherUrl = (process.env.FINGERPRINT_MATCHER_URL || "http://127.0.0.1:5512").replace(/\/$/, "");
+  const failedAttempts = new Map();
 
   async function initialize() {
     await dbRun("CREATE TABLE IF NOT EXISTS fingerprint_templates (student_id TEXT PRIMARY KEY REFERENCES students(id) ON DELETE CASCADE, ciphertext BLOB NOT NULL, iv BLOB NOT NULL, auth_tag BLOB NOT NULL, created_at TEXT NOT NULL)");
     await dbRun("CREATE TABLE IF NOT EXISTS checkin_challenges (id TEXT PRIMARY KEY, challenge_hash TEXT NOT NULL, student_id TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE, session_id TEXT NOT NULL, expires_at INTEGER NOT NULL, used_at TEXT)");
     await dbRun("CREATE INDEX IF NOT EXISTS idx_checkin_challenges_student_session ON checkin_challenges(student_id,session_id,expires_at)");
-    await dbRun("CREATE TABLE IF NOT EXISTS failed_attempts (id INTEGER PRIMARY KEY AUTOINCREMENT, student_id TEXT, session_id TEXT, reason TEXT NOT NULL, ip TEXT, created_at TEXT NOT NULL)");
-    await dbRun("CREATE INDEX IF NOT EXISTS idx_failed_attempts_student_session ON failed_attempts(student_id,session_id,created_at)");
     await ensureColumn("attendance", "student_id", "TEXT");
     await ensureColumn("attendance", "match_score", "REAL");
     await ensureColumn("attendance", "ip", "TEXT");
     await ensureColumn("attendance", "timestamp", "TEXT");
+    await ensureColumn("attendance", "method", "TEXT NOT NULL DEFAULT 'manual'");
+    await dbRun("UPDATE attendance SET method = 'manual' WHERE method IS NULL OR method = ''");
     await dbRun("CREATE UNIQUE INDEX IF NOT EXISTS idx_attendance_student_session_unique ON attendance(session_id,student_id) WHERE student_id IS NOT NULL");
   }
 
@@ -57,8 +58,14 @@ function createFingerprintCheckin(deps) {
     const store = await readLiveSessionsStore();
     return store.items.find((item) => String(item && item.id) === String(id)) || null;
   }
-  async function fail(req, res, studentId, sessionId, reason, code, message) {
-    await dbRun("INSERT INTO failed_attempts(student_id,session_id,reason,ip,created_at) VALUES(?,?,?,?,?)", [studentId || null, sessionId || null, reason, clientIp(req), new Date().toISOString()]);
+  function attemptKey(studentId, sessionId) { return `${studentId}:${sessionId}`; }
+  function attemptCount(studentId, sessionId) { return failedAttempts.get(attemptKey(studentId, sessionId)) || 0; }
+  function clearSessionAttempts(sessionId) {
+    const suffix = `:${sessionId}`;
+    for (const key of failedAttempts.keys()) if (key.endsWith(suffix)) failedAttempts.delete(key);
+  }
+  async function fail(req, res, studentId, sessionId, reason, code, message, countAttempt = true) {
+    if (countAttempt && studentId && sessionId) failedAttempts.set(attemptKey(studentId, sessionId), attemptCount(studentId, sessionId) + 1);
     return json(res, code, { error: message });
   }
   async function matcher(path, payload) {
@@ -70,8 +77,13 @@ function createFingerprintCheckin(deps) {
     return result;
   }
   function frames(body) {
-    if (!Array.isArray(body.frames) || body.frames.length !== 8 || body.frames.some((x) => typeof x !== "string" || x.length > 1800000)) throw new Error("Capture exactly eight fingertip frames and retry.");
-    return body.frames.map((x) => x.replace(/^data:image\/jpeg;base64,/, ""));
+    if (!Array.isArray(body.frames) || body.frames.length !== 8 || body.frames.some((x) => typeof x !== "string" || x.length > 1800000)) {
+      if (Array.isArray(body.frames)) body.frames.fill("");
+      throw new Error("Capture exactly eight fingertip frames and retry.");
+    }
+    const captured = body.frames.map((x) => x.replace(/^data:image\/jpeg;base64,/, ""));
+    body.frames.fill("");
+    return captured;
   }
 
   async function challenge(req, res, body) {
@@ -85,10 +97,9 @@ function createFingerprintCheckin(deps) {
     if (!student) return json(res, 404, { error: "Student account not found. Ask the lecturer to confirm your registration." });
     studentId = student.id;
     const session = await sessionById(sessionId);
-    if (!isOpen(session, new Date())) return json(res, 403, { error: "This class is outside its check-in window. Ask the lecturer if you are present." });
+    if (!isOpen(session, new Date())) { clearSessionAttempts(sessionId); return json(res, 403, { error: "This class is outside its check-in window. Ask the lecturer if you are present." }); }
     if (await dbGet("SELECT id FROM attendance WHERE session_id = ? AND student_id = ? LIMIT 1", [sessionId, studentId])) return json(res, 409, { error: "You already checked in for this session." });
-    const attempts = await dbGet("SELECT COUNT(*) count FROM failed_attempts WHERE student_id = ? AND session_id = ?", [studentId, sessionId]);
-    if (Number(attempts && attempts.count || 0) >= 3) return json(res, 429, { error: "You have used three scan attempts. Ask the lecturer to record your attendance." });
+    if (attemptCount(studentId, sessionId) >= 3) return json(res, 429, { error: "You have used three scan attempts. Ask the lecturer to record your attendance." });
     const raw = crypto.randomBytes(32).toString("base64url"), id = crypto.randomUUID();
     await dbRun("INSERT INTO checkin_challenges(id,challenge_hash,student_id,session_id,expires_at) VALUES(?,?,?,?,?)", [id, crypto.createHash("sha256").update(raw).digest("hex"), studentId, sessionId, Date.now() + 30000]);
     return json(res, 201, { challenge_id: id, challenge: raw, student_id: studentId, expires_in: 30 });
@@ -100,35 +111,44 @@ function createFingerprintCheckin(deps) {
     const claimed = savedChallenge && !savedChallenge.used_at
       ? await dbRun("UPDATE checkin_challenges SET used_at = ? WHERE id = ? AND used_at IS NULL", [new Date().toISOString(), challengeId])
       : { changes: 0 };
-    const rejected = (code, message, reason) => fail(req, res, studentId, sessionId, reason, code, message);
-    if (!savedChallenge || savedChallenge.used_at || claimed.changes !== 1 || savedChallenge.expires_at < Date.now() || savedChallenge.student_id !== studentId || savedChallenge.session_id !== sessionId) return rejected(400, "Scan expired. Tap Check In and scan again.", "challenge-invalid");
+    const rejected = (code, message, reason, countAttempt = true) => fail(req, res, studentId, sessionId, reason, code, message, countAttempt);
+    if (!savedChallenge || savedChallenge.used_at || claimed.changes !== 1 || savedChallenge.expires_at < Date.now() || savedChallenge.student_id !== studentId || savedChallenge.session_id !== sessionId) {
+      if (savedChallenge) failedAttempts.set(attemptKey(savedChallenge.student_id, savedChallenge.session_id), attemptCount(savedChallenge.student_id, savedChallenge.session_id) + 1);
+      return rejected(400, "Scan expired or was already used. Tap Check In and scan again.", "challenge-invalid", false);
+    }
     const providedHash = crypto.createHash("sha256").update(String(body.challenge || "")).digest();
-    if (!crypto.timingSafeEqual(Buffer.from(savedChallenge.challenge_hash, "hex"), providedHash)) return rejected(400, "Scan request did not match. Tap Check In and retry.", "challenge-mismatch");
+    if (savedChallenge.challenge_hash.length !== 64 || !crypto.timingSafeEqual(Buffer.from(savedChallenge.challenge_hash, "hex"), providedHash)) return rejected(400, "Scan request did not match. Tap Check In and retry.", "challenge-mismatch");
+    if (attemptCount(studentId, sessionId) >= 3) return rejected(429, "You have used three scan attempts. Ask the lecturer to record your attendance.", "rate-limit", false);
     if (!tokenValid(body.hotspot_token)) return rejected(403, "The lecturer's hotspot token is invalid. Ask for the current token.", "hotspot-token-invalid");
     const student = await dbGet("SELECT id,email,reg_number,full_name FROM students WHERE id = ?", [studentId]);
     if (!student) return rejected(404, "Student account not found. Ask the lecturer.", "student-not-found");
     const session = await sessionById(sessionId);
     if (!isOpen(session, new Date())) return rejected(403, "This class is outside its check-in window. Ask the lecturer if you are present.", "outside-window");
     if (await dbGet("SELECT id FROM attendance WHERE session_id = ? AND student_id = ? LIMIT 1", [sessionId, studentId])) return rejected(409, "Attendance is already recorded for this session.", "duplicate-checkin");
-    const attempts = await dbGet("SELECT COUNT(*) count FROM failed_attempts WHERE student_id = ? AND session_id = ?", [studentId, sessionId]);
-    if (Number(attempts && attempts.count || 0) >= 3) return rejected(429, "You have used three scan attempts. Ask the lecturer to record your attendance.", "rate-limit");
     let captured;
     try { captured = frames(body); } catch (error) { return rejected(400, error.message, "invalid-frames"); }
     const templatesRow = await dbGet("SELECT ciphertext,iv,auth_tag FROM fingerprint_templates WHERE student_id = ?", [studentId]);
-    if (!templatesRow) return rejected(409, "Camera fingerprint is not enrolled. Ask the lecturer to enroll it.", "template-missing");
+    if (!templatesRow) { captured.fill(""); return rejected(409, "Camera fingerprint is not enrolled. Ask the lecturer to enroll it.", "template-missing"); }
+    let candidates = [];
     try {
-      const candidates = decrypt(templatesRow);
+      candidates = decrypt(templatesRow);
       const result = await matcher("/v1/match", { frames: captured, templates: candidates });
+      captured.fill("");
       const score = Number(result.score);
       if (!Number.isFinite(score) || score < Number(process.env.FINGERPRINT_SCORE_THRESHOLD || 40)) return rejected(401, "Fingerprint did not match. Clean the camera, steady your finger, and retry.", "fingerprint-mismatch");
       const checkedInAt = new Date().toISOString();
-      const record = { id: crypto.randomUUID(), studentId, sessionId, email: student.email, regNumber: student.reg_number, fullName: student.full_name, course: session.course || "Class", status: "incomplete", checkedInAt, timestamp: checkedInAt, checkedOutAt: null, matchScore: score, ip: clientIp(req), savedAt: checkedInAt };
+      const record = { id: crypto.randomUUID(), studentId, sessionId, email: student.email, regNumber: student.reg_number, fullName: student.full_name, course: session.course || "Class", status: "incomplete", checkedInAt, timestamp: checkedInAt, checkedOutAt: null, matchScore: score, ip: clientIp(req), method: "camera", savedAt: checkedInAt };
       const all = (await dbAll("SELECT attendance_json FROM attendance ORDER BY datetime(checked_in_at) DESC")).map((r) => { try { return JSON.parse(r.attendance_json); } catch { return null; } }).filter(Boolean);
       await writeAttendanceStore([record, ...all]);
+      failedAttempts.delete(attemptKey(studentId, sessionId));
       return json(res, 200, { ok: true, record: { id: record.id, sessionId, checkedInAt, matchScore: score, status: record.status } });
     } catch (error) {
+      captured.fill("");
       if (error && String(error.code || "").startsWith("SQLITE_CONSTRAINT")) return rejected(409, "You already checked in for this session.", "duplicate-checkin");
       return rejected(503, "Fingerprint verification is unavailable. Retry; if it continues, ask the lecturer.", "matcher-error");
+    } finally {
+      captured.fill("");
+      candidates.fill("");
     }
   }
 
@@ -147,7 +167,7 @@ function createFingerprintCheckin(deps) {
     } catch { return json(res, 503, { error: "Fingerprint enrollment unavailable. Retry or contact support." }); }
   }
 
-  return { initialize, challenge, scan, enroll };
+  return { initialize, challenge, scan, enroll, clearSessionAttempts };
 }
 
 module.exports = { createFingerprintCheckin };
