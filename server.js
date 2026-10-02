@@ -1156,6 +1156,12 @@ async function upsertSqliteAttendance(record) {
   ]);
 }
 
+function updateAttendanceReportMirror(record) {
+  const old = readJsonFile(ATTENDANCE_LOG_FILE, []);
+  const retained = (Array.isArray(old) ? old : []).filter((entry) => entry?.id !== record.id && !(entry?.sessionId === record.sessionId && entry?.studentId === record.studentId));
+  writeLocalJson(ATTENDANCE_LOG_FILE, [record, ...retained].slice(0, 2000));
+}
+
 async function readSqliteAttendance() {
   const rows = await dbAll("SELECT attendance_json FROM attendance ORDER BY datetime(checked_in_at) DESC");
   return rows.map((row) => parseJsonColumn(row.attendance_json, null)).filter(Boolean).map((record) => ({
@@ -1706,8 +1712,8 @@ async function handleFingerprintDeviceApi(req, res, body) {
     if (!insert.changes) { json(res, 200, { ok: true, status: "duplicate", student: { name: slot.full_name, matricNo: slot.reg_number } }); return; }
     const record = { id: rowId, sessionId, course: session.course || "Lecture", studentId: slot.id, email: slot.email, fullName: slot.full_name, regNumber: slot.reg_number, departmentId: slot.department_id, departmentName: slot.department_name, facultyId: slot.faculty_id, facultyName: slot.faculty_name, levelId: slot.level_id, levelName: slot.level_name, status: "present", method: "fingerprint", verificationMethod: "Fingerprint sensor", deviceId: espId, checkedInAt: timestamp.toISOString(), savedAt: attemptedAt, academicSession: session.academicSession || DEFAULT_ACADEMIC_SESSION };
     try {
-      const attendance = (await readAttendanceStore()).items;
-      await writeAttendanceStore([record, ...attendance]);
+      await upsertSqliteAttendance(record);
+      updateAttendanceReportMirror(record);
     } catch (error) {
       await dbRun("DELETE FROM device_attendance WHERE id = ?", [rowId]);
       throw error;
@@ -1741,7 +1747,7 @@ async function handleFingerprintDeviceApi(req, res, body) {
     const inserted = await dbRun("INSERT OR IGNORE INTO device_attendance (id, esp_id, session_id, student_id, attended_at, method) VALUES (?, ?, ?, ?, ?, 'phone')", [rowId, espId, sessionId, student.id, timestamp.toISOString()]);
     if (!inserted.changes) { json(res, 200, { ok: true, status: "duplicate", student: { name: student.full_name, matricNo: student.reg_number } }); return; }
     const record = { id: rowId, sessionId, course: session.course || "Lecture", studentId: student.id, email: student.email, fullName: student.full_name, regNumber: student.reg_number, departmentId: student.department_id, departmentName: student.department_name, facultyId: student.faculty_id, facultyName: student.faculty_name, levelId: student.level_id, levelName: student.level_name, status: "present", method: "phone-token", verificationMethod: "Phone via attendance Wi-Fi", deviceId: espId, checkedInAt: timestamp.toISOString(), savedAt: timestamp.toISOString(), academicSession: session.academicSession || DEFAULT_ACADEMIC_SESSION };
-    try { const attendance = (await readAttendanceStore()).items; await writeAttendanceStore([record, ...attendance]); }
+    try { await upsertSqliteAttendance(record); updateAttendanceReportMirror(record); }
     catch (error) { await dbRun("DELETE FROM device_attendance WHERE id = ?", [rowId]); throw error; }
     json(res, 201, { ok: true, status: "accepted", student: { name: student.full_name, matricNo: student.reg_number } }); return;
   }
