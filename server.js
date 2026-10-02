@@ -309,6 +309,11 @@ const server = http.createServer(async (req, res) => {
       await handleFingerprintDeviceApi(req, res, body);
       return;
     }
+    if (req.method === "POST" && req.url === "/api/student-device/bind") {
+      const body = await readJson(req);
+      await bindStudentDevice(res, body);
+      return;
+    }
 
     if (req.method === "GET" && req.url.startsWith("/api/attendance")) {
       await getAttendance(req, res);
@@ -861,6 +866,11 @@ async function initDatabase() {
     attended_at TEXT NOT NULL,
     method TEXT NOT NULL DEFAULT 'fingerprint',
     UNIQUE(session_id, student_id)
+  )`);
+  await dbRun(`CREATE TABLE IF NOT EXISTS student_device_bindings (
+    student_id TEXT PRIMARY KEY REFERENCES students(id) ON DELETE CASCADE,
+    device_id TEXT NOT NULL,
+    bound_at TEXT NOT NULL
   )`);
   await dbRun(`CREATE TABLE IF NOT EXISTS device_rejected_attempts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1651,7 +1661,44 @@ async function handleFingerprintDeviceApi(req, res, body) {
     }
     json(res, 201, { ok: true, status: "accepted", student: { name: slot.full_name, matricNo: slot.reg_number }, attendanceId: rowId }); return;
   }
+  if (url.pathname === "/api/device/phone-checkin" && req.method === "POST") {
+    const espId = String(body.espId || "");
+    if (!await authenticateFingerprintDevice(req, espId)) { json(res, 401, { error: "Invalid or disabled device credentials." }); return; }
+    const email = String(body.email || "").trim().toLowerCase();
+    const student = await dbGet("SELECT s.* FROM students s JOIN student_device_bindings b ON b.student_id = s.id WHERE s.email = ? COLLATE NOCASE AND b.device_id = ?", [email, String(body.deviceId || "")]);
+    const suppliedSlot = Number(body.timeSlot);
+    const secret = String(process.env.DEVICE_TOKEN_SECRET || "");
+    const sessionId = String(body.sessionId || "");
+    const message = `${sessionId}|${suppliedSlot}`;
+    const expected = secret ? crypto.createHmac("sha256", secret).update(message).digest("hex").slice(0, 8) : "";
+    const currentSlot = Math.floor(Date.now() / 30000);
+    if (!student || !secret || !timingSafeTextEqual(expected, String(body.token || "").toLowerCase()) || ![currentSlot, currentSlot - 1].includes(suppliedSlot)) { json(res, 401, { ok: false, status: "rejected", reason: "Invalid token or phone is not bound to this student." }); return; }
+    const session = (await readLiveSessionsStore()).items.find((item) => item.id === sessionId && item.status === "active");
+    const window = sessionWindow(session);
+    const timestamp = new Date();
+    if (!window || timestamp.getTime() < window.start || timestamp.getTime() > window.end) { json(res, 403, { ok: false, status: "rejected", reason: "No valid attendance session window." }); return; }
+    const rowId = crypto.randomUUID();
+    const inserted = await dbRun("INSERT OR IGNORE INTO device_attendance (id, esp_id, session_id, student_id, attended_at, method) VALUES (?, ?, ?, ?, ?, 'phone')", [rowId, espId, sessionId, student.id, timestamp.toISOString()]);
+    if (!inserted.changes) { json(res, 200, { ok: true, status: "duplicate", student: { name: student.full_name, matricNo: student.reg_number } }); return; }
+    const record = { id: rowId, sessionId, studentId: student.id, email: student.email, fullName: student.full_name, regNumber: student.reg_number, departmentId: student.department_id, departmentName: student.department_name, facultyId: student.faculty_id, facultyName: student.faculty_name, levelId: student.level_id, levelName: student.level_name, status: "present", method: "phone-token", deviceId: espId, checkedInAt: timestamp.toISOString(), savedAt: timestamp.toISOString(), academicSession: session.academicSession || DEFAULT_ACADEMIC_SESSION };
+    try { const attendance = (await readAttendanceStore()).items; await writeAttendanceStore([record, ...attendance]); }
+    catch (error) { await dbRun("DELETE FROM device_attendance WHERE id = ?", [rowId]); throw error; }
+    json(res, 201, { ok: true, status: "accepted", student: { name: student.full_name, matricNo: student.reg_number } }); return;
+  }
   json(res, 404, { error: "Fingerprint device endpoint not found." });
+}
+
+async function bindStudentDevice(res, body) {
+  const email = String(body.email || "").trim().toLowerCase();
+  const password = String(body.password || "");
+  const deviceId = String(body.deviceId || "").trim();
+  if (!email || password.length < 1 || !/^[A-Za-z0-0_-]{8,100}$/.test(deviceId)) { json(res, 400, { error: "Enter your account login and a phone device ID (8–100 letters/numbers)." }); return; }
+  const key = `bind-device:${email}`;
+  if (isRateLimited(loginAttemptStore, key, 5, 10 * 60 * 1000)) { json(res, 429, { error: "Too many attempts. Try again later." }); return; }
+  const row = await dbGet("SELECT * FROM students WHERE email = ? COLLATE NOCASE LIMIT 1", [email]);
+  if (!row || !row.password_hash || !verifyStoredPassword(password, { passwordHash: row.password_hash })) { json(res, 401, { error: "Account login was not accepted." }); return; }
+  await dbRun("INSERT INTO student_device_bindings (student_id, device_id, bound_at) VALUES (?, ?, ?) ON CONFLICT(student_id) DO UPDATE SET device_id = excluded.device_id, bound_at = excluded.bound_at", [row.id, deviceId, new Date().toISOString()]);
+  json(res, 200, { ok: true, message: "This phone is now bound to your student account." });
 }
 
 function serveStatic(req, res) {
