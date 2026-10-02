@@ -59,7 +59,7 @@
     document.getElementById("refresh").addEventListener("click", load);
     document.getElementById("device-list").addEventListener("click", async (event) => {
       const disableId = event.target.dataset.disable, studentId = event.target.dataset.deleteBiometric;
-      try { if (disableId) { await post("/api/devices/disable", { espId: disableId }); show("Device disabled."); } if (studentId && confirm("Delete this student's fingerprint slot and stored biometric/passkey data?")) { await post("/api/devices/biometric-delete", { studentId }); show("Student biometric data deleted."); } if (disableId || studentId) await load(); }
+      try { if (disableId) { await post("/api/devices/disable", { espId: disableId }); show("Device disabled."); } if (studentId && confirm("Delete this student's fingerprint slot and stored biometric/passkey data?")) { const result = await post("/api/devices/biometric-delete", { studentId }); show(result.message); } if (disableId || studentId) await load(); }
       catch (error) { show(error.message, true); }
     });
     load();
