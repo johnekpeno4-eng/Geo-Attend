@@ -173,12 +173,12 @@ function createFingerprintCheckin(deps) {
         calibration.sharpestFrameScore = Number.isFinite(sharpest) ? sharpest : "";
       }
       if (!Number.isFinite(score) || score < Number(process.env.FINGERPRINT_SCORE_THRESHOLD || 40)) return rejected(401, "Fingerprint did not match. Clean the camera, steady your finger, and retry.", "fingerprint-mismatch");
+      if (calibration) calibration.passed = true;
       const checkedInAt = new Date().toISOString();
       const record = { id: crypto.randomUUID(), studentId, sessionId, email: student.email, regNumber: student.reg_number, fullName: student.full_name, course: session.course || "Class", status: "incomplete", checkedInAt, timestamp: checkedInAt, checkedOutAt: null, matchScore: score, ip: clientIp(req), method: "camera", savedAt: checkedInAt };
       const all = (await dbAll("SELECT attendance_json FROM attendance ORDER BY datetime(checked_in_at) DESC")).map((r) => { try { return JSON.parse(r.attendance_json); } catch { return null; } }).filter(Boolean);
       await writeAttendanceStore([record, ...all]);
       failedAttempts.delete(attemptKey(studentId, sessionId));
-      if (calibration) calibration.passed = true;
       return json(res, 200, { ok: true, record: { id: record.id, sessionId, checkedInAt, matchScore: score, status: record.status } });
     } catch (error) {
       captured.fill("");

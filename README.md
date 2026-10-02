@@ -147,6 +147,12 @@ This workspace uses its existing Node.js and SQLite backend rather than adding a
 
 NTP provides UTC time. A DS3231 is used as fallback after it has been synchronized from NTP; a reset or unsynchronized RTC does not produce check-in timestamps. Offline check-ins upload in order and are deduplicated by session and student. The LittleFS queue is limited to 4 KB; explicitly rejected events are removed after the server logs them. Deleting biometric data removes server mappings immediately and queues a sensor template deletion for the next device connection.
 
+## Camera fingerprint calibration (development only)
+
+Calibration logging is disabled unless `FP_CALIBRATION=1`. Add that setting to the private root `.env` file and restart GeoAttend to append camera scan attempts to the ignored `data/calibration.csv`. Set `FP_CALIBRATION=0` or remove the setting, then restart, to turn it off. No camera images or fingerprint templates are written to this CSV. Attempts rejected before matching are still logged, with blank score fields.
+
+Sign in as Overall Admin and open **Fingerprint Devices → Calibration** (or visit `/calibration.html`). The report separates score-bearing successful attempts from score-bearing failed attempts, reports the lowest successful score and highest failed score per student and overall, and suggests their midpoint only when the two values do not overlap. A failed scan is only a valid impostor sample when a different student deliberately scanned while claiming that account; blur and poor camera placement can also cause failure. Review the samples and test conditions before changing `FINGERPRINT_SCORE_THRESHOLD`. Delete `data/calibration.csv` to clear the development sample set. The report API is restricted to Overall Admin.
+
 ## Device workflow verification plan
 
 - Server: verify device creation stores only an API-key hash; reject a bad key and unknown slot; accept a valid scan in the session window; report a repeat scan as duplicate; reject an out-of-window scan and confirm it is logged.
