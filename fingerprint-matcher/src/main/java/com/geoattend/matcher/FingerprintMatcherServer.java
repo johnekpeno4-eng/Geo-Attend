@@ -54,7 +54,7 @@ public final class FingerprintMatcherServer {
     private static JsonObject match(List<Frame> frames,JsonArray candidates){
         double best=-1;
         for(Frame f:frames){FingerprintMatcher matcher=new FingerprintMatcher(new FingerprintTemplate(new FingerprintImage(f.png,new FingerprintImageOptions().dpi(DPI))));for(JsonElement c:candidates)best=Math.max(best,matcher.match(new FingerprintTemplate(Base64.getDecoder().decode(c.getAsString()))));}
-        JsonObject out=new JsonObject();out.addProperty("score",best);return out;
+        JsonObject out=new JsonObject();out.addProperty("score",best);out.addProperty("sharpestFrameScore",frames.isEmpty()?0:frames.get(0).sharpness());return out;
     }
     private static List<Frame> prepare(JsonArray encoded) throws IOException {
         if(encoded==null||encoded.size()!=8)throw new IllegalArgumentException("Eight frames required.");

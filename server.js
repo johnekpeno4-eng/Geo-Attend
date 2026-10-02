@@ -119,6 +119,7 @@ const STATIC_ROUTE_FILES = {
   "/courses.html": "pages/admin/courses.html",
   "/create-session.html": "pages/admin/create-session.html",
   "/device-admin.html": "pages/admin/device-admin.html",
+  "/calibration.html": "pages/admin/calibration.html",
   "/live-monitor.html": "pages/admin/live-monitor.html",
   "/records.html": "pages/admin/records.html",
   "/session-report.html": "pages/admin/session-report.html",
@@ -1644,6 +1645,10 @@ function sessionWindow(session) {
 
 async function handleFingerprintDeviceApi(req, res, body) {
   const url = new URL(req.url, "http://127.0.0.1");
+  if (url.pathname === "/api/devices/calibration-report" && req.method === "GET") {
+    if (!requireDeviceAdmin(req, res)) return;
+    return getFingerprintCalibrationReport(res);
+  }
   if (req.method === "POST" && ["/api/device/checkin", "/api/device/phone-checkin"].includes(url.pathname)) {
     json(res, 410, { ok: false, error: "Device and phone-token attendance are disabled. Each student must use the camera fingerprint scan." }); return;
   }
@@ -1753,6 +1758,75 @@ async function handleFingerprintDeviceApi(req, res, body) {
     return;
   }
   json(res, 404, { error: "Fingerprint device endpoint not found." });
+}
+
+function parseCsvRow(line) {
+  const fields = [];
+  let value = "", quoted = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if (quoted && char === '"' && line[index + 1] === '"') { value += '"'; index += 1; }
+    else if (char === '"') quoted = !quoted;
+    else if (char === "," && !quoted) { fields.push(value); value = ""; }
+    else value += char;
+  }
+  fields.push(value);
+  return fields;
+}
+
+function calibrationThreshold(genuineMinimum, impostorMaximum) {
+  if (!Number.isFinite(genuineMinimum) || !Number.isFinite(impostorMaximum)) return null;
+  if (impostorMaximum >= genuineMinimum) return null;
+  return Number(((genuineMinimum + impostorMaximum) / 2).toFixed(2));
+}
+
+function getFingerprintCalibrationReport(res) {
+  const enabled = process.env.FP_CALIBRATION === "1";
+  const filePath = path.join(DATA_DIR, "calibration.csv");
+  const samples = [];
+  if (fs.existsSync(filePath)) {
+    const lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/).filter(Boolean);
+    const header = lines.length ? parseCsvRow(lines.shift()) : [];
+    const indexes = Object.fromEntries(header.map((name, index) => [name, index]));
+    for (const line of lines) {
+      const row = parseCsvRow(line);
+      const score = Number(row[indexes.best_match_score]);
+      if (!row[indexes.student_id] || !Number.isFinite(score)) continue;
+      samples.push({ studentId: row[indexes.student_id], score, passed: row[indexes.passed] === "true" });
+    }
+  }
+
+  const students = new Map();
+  for (const sample of samples) {
+    if (!students.has(sample.studentId)) students.set(sample.studentId, { studentId: sample.studentId, genuineMinimum: null, impostorMaximum: null, genuineSamples: 0, impostorSamples: 0 });
+    const item = students.get(sample.studentId);
+    if (sample.passed) {
+      item.genuineMinimum = item.genuineMinimum === null ? sample.score : Math.min(item.genuineMinimum, sample.score);
+      item.genuineSamples += 1;
+    } else {
+      item.impostorMaximum = item.impostorMaximum === null ? sample.score : Math.max(item.impostorMaximum, sample.score);
+      item.impostorSamples += 1;
+    }
+  }
+  const overall = { genuineMinimum: null, impostorMaximum: null, genuineSamples: 0, impostorSamples: 0 };
+  for (const item of students.values()) {
+    if (item.genuineMinimum !== null) overall.genuineMinimum = overall.genuineMinimum === null ? item.genuineMinimum : Math.min(overall.genuineMinimum, item.genuineMinimum);
+    if (item.impostorMaximum !== null) overall.impostorMaximum = overall.impostorMaximum === null ? item.impostorMaximum : Math.max(overall.impostorMaximum, item.impostorMaximum);
+    overall.genuineSamples += item.genuineSamples;
+    overall.impostorSamples += item.impostorSamples;
+  }
+  const nameRows = samples.length ? dbAll("SELECT id, full_name AS fullName, reg_number AS regNumber FROM students") : Promise.resolve([]);
+  nameRows.then((rows) => {
+    const names = new Map(rows.map((row) => [row.id, row]));
+    const perStudent = [...students.values()].map((item) => ({
+      ...item,
+      name: names.get(item.studentId)?.fullName || "Deleted student",
+      regNumber: names.get(item.studentId)?.regNumber || "",
+      suggestedThreshold: calibrationThreshold(item.genuineMinimum, item.impostorMaximum)
+    })).sort((a, b) => a.name.localeCompare(b.name));
+    overall.suggestedThreshold = calibrationThreshold(overall.genuineMinimum, overall.impostorMaximum);
+    json(res, 200, { ok: true, enabled, currentThreshold: Number(process.env.FINGERPRINT_SCORE_THRESHOLD || 40), overall, students: perStudent });
+  }).catch(() => json(res, 500, { error: "Unable to read calibration report." }));
 }
 
 async function backfillAttendanceVerificationJson() {

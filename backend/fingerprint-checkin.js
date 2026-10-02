@@ -1,6 +1,11 @@
 "use strict";
 
 const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
+
+const calibrationFile = path.join(__dirname, "..", "data", "calibration.csv");
+const calibrationColumns = ["timestamp", "student_id", "best_match_score", "sharpest_frame_score", "passed"];
 
 function createFingerprintCheckin(deps) {
   const { dbRun, dbGet, dbAll, ensureColumn, readLiveSessionsStore, writeAttendanceStore, json, verifyAdminCredentials } = deps;
@@ -106,6 +111,30 @@ function createFingerprintCheckin(deps) {
   }
 
   async function scan(req, res, body) {
+    if (process.env.FP_CALIBRATION !== "1") return scanAttempt(req, res, body, null);
+    const sample = {
+      timestamp: new Date().toISOString(),
+      studentId: String(body.student_id || ""),
+      bestMatchScore: "",
+      sharpestFrameScore: "",
+      passed: false
+    };
+    try {
+      return await scanAttempt(req, res, body, sample);
+    } finally {
+      try {
+        fs.mkdirSync(path.dirname(calibrationFile), { recursive: true });
+        if (!fs.existsSync(calibrationFile)) fs.writeFileSync(calibrationFile, calibrationColumns.join(",") + "\n", { flag: "wx" });
+        const values = [sample.timestamp, sample.studentId, sample.bestMatchScore, sample.sharpestFrameScore, sample.passed ? "true" : "false"];
+        const csv = values.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(",") + "\n";
+        fs.appendFileSync(calibrationFile, csv, "utf8");
+      } catch (error) {
+        console.error("Fingerprint calibration log could not be written:", error.message);
+      }
+    }
+  }
+
+  async function scanAttempt(req, res, body, calibration) {
     const studentId = String(body.student_id || ""), sessionId = String(body.session_id || ""), challengeId = String(body.challenge_id || "");
     const savedChallenge = await dbGet("SELECT * FROM checkin_challenges WHERE id = ?", [challengeId]);
     const claimed = savedChallenge && !savedChallenge.used_at
@@ -135,12 +164,18 @@ function createFingerprintCheckin(deps) {
       const result = await matcher("/v1/match", { frames: captured, templates: candidates });
       captured.fill("");
       const score = Number(result.score);
+      if (calibration) {
+        calibration.bestMatchScore = Number.isFinite(score) ? score : "";
+        const sharpest = Number(result.sharpestFrameScore);
+        calibration.sharpestFrameScore = Number.isFinite(sharpest) ? sharpest : "";
+      }
       if (!Number.isFinite(score) || score < Number(process.env.FINGERPRINT_SCORE_THRESHOLD || 40)) return rejected(401, "Fingerprint did not match. Clean the camera, steady your finger, and retry.", "fingerprint-mismatch");
       const checkedInAt = new Date().toISOString();
       const record = { id: crypto.randomUUID(), studentId, sessionId, email: student.email, regNumber: student.reg_number, fullName: student.full_name, course: session.course || "Class", status: "incomplete", checkedInAt, timestamp: checkedInAt, checkedOutAt: null, matchScore: score, ip: clientIp(req), method: "camera", savedAt: checkedInAt };
       const all = (await dbAll("SELECT attendance_json FROM attendance ORDER BY datetime(checked_in_at) DESC")).map((r) => { try { return JSON.parse(r.attendance_json); } catch { return null; } }).filter(Boolean);
       await writeAttendanceStore([record, ...all]);
       failedAttempts.delete(attemptKey(studentId, sessionId));
+      if (calibration) calibration.passed = true;
       return json(res, 200, { ok: true, record: { id: record.id, sessionId, checkedInAt, matchScore: score, status: record.status } });
     } catch (error) {
       captured.fill("");
