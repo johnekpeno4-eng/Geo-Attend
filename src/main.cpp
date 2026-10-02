@@ -271,21 +271,6 @@ void matchFinger() {
   sendAttendance(slot, activeSessionId, timestamp, true);
 }
 
-void serveToken() {
-  if (!activeSessionId.length()) { phoneServer.send(409, "application/json", "{\"error\":\"No attendance session\"}"); return; }
-  const time_t now = time(nullptr);
-  if (now < 1700000000) { phoneServer.send(503, "application/json", "{\"error\":\"Device clock is not synchronized\"}"); return; }
-  const uint32_t timeSlot = static_cast<uint32_t>(now / 30);
-  const String message = activeSessionId + "|" + String(timeSlot);
-  uint8_t mac[32];
-  const mbedtls_md_info_t* info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
-  mbedtls_md_hmac(info, reinterpret_cast<const unsigned char*>(DEVICE_TOKEN_SECRET), strlen(DEVICE_TOKEN_SECRET), reinterpret_cast<const unsigned char*>(message.c_str()), message.length(), mac);
-  char token[9];
-  snprintf(token, sizeof(token), "%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3]);
-  JsonDocument out; out["sessionId"] = activeSessionId; out["token"] = token; out["timeSlot"] = timeSlot;
-  String encoded; serializeJson(out, encoded); phoneServer.send(200, "application/json", encoded);
-}
-
 size_t queuedAttendanceCount() {
   File queue = LittleFS.open("/queue.jsonl", "r");
   if (!queue) return 0;
@@ -323,24 +308,6 @@ const char PHONE_PAGE[] PROGMEM = R"HTML(
 const el=id=>document.getElementById(id);async function refresh(){try{const r=await fetch('/status',{cache:'no-store'});if(!r.ok)throw Error();const s=await r.json();el('device').textContent=s.deviceId||'—';el('session').textContent=s.sessionActive?'Attendance session is active.':'No active session is currently available.';el('session').className=s.sessionActive?'ok':'warn';el('sensor').textContent=s.sensorReady?'Fingerprint reader is ready.':'Fingerprint reader is not detected.';el('sensor').className=s.sensorReady?'ok':'warn';el('internet').textContent=s.internetConnected?'Internet link is available.':'Internet is offline; queued check-ins stay on this device.';el('internet').className=s.internetConnected?'':'warn';el('queue').textContent=s.queuedCheckins;el('last').textContent=s.lastMessage||'Place your enrolled finger on the reader to check in.';el('last').className=s.lastState==='rejected'?'warn':s.lastState==='accepted'?'ok':''}catch(e){el('session').textContent='Device status is temporarily unavailable. Stay connected to the attendance Wi-Fi.';el('last').textContent='This page is stored on the ESP and remains open offline.'}}refresh();setInterval(refresh,2500);
 </script></body></html>)HTML";
 
-void proxyPhoneBind() {
-  JsonDocument body;
-  if (deserializeJson(body, phoneServer.arg("plain")) != DeserializationError::Ok) { phoneServer.send(400, "application/json", "{\"error\":\"Invalid request\"}"); return; }
-  body["espId"] = DEVICE_ID;
-  String payload, response; serializeJson(body, payload);
-  int code = httpRequest("POST", "/api/student-device/bind", payload, response);
-  phoneServer.send(code > 0 ? code : 503, "application/json", response.length() ? response : "{\"error\":\"Attendance server unavailable\"}");
-}
-
-void proxyPhoneCheckin() {
-  JsonDocument body;
-  if (deserializeJson(body, phoneServer.arg("plain")) != DeserializationError::Ok) { phoneServer.send(400, "application/json", "{\"error\":\"Invalid request\"}"); return; }
-  body["espId"] = DEVICE_ID;
-  String payload, response; serializeJson(body, payload);
-  int code = httpRequest("POST", "/api/device/phone-checkin", payload, response);
-  phoneServer.send(code > 0 ? code : 503, "application/json", response.length() ? response : "{\"error\":\"Attendance server unavailable\"}");
-}
-
 void setup() {
   Serial.begin(115200);
   pinMode(BUZZER_PIN, OUTPUT); pinMode(GREEN_LED_PIN, OUTPUT); pinMode(RED_LED_PIN, OUTPUT);
@@ -357,8 +324,6 @@ void setup() {
   File session = LittleFS.open("/session.txt", "r"); if (session) { activeSessionId = session.readString(); activeSessionId.trim(); session.close(); }
   phoneServer.on("/status", HTTP_GET, servePortalStatus);
   phoneServer.on("/", HTTP_GET, []() { phoneServer.send_P(200, "text/html; charset=utf-8", PHONE_PAGE); });
-  phoneServer.on("/bind", HTTP_POST, proxyPhoneBind);
-  phoneServer.on("/checkin", HTTP_POST, proxyPhoneCheckin);
   phoneServer.begin();
   screen(sensorReady ? "STARTING" : "SENSOR ERROR", WiFi.localIP().toString());
 }

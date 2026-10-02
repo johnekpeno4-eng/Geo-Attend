@@ -143,7 +143,7 @@ This workspace uses its existing Node.js and SQLite backend rather than adding a
 4. Wire R307 TX to GPIO4 and RX to GPIO5 at 57600 baud; buzzer to GPIO13; green LED to GPIO16; active-low red LED to GPIO2. Optional OLED and DS3231 share SDA GPIO12 and SCL GPIO14. Make sure external circuits do not hold boot-strapping pins at the wrong level.
 5. Flash with `pio run -t upload`. ESP8266 AP+STA uses one radio, so after the station joins a router the AP follows that router's Wi-Fi channel. The student AP is configured for up to four clients.
 6. In Fingerprint Devices, queue an enrollment for a student. The ESP polls for requests; have the student place and remove the same finger when prompted. Sensor slot IDs are allocated from 1 through 127.
-7. Create a lecture session in the dashboard. The ESP polls for today's active session every five seconds. For phone check-in, connect to the device AP and open `http://192.168.4.1/`; bind the phone with student account credentials, then use the session token check-in.
+7. Create a lecture session while the ESP can reach the server so it can cache the active session. Students join the ESP Wi-Fi and open `http://192.168.4.1/`. This lightweight portal is stored in firmware, uses no external assets, and shows session, reader, network, and queued-check-in status. Students check in by scanning an enrolled finger on the R307 reader; the ESP queues the event in LittleFS while the server is offline and uploads it after connectivity returns.
 
 NTP provides UTC time. A DS3231 is used as fallback after it has been synchronized from NTP; a reset or unsynchronized RTC does not produce check-in timestamps. Offline check-ins upload in order and are deduplicated by session and student. The LittleFS queue is limited to 4 KB; explicitly rejected events are removed after the server logs them. Deleting biometric data removes server mappings immediately and queues a sensor template deletion for the next device connection.
 
@@ -152,7 +152,7 @@ NTP provides UTC time. A DS3231 is used as fallback after it has been synchroniz
 - Server: verify device creation stores only an API-key hash; reject a bad key and unknown slot; accept a valid scan in the session window; report a repeat scan as duplicate; reject an out-of-window scan and confirm it is logged.
 - Enrollment: queue a student, complete two finger placements, confirm the slot mapping, delete the student's biometric data, and confirm the sensor clears its template after reconnecting.
 - Hardware: sensor missing, enrollment, accepted/duplicate/rejected LED and buzzer patterns, router outage and queue recovery, restart while events are queued, NTP failure with a synchronized RTC, and router channel change.
-- Phone: bind with valid credentials, reject invalid credentials, accept an in-window token for a bound phone, reject expired/replayed tokens, and confirm a different phone cannot reuse that binding.
+- Offline portal: with mobile data disabled, join the device AP, open `http://192.168.4.1/`, verify the page and live status load, scan a finger without internet, confirm the queue count increases, then restore internet and confirm queued events sync.
 
 R307 template capacity varies by module firmware; this setup caps allocation at 127 slots. ESP8266 has limited RAM and only a few stable AP clients, and it has no secure element. Use validated HTTPS in production and a dedicated access point or multiple ESP units for larger lectures. Calibrate the exact reader and timing setup before production use.
 
