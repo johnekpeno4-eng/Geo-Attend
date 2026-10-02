@@ -136,15 +136,15 @@ bool sendAttendance(uint16_t slot, const String& sessionId, const String& timest
   String payload; serializeJson(event, payload);
   String response;
   int code = httpRequest("POST", "/api/device/checkin", payload, response);
-    if (code == 200 || code == 201 || code == 400 || code == 403 || code == 404) {
+  if ((code >= 200 && code < 300) || (code >= 400 && code < 500)) {
     JsonDocument result;
-      if (deserializeJson(result, response) == DeserializationError::Ok) {
-        String status = result["status"] | "rejected";
-        if ((code == 400 || code == 403 || code == 404) && status == "rejected") continue;
-      if (status == "accepted") { screen("PRESENT", String((const char*)result["student"]["name"] | "")); feedback(1); return true; }
+    if (deserializeJson(result, response) == DeserializationError::Ok) {
+      const String status = result["status"] | "rejected";
+      if (status == "accepted") { screen("PRESENT", String(result["student"]["name"] | "")); feedback(1); return true; }
       if (status == "duplicate") { screen("ALREADY IN", "duplicate scan"); feedback(2); return true; }
-      screen("REJECTED", result["reason"] | "not accepted"); feedback(3); return true;
+      screen("REJECTED", String(result["reason"] | "not accepted")); feedback(3); return true;
     }
+    if (code >= 400 && code < 500) { screen("REJECTED", "server denied scan"); feedback(3); return true; }
   }
   if (allowQueue) return appendQueue(payload);
   return false;
@@ -166,7 +166,7 @@ void uploadQueue() {
     int code = httpRequest("POST", "/api/device/checkin", line, response);
     if (code == 200 || code == 201 || code == 400 || code == 403 || code == 404) {
       JsonDocument result;
-      if (deserializeJson(result, response) == DeserializationError::Ok && (String((const char*)result["status"] | "") == "accepted" || String((const char*)result["status"] | "") == "duplicate" || String((const char*)result["status"] | "") == "rejected")) continue;
+      if (deserializeJson(result, response) == DeserializationError::Ok && (String(result["status"] | "") == "accepted" || String(result["status"] | "") == "duplicate" || String(result["status"] | "") == "rejected")) continue;
     }
     blocked = true; output.println(line);
   }
@@ -180,9 +180,9 @@ void updateSession() {
   JsonDocument result;
   if (deserializeJson(result, response) != DeserializationError::Ok) return;
   JsonVariant session = result["session"];
-  activeSessionId = session.isNull() ? "" : String((const char*)session["id"] | "");
+  activeSessionId = session.isNull() ? "" : String(session["id"] | "");
   File file = LittleFS.open("/session.txt", "w"); if (file) { file.print(activeSessionId); file.close(); }
-  if (activeSessionId.length()) screen("READY", String((const char*)session["course"] | "Attendance open"));
+  if (activeSessionId.length()) screen("READY", String(session["course"] | "Attendance open"));
   else screen("NO SESSION", "wait for lecturer");
 }
 
