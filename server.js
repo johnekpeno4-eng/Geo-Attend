@@ -1648,6 +1648,7 @@ async function handleFingerprintDeviceApi(req, res, body) {
     await dbRun("DELETE FROM fingerprint_templates WHERE student_id = ?", [studentId]);
     await dbRun("DELETE FROM biometric_profiles WHERE email = (SELECT email FROM students WHERE id = ?)", [studentId]);
     await dbRun("DELETE FROM webauthn_credentials WHERE student_id = ?", [studentId]);
+    await dbRun("DELETE FROM student_device_bindings WHERE student_id = ?", [studentId]);
     json(res, 200, { ok: true, pendingSensorDeletes: assigned.length, message: "Server-side fingerprint mapping, stored biometric profile, and passkey credentials deleted. The sensor will clear enrolled templates the next time it connects." }); return;
   }
   if (url.pathname === "/api/device/session" && req.method === "GET") {

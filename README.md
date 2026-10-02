@@ -156,6 +156,12 @@ NTP provides UTC time. A DS3231 is used as fallback after it has been synchroniz
 
 R307 template capacity varies by module firmware; this setup caps allocation at 127 slots. ESP8266 has limited RAM and only a few stable AP clients, and it has no secure element. Use validated HTTPS in production and a dedicated access point or multiple ESP units for larger lectures. Calibrate the exact reader and timing setup before production use.
 
+## Biometric retention and deletion
+
+Fingerprint data is sensitive personal data under the Nigeria Data Protection Act, 2023. Before collecting it, the university should document the lawful basis, purpose, access roles, retention period, and student notice. This implementation does not set an automatic attendance-retention period; the university must establish and publish one before production use. Attendance exports and backups also need to follow that schedule.
+
+R307 templates stay on the sensor; the ESP queues only slot/session/time events while offline. Browser fingerprint templates are AES-GCM encrypted with `FINGERPRINT_TEMPLATE_KEY`, and raw fingerprint images are not retained. An Overall Admin can use **Delete data** on the Fingerprint Devices page to erase the student's encrypted browser template, passkey credentials, phone binding, slot mappings, and pending enrollment; online ESPs receive a command to erase matching sensor slots. Backups are separate copies and must also be removed under the institution's retention policy. Review the official [Nigeria Data Protection Act, 2023](https://ndpc.gov.ng/wp-content/uploads/2024/03/Nigeria_Data_Protection_Act_2023.pdf) and obtain the university's privacy/compliance approval before deployment.
+
 ## Git Safety
 
 These files/folders are intentionally ignored:
