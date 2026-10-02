@@ -1,4 +1,4 @@
-#include <Arduino.h>
+﻿#include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
 #include <WiFiClient.h>
@@ -37,6 +37,8 @@ RTC_DS3231 rtc;
 bool displayReady = false, rtcReady = false, sensorReady = false;
 bool rtcSyncedThisBoot = false;
 String activeSessionId;
+String lastAttendanceMessage = "Place your finger on the reader to check in.";
+String lastAttendanceState = "ready";
 uint16_t lastSeenSlot = 0;
 uint32_t lastPollAt = 0, lastEnrollPollAt = 0, lastQueueAt = 0, lastMatchAt = 0;
 uint32_t lastCommandPollAt = 0;
@@ -126,6 +128,8 @@ bool appendQueue(const String& event) {
   File queue = LittleFS.open("/queue.jsonl", "a");
   if (!queue) return false;
   queue.println(event); queue.flush(); queue.close();
+  lastAttendanceState = "queued";
+  lastAttendanceMessage = "Saved on this attendance device. It will sync when internet returns.";
   screen("SAVED OFFLINE", "will upload later");
   return true;
 }
@@ -140,9 +144,10 @@ bool sendAttendance(uint16_t slot, const String& sessionId, const String& timest
     JsonDocument result;
     if (deserializeJson(result, response) == DeserializationError::Ok) {
       const String status = result["status"] | "rejected";
-      if (status == "accepted") { screen("PRESENT", String(result["student"]["name"] | "")); feedback(1); return true; }
-      if (status == "duplicate") { screen("ALREADY IN", "duplicate scan"); feedback(2); return true; }
-      screen("REJECTED", String(result["reason"] | "not accepted")); feedback(3); return true;
+      if (status == "accepted") { lastAttendanceState = "accepted"; lastAttendanceMessage = "Attendance recorded."; screen("PRESENT", String(result["student"]["name"] | "")); feedback(1); return true; }
+      if (status == "duplicate") { lastAttendanceState = "duplicate"; lastAttendanceMessage = "You are already checked in."; screen("ALREADY IN", "duplicate scan"); feedback(2); return true; }
+      lastAttendanceState = "rejected"; lastAttendanceMessage = String(result["reason"] | "Check-in not accepted.");
+      screen("REJECTED", lastAttendanceMessage); feedback(3); return true;
     }
     if (code >= 400 && code < 500) { screen("REJECTED", "server denied scan"); feedback(3); return true; }
   }
@@ -281,19 +286,42 @@ void serveToken() {
   String encoded; serializeJson(out, encoded); phoneServer.send(200, "application/json", encoded);
 }
 
+size_t queuedAttendanceCount() {
+  File queue = LittleFS.open("/queue.jsonl", "r");
+  if (!queue) return 0;
+  size_t count = 0;
+  while (queue.available()) { if (queue.read() == '\n') ++count; yield(); }
+  queue.close();
+  return count;
+}
+
+void servePortalStatus() {
+  JsonDocument status;
+  status["deviceId"] = DEVICE_ID;
+  status["sessionActive"] = activeSessionId.length() > 0;
+  status["sessionId"] = activeSessionId;
+  status["sensorReady"] = sensorReady;
+  status["internetConnected"] = WiFi.isConnected();
+  status["queuedCheckins"] = queuedAttendanceCount();
+  status["lastState"] = lastAttendanceState;
+  status["lastMessage"] = lastAttendanceMessage;
+  String response; serializeJson(status, response);
+  phoneServer.send(200, "application/json; charset=utf-8", response);
+}
+
 const char PHONE_PAGE[] PROGMEM = R"HTML(
-<!doctype html><html><meta name="viewport" content="width=device-width,initial-scale=1"><title>UUY Attendance</title>
-<style>body{font:16px system-ui;max-width:34rem;margin:2rem auto;padding:0 1rem;color:#10213b}input,button{box-sizing:border-box;width:100%;padding:.8rem;margin:.35rem 0;border-radius:.6rem;border:1px solid #bbc5d4}button{background:#0759bd;color:#fff;font-weight:700}small{color:#555}#msg{padding:.75rem;background:#eff5ff;border-radius:.5rem}</style>
-<h1>Lecture attendance</h1><p>Bind this phone once using your student account. Connect to the attendance Wi-Fi while checking in.</p>
-<label>Student email<input id="email" type="email" autocomplete="username"></label><label>Password<input id="password" type="password" autocomplete="current-password"></label>
-<button id="bind">Bind this phone</button><button id="checkin">Check in to active lecture</button><p id="msg" role="status">Connect to the lecture device Wi-Fi.</p>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0759bd"><title>Class Attendance</title>
+<style>
+:root{font:16px system-ui,-apple-system,"Segoe UI",sans-serif;color:#10213b;background:#f3f6fb}*{box-sizing:border-box}body{max-width:38rem;margin:0 auto;padding:1rem}.card{background:#fff;border:1px solid #dce3ed;border-radius:1rem;padding:1.25rem;margin:1rem 0;box-shadow:0 3px 12px #17345b0b}h1{font-size:1.5rem;margin:.2rem 0}.muted{color:#53647d}.badge{display:inline-block;border-radius:99px;background:#edf3fc;padding:.3rem .7rem;font-size:.85rem}.steps{line-height:1.7;padding-left:1.4rem}#last{padding:.8rem;border-radius:.7rem;background:#eff5ff}.ok{color:#087443}.warn{color:#8a4b00}.offline{border-left:4px solid #e5a329}footer{text-align:center;color:#65738a;font-size:.8rem;padding:1rem}
+</style></head><body>
+<header class="card"><span class="badge">Local attendance network</span><h1>Class attendance</h1><p class="muted">This page is served by the classroom ESP. It works without mobile data or internet.</p></header>
+<main><section class="card"><h2>Device status</h2><p id="session">Checking session…</p><p id="sensor">Checking fingerprint reader…</p><p id="internet">Checking network…</p><p><strong>Check-ins waiting to sync:</strong> <span id="queue">—</span></p></section>
+<section class="card"><h2>Check in</h2><ol class="steps"><li>Stay connected to this attendance Wi-Fi.</li><li>Place your enrolled finger on the fingerprint reader attached to the ESP.</li><li>Wait for the reader’s light and sound, then check the result below.</li></ol><p id="last" role="status" aria-live="polite">Attendance updates will appear here.</p></section>
+<section class="card offline"><strong>Offline attendance</strong><p class="muted">When the internet is unavailable, this device stores accepted fingerprint check-ins locally and uploads them when its internet connection returns.</p></section></main>
+<footer>Device <span id="device">—</span> · This page uses no external website or CDN.</footer>
 <script>
-const deviceId=localStorage.phoneDeviceId||(localStorage.phoneDeviceId="phone-"+Array.from(crypto.getRandomValues(new Uint8Array(12)),x=>x.toString(16).padStart(2,"0")).join(""));
-const msg=document.querySelector("#msg"),email=document.querySelector("#email"),password=document.querySelector("#password");
-async function post(path,data){const r=await fetch(path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});const j=await r.json();if(!r.ok)throw Error(j.error||"Request failed");return j}
-document.querySelector("#bind").onclick=async()=>{try{msg.textContent="Binding phone…";const r=await post("/bind",{email:email.value,password:password.value,deviceId});password.value="";msg.textContent=r.message}catch(e){msg.textContent=e.message}};
-document.querySelector("#checkin").onclick=async()=>{try{if(!email.value)throw Error("Enter your student email first.");msg.textContent="Checking in…";const token=await(await fetch("/token")).json();if(!token.token)throw Error(token.error||"No active session");const r=await post("/checkin",{email:email.value,deviceId,...token});msg.textContent=r.status==="accepted"?"Attendance recorded for "+(r.student?.name||email.value):r.status==="duplicate"?"You are already checked in.":r.reason||"Check-in rejected."}catch(e){msg.textContent=e.message}};
-</script></html>)HTML";
+const el=id=>document.getElementById(id);async function refresh(){try{const r=await fetch('/status',{cache:'no-store'});if(!r.ok)throw Error();const s=await r.json();el('device').textContent=s.deviceId||'—';el('session').textContent=s.sessionActive?'Attendance session is active.':'No active session is currently available.';el('session').className=s.sessionActive?'ok':'warn';el('sensor').textContent=s.sensorReady?'Fingerprint reader is ready.':'Fingerprint reader is not detected.';el('sensor').className=s.sensorReady?'ok':'warn';el('internet').textContent=s.internetConnected?'Internet link is available.':'Internet is offline; queued check-ins stay on this device.';el('internet').className=s.internetConnected?'':'warn';el('queue').textContent=s.queuedCheckins;el('last').textContent=s.lastMessage||'Place your enrolled finger on the reader to check in.';el('last').className=s.lastState==='rejected'?'warn':s.lastState==='accepted'?'ok':''}catch(e){el('session').textContent='Device status is temporarily unavailable. Stay connected to the attendance Wi-Fi.';el('last').textContent='This page is stored on the ESP and remains open offline.'}}refresh();setInterval(refresh,2500);
+</script></body></html>)HTML";
 
 void proxyPhoneBind() {
   JsonDocument body;
@@ -327,7 +355,7 @@ void setup() {
   WiFi.softAP(STUDENT_AP_SSID, STUDENT_AP_PASSWORD, 1, false, 4);
   configTime(0, 0, "pool.ntp.org", "time.google.com");
   File session = LittleFS.open("/session.txt", "r"); if (session) { activeSessionId = session.readString(); activeSessionId.trim(); session.close(); }
-  phoneServer.on("/token", HTTP_GET, serveToken);
+  phoneServer.on("/status", HTTP_GET, servePortalStatus);
   phoneServer.on("/", HTTP_GET, []() { phoneServer.send_P(200, "text/html; charset=utf-8", PHONE_PAGE); });
   phoneServer.on("/bind", HTTP_POST, proxyPhoneBind);
   phoneServer.on("/checkin", HTTP_POST, proxyPhoneCheckin);
