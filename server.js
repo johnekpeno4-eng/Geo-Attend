@@ -1790,7 +1790,8 @@ function getFingerprintCalibrationReport(res) {
     const indexes = Object.fromEntries(header.map((name, index) => [name, index]));
     for (const line of lines) {
       const row = parseCsvRow(line);
-      const score = Number(row[indexes.best_match_score]);
+      const rawScore = row[indexes.best_match_score];
+      const score = rawScore === undefined || rawScore.trim() === "" ? NaN : Number(rawScore);
       if (!row[indexes.student_id] || !Number.isFinite(score)) continue;
       samples.push({ studentId: row[indexes.student_id], score, passed: row[indexes.passed] === "true" });
     }
