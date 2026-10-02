@@ -1554,7 +1554,7 @@ function sessionWindow(session) {
 
 async function handleFingerprintDeviceApi(req, res, body) {
   const url = new URL(req.url, "http://127.0.0.1");
-  if (req.url === "/api/devices" && req.method === "GET") {
+  if (url.pathname === "/api/devices" && req.method === "GET") {
     if (!requireDeviceAdmin(req, res, body)) return;
     const devices = await dbAll("SELECT esp_id AS espId, name, enabled, created_at AS createdAt FROM fingerprint_devices ORDER BY name COLLATE NOCASE");
     json(res, 200, { ok: true, devices }); return;

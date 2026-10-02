@@ -38,6 +38,7 @@ bool displayReady = false, rtcReady = false, sensorReady = false;
 String activeSessionId;
 uint16_t lastSeenSlot = 0;
 uint32_t lastPollAt = 0, lastEnrollPollAt = 0, lastQueueAt = 0, lastMatchAt = 0;
+uint32_t lastCommandPollAt = 0;
 String pendingEnrollmentId;
 uint8_t enrollStage = 0;
 uint16_t enrollSlot = 0;
@@ -133,10 +134,11 @@ bool sendAttendance(uint16_t slot, const String& sessionId, const String& timest
   String payload; serializeJson(event, payload);
   String response;
   int code = httpRequest("POST", "/api/device/checkin", payload, response);
-  if (code == 200 || code == 201) {
+    if (code == 200 || code == 201 || code == 400 || code == 403 || code == 404) {
     JsonDocument result;
-    if (deserializeJson(result, response) == DeserializationError::Ok) {
-      String status = result["status"] | "rejected";
+      if (deserializeJson(result, response) == DeserializationError::Ok) {
+        String status = result["status"] | "rejected";
+        if ((code == 400 || code == 403 || code == 404) && status == "rejected") continue;
       if (status == "accepted") { screen("PRESENT", String((const char*)result["student"]["name"] | "")); feedback(1); return true; }
       if (status == "duplicate") { screen("ALREADY IN", "duplicate scan"); feedback(2); return true; }
       screen("REJECTED", result["reason"] | "not accepted"); feedback(3); return true;
@@ -160,7 +162,7 @@ void uploadQueue() {
     if (deserializeJson(event, line) != DeserializationError::Ok) continue;
     String response;
     int code = httpRequest("POST", "/api/device/checkin", line, response);
-    if (code == 200 || code == 201) {
+    if (code == 200 || code == 201 || code == 400 || code == 403 || code == 404) {
       JsonDocument result;
       if (deserializeJson(result, response) == DeserializationError::Ok && (String((const char*)result["status"] | "") == "accepted" || String((const char*)result["status"] | "") == "duplicate" || String((const char*)result["status"] | "") == "rejected")) continue;
     }
@@ -194,6 +196,28 @@ void pollEnrollment() {
   enrollSlot = result["enrollment"]["slotId"].as<uint16_t>();
   enrollStage = 1; stageAt = 0;
   screen("ENROLL", "place finger twice");
+}
+
+void pollCommands() {
+  if (!WiFi.isConnected() || millis() - lastCommandPollAt < 3000) return;
+  lastCommandPollAt = millis();
+  String response;
+  int code = httpRequest("GET", apiPath("/api/device/commands"), "", response);
+  if (code < 200 || code >= 300) return;
+  JsonDocument result;
+  if (deserializeJson(result, response) != DeserializationError::Ok || result["command"].isNull()) return;
+  JsonVariant command = result["command"];
+  const String commandId = command["id"].as<String>();
+  const String commandName = command["command"].as<String>();
+  const uint16_t slot = command["slotId"].as<uint16_t>();
+  bool ok = false;
+  if (commandName == "delete-slot") {
+    const uint8_t resultCode = finger.deleteModel(slot);
+    ok = resultCode == FINGERPRINT_OK || resultCode == FINGERPRINT_NOTFOUND;
+  }
+  JsonDocument body; body["espId"] = DEVICE_ID; body["commandId"] = commandId; body["ok"] = ok;
+  String payload; serializeJson(body, payload); String ignored;
+  httpRequest("POST", "/api/device/commands/result", payload, ignored);
 }
 
 void postEnrollmentResult(bool ok) {
@@ -313,6 +337,7 @@ void loop() {
   phoneServer.handleClient();
   if (WiFi.status() == WL_CONNECTED && millis() - lastPollAt >= POLL_MS) { lastPollAt = millis(); updateSession(); }
   pollEnrollment();
+  pollCommands();
   stepEnrollment();
   matchFinger();
   uploadQueue();
