@@ -7,7 +7,7 @@ const nodemailer = require("nodemailer");
 const sqlite3 = require("sqlite3").verbose();
 const QRCode = require("qrcode");
 const { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } = require("@simplewebauthn/server");
-const { createFingerprintCheckin } = require("./fingerprint-checkin");
+const { createFingerprintCheckin } = require("./backend/fingerprint-checkin");
 
 
 const ROOT = __dirname;
@@ -30,8 +30,9 @@ const ADMIN_USERS_FILE = path.join(DATA_DIR, "admin-users.json");
 const ATTENDANCE_REPORTS_DIR = path.join(DATA_DIR, "attendance-reports");
 const ATTENDANCE_REPORTS_INDEX_FILE = path.join(DATA_DIR, "attendance-reports.json");
 const BACKUP_DIR = path.join(DATA_DIR, "backups");
-const SERVER_OUT_LOG = path.join(ROOT, "server.out.log");
-const SERVER_ERR_LOG = path.join(ROOT, "server.err.log");
+const LOG_DIR = path.join(DATA_DIR, "logs");
+const SERVER_OUT_LOG = path.join(LOG_DIR, "server.out.log");
+const SERVER_ERR_LOG = path.join(LOG_DIR, "server.err.log");
 const A4_PDF_WIDTH = 595.28;
 const A4_PDF_HEIGHT = 841.89;
 const otpStore = new Map();
@@ -102,6 +103,37 @@ const mimeTypes = {
   ".jpeg": "image/jpeg",
   ".svg": "image/svg+xml",
   ".pdf": "application/pdf"
+};
+
+// Keep the public URLs used by the existing pages stable while the files live
+// in folders grouped by role and asset type.
+const STATIC_ROUTE_FILES = {
+  "/login.html": "pages/auth/login.html",
+  "/register.html": "pages/auth/register.html",
+  "/reset-registration.html": "pages/auth/reset-registration.html",
+  "/index.html": "pages/auth/index.html",
+  "/dashboard.html": "pages/admin/dashboard.html",
+  "/admin-management.html": "pages/admin/admin-management.html",
+  "/admin-reports.html": "pages/admin/admin-reports.html",
+  "/buildings.html": "pages/admin/buildings.html",
+  "/courses.html": "pages/admin/courses.html",
+  "/create-session.html": "pages/admin/create-session.html",
+  "/device-admin.html": "pages/admin/device-admin.html",
+  "/live-monitor.html": "pages/admin/live-monitor.html",
+  "/records.html": "pages/admin/records.html",
+  "/session-report.html": "pages/admin/session-report.html",
+  "/students.html": "pages/admin/students.html",
+  "/survey-admin.html": "pages/admin/survey-admin.html",
+  "/student-home.html": "pages/student/student-home.html",
+  "/student-history.html": "pages/student/student-history.html",
+  "/student-profile.html": "pages/student/student-profile.html",
+  "/student-report.html": "pages/student/student-report.html",
+  "/security.html": "pages/student/security.html",
+  "/security/security.html": "pages/security/security.html",
+  "/role-access.js": "assets/js/role-access.js",
+  "/mobile-admin.css": "assets/css/mobile-admin.css",
+  "/mobile-student.css": "assets/css/mobile-student.css",
+  "/form-controls.css": "assets/css/form-controls.css"
 };
 
 const server = http.createServer(async (req, res) => {
@@ -1520,6 +1552,7 @@ async function sendEmail(message) {
 
 function appendLog(filePath, message) {
   const line = `[${new Date().toISOString()}] ${message}\n`;
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.appendFile(filePath, line, () => {});
 }
 
@@ -1778,11 +1811,16 @@ async function bindStudentDevice(res, body) {
 }
 
 function serveStatic(req, res) {
-  const urlPath = decodeURIComponent(new URL(req.url, `http://${req.headers.host}`).pathname);
-  const safePath = path.normalize(urlPath === "/" ? "/login.html" : urlPath).replace(/^(\.\.[/\\])+/, "");
-  const filePath = path.join(ROOT, safePath);
-
-  if (!filePath.startsWith(ROOT)) {
+  const urlPath = decodeURIComponent(new URL(req.url, `http://${req.headers.host}`).pathname).replaceAll("\\", "/");
+  const relativePath = STATIC_ROUTE_FILES[urlPath === "/" ? "/login.html" : urlPath];
+  if (!relativePath) {
+    res.writeHead(404, getCorsHeaders());
+    res.end("Not found");
+    return;
+  }
+  const publicRoot = path.resolve(ROOT, "public");
+  const filePath = path.resolve(publicRoot, relativePath);
+  if (!filePath.startsWith(`${publicRoot}${path.sep}`)) {
     res.writeHead(403, getCorsHeaders());
     res.end("Forbidden");
     return;
