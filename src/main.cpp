@@ -124,7 +124,7 @@ bool appendQueue(const String& event) {
   File current = LittleFS.open("/queue.jsonl", "r");
   size_t size = current ? current.size() : 0;
   if (current) current.close();
-  if (size + event.length() + 1 > MAX_QUEUE_BYTES) { screen("QUEUE FULL", "check-in not stored"); return false; }
+  if (size + event.length() + 1 > MAX_QUEUE_BYTES) { lastAttendanceState = "rejected"; lastAttendanceMessage = "Offline queue is full; this check-in was not stored."; screen("QUEUE FULL", "check-in not stored"); return false; }
   File queue = LittleFS.open("/queue.jsonl", "a");
   if (!queue) return false;
   queue.println(event); queue.flush(); queue.close();
@@ -171,7 +171,11 @@ void uploadQueue() {
     int code = httpRequest("POST", "/api/device/checkin", line, response);
     if (code == 200 || code == 201 || code == 400 || code == 403 || code == 404) {
       JsonDocument result;
-      if (deserializeJson(result, response) == DeserializationError::Ok && (String(result["status"] | "") == "accepted" || String(result["status"] | "") == "duplicate" || String(result["status"] | "") == "rejected")) continue;
+      if (deserializeJson(result, response) == DeserializationError::Ok && (String(result["status"] | "") == "accepted" || String(result["status"] | "") == "duplicate" || String(result["status"] | "") == "rejected")) {
+        lastAttendanceState = "synced";
+        lastAttendanceMessage = "An offline check-in was synchronized with the attendance server.";
+        continue;
+      }
     }
     blocked = true; output.println(line);
   }
