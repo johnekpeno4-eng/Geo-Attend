@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fingerprint calibration | GeoAttend</title>
+  <script src="role-access.js" defer></script>
+  <style>
+    :root{font:16px system-ui,-apple-system,"Segoe UI",sans-serif;color:#10213b;background:#f3f6fb}*{box-sizing:border-box}body{margin:0}.wrap{max-width:1100px;margin:auto;padding:24px}.top,.card{background:#fff;border:1px solid #dce3ed;border-radius:14px;padding:20px;margin-bottom:16px}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}h1{margin:0;font-size:1.6rem}h2{margin:0 0 14px}.muted{color:#596b82}.status{padding:12px;border-radius:9px;background:#eff5ff;margin:12px 0}.warning{background:#fff5df;color:#704600}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:760px}th,td{text-align:left;border-bottom:1px solid #e3e8f0;padding:11px 9px}th{font-size:.82rem;color:#506078}button,a.button{border:1px solid #0759bd;border-radius:9px;background:white;color:#0759bd;padding:9px 13px;font:inherit;font-weight:700;text-decoration:none;cursor:pointer}.error{color:#a52222}.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}.metric{background:#f6f8fc;border-radius:10px;padding:12px}.metric strong{display:block;font-size:1.2rem;margin-top:5px}.nowrap{white-space:nowrap}
+  </style>
+</head>
+<body data-role-required="admin">
+  <main class="wrap">
+    <header class="top"><div><p class="muted">Overall Admin · Development tool</p><h1>Camera fingerprint calibration</h1></div><a class="button" href="device-admin.html">Fingerprint devices</a></header>
+    <section class="card"><h2>Overall scores</h2><div id="overall" class="summary"><p class="muted">Loading calibration report…</p></div><p id="mode" class="status" role="status"></p></section>
+    <section class="card"><h2>Per student</h2><div class="table-wrap"><table><thead><tr><th>Student</th><th>Lowest genuine score</th><th>Highest scored failed attempt</th><th>Genuine samples</th><th>Failed samples</th><th>Suggested threshold</th></tr></thead><tbody id="rows"><tr><td colspan="6">Loading…</td></tr></tbody></table></div></section>
+    <section class="card warning"><strong>How to read these results</strong><p>Passing scans are grouped as genuine samples. Scored failed scans are grouped as impostor samples, so collect those by having a different student deliberately try the selected account. A genuine finger can also fail because of blur, lighting, or placement; review the test conditions before changing the threshold. Scores are calibration measurements, not proof of identity.</p><p>No images or fingerprint templates are saved in the calibration CSV.</p></section>
+  </main>
+  <script>
+    const token=localStorage.getItem("geoAttendAdminToken")||"";
+    const esc=(value)=>String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+    const showScore=(value)=>value===null||value===undefined?"—":Number(value).toFixed(2);
+    const suggested=(item)=>item.suggestedThreshold===null?"Not separable":showScore(item.suggestedThreshold);
+    function metric(label,value){return `<div class="metric"><span class="muted">${esc(label)}</span><strong>${esc(value)}</strong></div>`;}
+    async function load(){
+      const response=await fetch("/api/devices/calibration-report",{headers:{Authorization:`Bearer ${token}`},cache:"no-store"});
+      const data=await response.json();
+      if(!response.ok)throw new Error(data.error||"Unable to load calibration report.");
+      const o=data.overall;
+      document.getElementById("mode").textContent=data.enabled?"Calibration logging is ON. New scan attempts are being appended to data/calibration.csv.":"Calibration logging is OFF. Set FP_CALIBRATION=1 in .env and restart the server to collect samples.";
+      document.getElementById("overall").innerHTML=[metric("Lowest genuine score",showScore(o.genuineMinimum)),metric("Highest scored failed attempt",showScore(o.impostorMaximum)),metric("Suggested threshold",suggested(o)),metric("Current threshold",showScore(data.currentThreshold))].join("");
+      const rows=data.students||[];
+      document.getElementById("rows").innerHTML=rows.length?rows.map(s=>`<tr><td><strong>${esc(s.name)}</strong><br><span class="muted">${esc(s.regNumber||s.studentId)}</span></td><td>${showScore(s.genuineMinimum)}</td><td>${showScore(s.impostorMaximum)}</td><td>${s.genuineSamples}</td><td>${s.impostorSamples}</td><td class="nowrap">${suggested(s)}</td></tr>`).join(""):'<tr><td colspan="6" class="muted">No scored scan attempts recorded yet.</td></tr>';
+    }
+    load().catch(error=>{document.getElementById("mode").textContent=error.message;document.getElementById("mode").className="status error";document.getElementById("rows").innerHTML='<tr><td colspan="6">Sign in as Overall Admin and reload this page.</td></tr>';});
+  </script>
+</body>
+</html>

@@ -124,7 +124,10 @@ function createFingerprintCheckin(deps) {
     } finally {
       try {
         fs.mkdirSync(path.dirname(calibrationFile), { recursive: true });
-        if (!fs.existsSync(calibrationFile)) fs.writeFileSync(calibrationFile, calibrationColumns.join(",") + "\n", { flag: "wx" });
+        if (!fs.existsSync(calibrationFile)) {
+          try { fs.writeFileSync(calibrationFile, calibrationColumns.join(",") + "\n", { flag: "wx" }); }
+          catch (error) { if (error.code !== "EEXIST") throw error; }
+        }
         const values = [sample.timestamp, sample.studentId, sample.bestMatchScore, sample.sharpestFrameScore, sample.passed ? "true" : "false"];
         const csv = values.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(",") + "\n";
         fs.appendFileSync(calibrationFile, csv, "utf8");
