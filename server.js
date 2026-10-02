@@ -1863,7 +1863,14 @@ function validateSessionGeofence(geofence) {
     if (!Array.isArray(coordinates) || coordinates.length < 3 || coordinates.some((point) => !Array.isArray(point) || point.length !== 2 || !point.every(Number.isFinite) || Math.abs(point[0]) > 90 || Math.abs(point[1]) > 180)) {
       return { ok: false, error: "A polygon geofence needs at least three valid [latitude, longitude] points." };
     }
-    return { ok: true, geofence: { type: "polygon", coordinates: coordinates.map(([lat, lng]) => [Number(lat), Number(lng)]) } };
+    const normalized = { type: "polygon", coordinates: coordinates.map(([lat, lng]) => [Number(lat), Number(lng)]) };
+    if (geofence.shape === "rectangle" || geofence.shape === "square") {
+      const lat = Number(geofence.lat), lng = Number(geofence.lng);
+      const lengthMeters = Number(geofence.lengthMeters ?? geofence.sideMeters), breadthMeters = Number(geofence.breadthMeters ?? geofence.sideMeters);
+      if (![lat, lng, lengthMeters, breadthMeters].every(Number.isFinite) || Math.abs(lat) > 90 || Math.abs(lng) > 180 || lengthMeters < MIN_GEOFENCE_RADIUS_METERS || lengthMeters > MAX_GEOFENCE_RADIUS_METERS || breadthMeters < MIN_GEOFENCE_RADIUS_METERS || breadthMeters > MAX_GEOFENCE_RADIUS_METERS) return { ok: false, error: "A rectangle needs a valid center and length and breadth from 20m to 5,000m." };
+      Object.assign(normalized, { shape: geofence.shape, lat, lng, lengthMeters, breadthMeters });
+    }
+    return { ok: true, geofence: normalized };
   }
   const lat = Number(geofence?.lat);
   const lng = Number(geofence?.lng);
@@ -1908,7 +1915,7 @@ async function getBuildings(req, res) {
 
 async function saveBuilding(res, body) {
   const actorAdmin = findAdminByIdentifier(body.actorEmail || "");
-  if (!actorAdmin) return json(res, 403, { error: "Admin access is required to manage buildings." });
+  if (!actorAdmin || !["overall_admin", "building_admin"].includes(normalizeAdminRole(actorAdmin.adminRole || actorAdmin.role))) return json(res, 403, { error: "Building management requires Overall Admin or Building Admin access." });
   const name = String(body.name || "").trim();
   if (!name) return json(res, 400, { error: "Building name is required." });
   const validation = validateSessionGeofence(body.geofence);
@@ -1929,7 +1936,7 @@ async function saveBuilding(res, body) {
 
 async function deleteBuilding(res, body) {
   const actorAdmin = findAdminByIdentifier(body.actorEmail || "");
-  if (!actorAdmin) return json(res, 403, { error: "Admin access is required to manage buildings." });
+  if (!actorAdmin || !["overall_admin", "building_admin"].includes(normalizeAdminRole(actorAdmin.adminRole || actorAdmin.role))) return json(res, 403, { error: "Building management requires Overall Admin or Building Admin access." });
   const id = String(body.id || "").trim();
   if (!id) return json(res, 400, { error: "Building id is required." });
   const upcoming = await dbGet("SELECT id FROM live_sessions WHERE building_id = ? AND session_date >= date('now', 'localtime') AND status NOT IN ('ended', 'cancelled') LIMIT 1", [id]);
@@ -2811,6 +2818,7 @@ async function updateAttendanceStatus(req, res, body) {
 function normalizeAdminRole(value) {
   const raw = String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
   if (["owner", "overall", "overall_admin", "super_admin"].includes(raw)) return "overall_admin";
+  if (["building", "building_admin", "buildingadmin", "map_admin", "map_building_admin"].includes(raw)) return "building_admin";
   if (["faculty", "faculty_admin"].includes(raw)) return "faculty_admin";
   if (["level", "level_admin"].includes(raw)) return "level_admin";
   if (["lecturer", "lecturer_admin", "lectureradmin"].includes(raw)) return "lecturer_admin";
@@ -2820,6 +2828,7 @@ function normalizeAdminRole(value) {
 function getRoleLabel(role) {
   return {
     overall_admin: "Overall Admin",
+    building_admin: "Building Admin",
     faculty_admin: "Faculty Admin",
     department_admin: "Department Admin",
     level_admin: "Level Admin",
