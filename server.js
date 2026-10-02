@@ -3738,13 +3738,14 @@ function createAttendanceTemplatePage({ course, date, academicSession, pageRows,
   const tableWidth = 487;
   const rowHeight = 23;
   const colSn = 28;
-  const colName = 132;
-  const colReg = 70;
-  const colCheckIn = 58;
-  const colCheckOut = 58;
-  const colDuration = 48;
-  const colStatus = 55;
-  const colSignature = tableWidth - colSn - colName - colReg - colCheckIn - colCheckOut - colDuration - colStatus;
+  const colName = 108;
+  const colReg = 65;
+  const colCheckIn = 55;
+  const colCheckOut = 48;
+  const colDuration = 35;
+  const colMethod = 55;
+  const colStatus = 45;
+  const colSignature = tableWidth - colSn - colName - colReg - colCheckIn - colCheckOut - colDuration - colMethod - colStatus;
   const commands = [];
 
   pdfText(commands, "UNIVERSITY OF UYO", 297, 780, 15, "F2", "center");
@@ -3760,10 +3761,10 @@ function createAttendanceTemplatePage({ course, date, academicSession, pageRows,
     const y = tableY - index * rowHeight;
     pdfLine(commands, tableX, y, tableX + tableWidth, y);
   }
-  const columns = [colSn, colName, colReg, colCheckIn, colCheckOut, colDuration, colStatus];
+  const columns = [colSn, colName, colReg, colCheckIn, colCheckOut, colDuration, colMethod, colStatus];
   columns.reduce((x, width) => { pdfLine(commands, x + width, tableY, x + width, tableY - totalRows * rowHeight); return x + width; }, tableX);
 
-  const headers = ["#", "NAME", "REG NO", "IN", "OUT", "MIN", "STATUS", "SIGN"];
+  const headers = ["#", "NAME", "REG NO", "IN", "OUT", "MIN", "METHOD", "STATUS", "SIGN"];
   let headerX = tableX;
   [...columns, colSignature].forEach((width, index) => { pdfText(commands, headers[index], headerX + 3, tableY - 14, 7, "F2"); headerX += width; });
 
@@ -3772,9 +3773,9 @@ function createAttendanceTemplatePage({ course, date, academicSession, pageRows,
   } else {
     pageRows.forEach((record, index) => {
       const rowY = tableY - (index + 1) * rowHeight - 13;
-      const valueX = [tableX, tableX + colSn, tableX + colSn + colName, tableX + colSn + colName + colReg, tableX + colSn + colName + colReg + colCheckIn, tableX + colSn + colName + colReg + colCheckIn + colCheckOut, tableX + colSn + colName + colReg + colCheckIn + colCheckOut + colDuration];
+      const valueX = [tableX, tableX + colSn, tableX + colSn + colName, tableX + colSn + colName + colReg, tableX + colSn + colName + colReg + colCheckIn, tableX + colSn + colName + colReg + colCheckIn + colCheckOut, tableX + colSn + colName + colReg + colCheckIn + colCheckOut + colDuration, tableX + colSn + colName + colReg + colCheckIn + colCheckOut + colDuration + colMethod];
       const elapsed = Number(record.durationMinutes ?? (record.checkedInAt ? Math.floor(((record.checkedOutAt ? new Date(record.checkedOutAt) : new Date()) - new Date(record.checkedInAt)) / 60000) : 0));
-      const values = [String(startIndex + index + 1), truncateForPdf(String(record.fullName || record.email || "Unknown Student").toUpperCase(), 22), truncateForPdf(String(record.regNumber || "--").toUpperCase(), 12), record.checkedInAt ? new Date(record.checkedInAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--", record.checkedOutAt ? new Date(record.checkedOutAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--", elapsed ? String(elapsed) : "--", String(record.status || "incomplete").toUpperCase()];
+      const values = [String(startIndex + index + 1), truncateForPdf(String(record.fullName || record.email || "Unknown Student").toUpperCase(), 22), truncateForPdf(String(record.regNumber || "--").toUpperCase(), 12), record.checkedInAt ? new Date(record.checkedInAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--", record.checkedOutAt ? new Date(record.checkedOutAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--", elapsed ? String(elapsed) : "--", truncateForPdf(String(record.verificationMethod || record.method || "Verified"), 12), String(record.status || "incomplete").toUpperCase()];
       values.forEach((value, column) => pdfTextBox(commands, String(value), valueX[column] + 3, rowY, columns[column] - 5, 7, "F1", "left"));
       drawPdfSignature(commands, record, tableX + tableWidth - colSignature + 2, tableY - (index + 2) * rowHeight + 3, colSignature - 4, rowHeight - 6);
     });
